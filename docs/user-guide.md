@@ -136,7 +136,10 @@ From here you can change everything about the card:
   **Preview** tab shows it rendered (tables, code blocks, checklists, and more — see
   [Writing with Markdown](#writing-with-markdown)). Once a description has been edited,
   a **History** tab appears alongside them, showing every past version — what changed
-  at each revision, and who changed it.
+  at each revision, and who changed it. The oldest version was written before history
+  recording began, so it's credited to the card's creator and marked as such.
+
+![A card's description history](images/card-history.png)
 
 Your edits aren't saved until you select **Save** at the bottom of the panel. If you
 try to close the panel with unsaved changes, Collattice asks before discarding them.
