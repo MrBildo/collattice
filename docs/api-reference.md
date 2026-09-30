@@ -255,7 +255,7 @@ Search supports:
 
 | Path | Notes |
 |------|-------|
-| /mcp | Streamable HTTP transport — 45 tools (boards, cards, card history, lanes, sizes, labels, comments, attachments, archive, bulk operations, search, prune, webhooks) |
+| /mcp | Streamable HTTP transport — 46 tools (boards, cards, card history, lanes, sizes, labels, comments, attachments, archive, bulk operations, search, prune, webhooks) |
 
 For the full agent-facing tool reference — connecting a client, every tool, the board model, and the identifier rules — see the [MCP skill](collattice/SKILL.md), a drop-in `SKILL.md` you can add to an agent harness rather than writing your own from the tool schemas.
 
@@ -376,7 +376,7 @@ A subscription receives an event only when its `events` selection includes that 
 
 | Family | Event | Fires when |
 |--------|-------|------------|
-| Cards | `card.created` | A card first comes into existence — via REST `POST /boards/{boardId}/cards`, MCP `create_card`, or when an interactive draft card is finalized. A draft (temp) card does **not** fire until it is finalized. |
+| Cards | `card.created` | A card first comes into existence — via REST `POST /boards/{boardId}/cards`, MCP `create_card` or `duplicate_card` (a copy of an existing card is a new card), or when an interactive draft card is finalized. A draft (temp) card does **not** fire until it is finalized. |
 | | `card.moved` | A card moves to a different lane **or position** through any successful non-archive mutation — the dedicated reorder/move paths, a `PATCH /cards/{id}` that sets `laneId` or `position`, an `update_card` that sets `laneId`, or `bulk_update_cards` (one event per card moved to a different lane). A within-lane move carries equal `from`/`to` lane ids. For `PATCH /cards/{id}` and `update_card` the rule is where the card actually lands, however the request expressed it: re-sending the card's current lane still fires `card.moved` when that re-positions the card (a `PATCH` with the current `laneId` and no `position` re-appends the card to the end of its lane), and a request that leaves the card exactly where it was fires none. Archiving and restoring do **not** fire `card.moved` (they fire `card.archived` / `card.restored`). |
 | | `card.updated` | A card's name, description, or size changes. |
 | | `card.archived` | A card is archived. |

@@ -273,21 +273,26 @@ public class McpDuplicateCardToolTests(WebhookTestFactory factory) : IClassFixtu
     private async Task<Guid> CreateCardViaRestAsync(Guid laneId, string name, string description, Guid sizeId, Guid[] labelIds)
     {
         TestAuthHelper.SetAdminAuth(_client, _factory);
+
         var response = await _client.PostAsJsonAsync
         (
             $"/api/v1/boards/{_factory.DefaultBoardId}/cards",
             new { name, descriptionMarkdown = description, laneId, sizeId, labelIds }
         );
         response.EnsureSuccessStatusCode();
+
         var json = await response.Content.ReadFromJsonAsync<JsonElement>();
+
         return json.GetProperty("id").GetGuid();
     }
 
     private async Task<JsonElement> GetV2DetailAsync(Guid cardId)
     {
         TestAuthHelper.SetAdminAuth(_client, _factory);
+
         var response = await _client.GetAsync($"/api/v2/cards/{cardId}");
         response.EnsureSuccessStatusCode();
+
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
