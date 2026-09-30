@@ -185,6 +185,7 @@ public sealed class CardTools(BoardDbContext db, McpAuthService auth, BoardEvent
         var oldName = card.Name;
         var oldDescription = card.DescriptionMarkdown;
         var oldSizeId = card.SizeId;
+        var oldPosition = card.Position;
 
         // Snapshot the pre-write last-editor/last-edit too, before this request overwrites them below
         // — the approximate collision signal reads them to tell whether someone else was working this
@@ -215,9 +216,10 @@ public sealed class CardTools(BoardDbContext db, McpAuthService auth, BoardEvent
         }
 
         // Lane move: if laneId provided, move card to that lane with optional index.
-        // card.moved fires only on a real lane change (the coverage rule: a
-        // size/label/name-only update raises no move event). Snapshot source lane/position
-        // before MoveCardToLaneAsync mutates + renumbers both lanes.
+        // card.moved fires when the card actually lands somewhere new — a different lane, or a
+        // different position in its current lane (a size/label/name-only update raises no move
+        // event). Snapshot source lane/position before MoveCardToLaneAsync mutates + renumbers
+        // both lanes.
         Lane? moveFromLane = null;
         Lane? moveToLane = null;
         var moveFromPosition = 0;
@@ -246,6 +248,17 @@ public sealed class CardTools(BoardDbContext db, McpAuthService auth, BoardEvent
             }
 
             await CardReorderHelper.MoveCardToLaneAsync(db, card, laneId.Value, index, ct);
+
+            // Within-lane movement is a move, keyed on the resolved position exactly as REST PATCH
+            // /cards/{id} keys it: re-asserting the current lane (with or without an index) emits
+            // card.moved with equal from/to lane ids when the card's position changed, and stays
+            // silent when it did not.
+            if (moveToLane is null && card.Position != oldPosition)
+            {
+                moveFromLane = targetLane;
+                moveToLane = targetLane;
+                moveFromPosition = oldPosition;
+            }
         }
 
         // Label replace: diff against current assignments. The added/removed sets drive

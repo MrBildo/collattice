@@ -21,7 +21,7 @@ namespace Collabot.Collattice.Api.Mcp;
 [McpServerToolType]
 public sealed class PruneTools(BoardDbContext db, McpAuthService auth, BoardEventBroadcaster broadcaster, IWebhookSink webhookSink)
 {
-    [McpServerTool(Name = "prune_preview", Destructive = false)]
+    [McpServerTool(Name = "prune_preview", ReadOnly = true, Destructive = false)]
     [Description("Preview which cards a prune would match, without changing anything. Requires Administrator or AgentAdministrator role. At least one filter (olderThan, laneIds, or labelIds) is required. laneIds and labelIds accept comma-separated GUIDs ('guid1,guid2') or a JSON array string ('[\"guid1\",\"guid2\"]'). Archived cards are excluded unless includeArchived is true. Returns { matchCount, cards }.")]
     public async Task<string> PrunePreviewAsync
     (

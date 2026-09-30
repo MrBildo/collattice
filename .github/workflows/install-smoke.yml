@@ -36,16 +36,24 @@ permissions:
   contents: read
 
 jobs:
-  smoke:
-    name: Install smoke (linux-x64)
+  # Resolve the release under test once, for both smoke jobs. Pre-releases
+  # (vX.Y.Z-rc.1 and the like) are accepted on purpose: a release candidate is
+  # exactly the artifact worth smoke-testing before the final cut. The pattern is
+  # the same one publish.yml's tag gate uses, so any tag that could have been
+  # published can be smoked.
+  resolve:
+    name: Resolve release tag
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
     # For workflow_run: only proceed when publish.yml succeeded on a release
     # event. For workflow_dispatch: always proceed.
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.event == 'release')
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+      number: ${{ steps.resolve.outputs.number }}
     steps:
       - name: Resolve target tag
         id: resolve
@@ -68,18 +76,26 @@ jobs:
             exit 1
           fi
 
-          if [[ ! "${VERSION}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "Resolved version '${VERSION}' is not a vX.Y.Z tag." >&2
+          if [[ ! "${VERSION}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
+            echo "Resolved version '${VERSION}' is not a vX.Y.Z or vX.Y.Z-<pre-release> tag." >&2
             exit 1
           fi
 
           echo "Resolved version: ${VERSION} (source: ${SOURCE})"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          # The binary reports its version without the leading v.
+          echo "number=${VERSION#v}" >> "$GITHUB_OUTPUT"
 
+  smoke:
+    name: Install smoke (linux-x64)
+    needs: resolve
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
       - name: Download release archive
         env:
           GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ steps.resolve.outputs.version }}
+          VERSION: ${{ needs.resolve.outputs.version }}
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/dl"
@@ -104,6 +120,16 @@ jobs:
           # publish-time-only blind spot #282 closes.)
           test -x "$RUNNER_TEMP/install/Collabot.Collattice.Api"
           echo "INSTALL_DIR=$RUNNER_TEMP/install" >> "$GITHUB_ENV"
+
+      - name: Binary reports the release under test
+        env:
+          EXPECTED: ${{ needs.resolve.outputs.number }}
+        run: |
+          set -euo pipefail
+          reported="$("$INSTALL_DIR/Collabot.Collattice.Api" --version)"
+          echo "Binary reports: ${reported}"
+          test "${reported}" = "Collattice ${EXPECTED}" \
+            || { echo "expected 'Collattice ${EXPECTED}'" >&2; exit 1; }
 
       - name: Launch binary (hosted-separately shape)
         env:
@@ -187,14 +213,20 @@ jobs:
   # release over a seeded existing install, exercising the full download + merge
   # path, and we assert the old location was kept, no new Collattice directory was
   # created, and the database bytes are byte-identical afterward.
+  #
+  # The installer comes from the checkout (the default branch for a workflow_run
+  # trigger), which is the same install.sh operators pipe from the main branch. It
+  # is pinned to the release under test with COLLATTICE_VERSION rather than left
+  # to find "latest": GitHub's latest-release endpoint never returns a
+  # pre-release, and it can point at a different release than the one that just
+  # published. The installed binary's own --version is then checked against the
+  # tag, so an installer that ignored the pin fails here instead of passing on
+  # some other release.
   upgrade-in-place:
     name: Upgrade-in-place over existing install (linux-x64)
+    needs: resolve
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.event == 'release')
     steps:
       - uses: actions/checkout@v5
 
@@ -217,9 +249,13 @@ jobs:
           echo "FAKEHOME=$fakehome" >> "$GITHUB_ENV"
 
       - name: Run the real installer over the existing install
+        env:
+          COLLATTICE_VERSION: ${{ needs.resolve.outputs.version }}
         run: HOME="$FAKEHOME" bash install.sh
 
       - name: Assert existing install kept in place, data untouched
+        env:
+          EXPECTED: ${{ needs.resolve.outputs.number }}
         run: |
           set -euo pipefail
           old="$FAKEHOME/.collaboard"
@@ -233,4 +269,7 @@ jobs:
           before="$(cat "$RUNNER_TEMP/db.sha.before")"
           test "$after" = "$before" || { echo "database bytes changed (before=$before after=$after)" >&2; exit 1; }
           grep -q 'data/collaboard.db' "$old/appsettings.json" || { echo "operator DB path not preserved by merge" >&2; exit 1; }
-          echo "upgrade-in-place: existing install kept, data byte-identical, connection string preserved"
+          reported="$("$old/Collabot.Collattice.Api" --version)"
+          test "${reported}" = "Collattice ${EXPECTED}" \
+            || { echo "installed '${reported}', expected 'Collattice ${EXPECTED}' -- the installer did not install the release under test" >&2; exit 1; }
+          echo "upgrade-in-place: existing install kept, data byte-identical, connection string preserved, ${reported} installed"

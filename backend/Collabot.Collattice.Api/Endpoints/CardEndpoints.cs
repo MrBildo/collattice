@@ -216,13 +216,14 @@ internal static class CardEndpoints
                 card.Position = request.Position.Value;
             }
 
-            // Within-lane movement is a move: an explicit position change with no lane change emits
-            // card.moved with equal from/to lane ids, so a position-only edit is reported the same as
-            // a within-lane reorder. Guarded on a real position change (a same-value position is a
-            // no-op). The lane-change block above already set the move for a genuine lane change; this
-            // covers the position-only case. Scoped to an explicit request.Position so re-asserting
-            // the current lane without a position (which reshuffles to the lane's end) stays silent.
-            if (moveToLane is null && request.Position is not null && card.Position != oldPosition)
+            // Within-lane movement is a move: a position change with no lane change emits card.moved
+            // with equal from/to lane ids, so it is reported the same as a within-lane reorder. The
+            // guard is the resolved position, not how the request expressed it — an explicit position,
+            // or re-asserting the current lane with no position (which re-appends the card to the
+            // lane's end), both count when the card actually lands somewhere new. A same-value result
+            // is a no-op and stays silent. The lane-change block above already set the move for a
+            // genuine lane change; this covers every within-lane case.
+            if (moveToLane is null && card.Position != oldPosition)
             {
                 var currentLane = await db.Lanes.FindAsync([card.LaneId], ct);
                 moveFromLane = currentLane;

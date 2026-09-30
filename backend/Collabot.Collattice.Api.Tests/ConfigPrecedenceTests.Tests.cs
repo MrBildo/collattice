@@ -1,3 +1,4 @@
+using Collabot.Collattice.Api.Tests.Infrastructure;
 using Microsoft.Extensions.Configuration;
 using Shouldly;
 
@@ -121,7 +122,7 @@ public sealed class ConfigPrecedenceTests : IDisposable
     {
         var programPath = Path.Combine
         (
-            FindRepoRoot(),
+            TestRepositoryHelper.FindRoot(),
             "backend",
             "Collabot.Collattice.Api",
             "Program.cs"
@@ -152,7 +153,7 @@ public sealed class ConfigPrecedenceTests : IDisposable
     {
         var programPath = Path.Combine
         (
-            FindRepoRoot(),
+            TestRepositoryHelper.FindRoot(),
             "backend",
             "Collabot.Collattice.Api",
             "Program.cs"
@@ -183,17 +184,5 @@ public sealed class ConfigPrecedenceTests : IDisposable
             "AddEnvironmentVariables() must appear AFTER WebApplication.CreateBuilder so it "
             + "sits at the top of the provider chain regardless of any future-added JSON source"
         );
-    }
-
-    private static string FindRepoRoot()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null && !Directory.Exists(Path.Combine(dir.FullName, ".git")))
-        {
-            dir = dir.Parent;
-        }
-
-        dir.ShouldNotBeNull("Could not locate repo root (.git) from test base dir");
-        return dir.FullName;
     }
 }

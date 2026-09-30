@@ -1,0 +1,11 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="Collabot.Collattice.Api.Tests/Collabot.Collattice.Api.Tests.csproj" />
+  <Project Path="Collabot.Collattice.Api/Collabot.Collattice.Api.csproj" />
+  <Project Path="Collabot.Collattice.AppHost/Collabot.Collattice.AppHost.csproj" />
+  <Project Path="Collabot.Collattice.ServiceDefaults/Collabot.Collattice.ServiceDefaults.csproj" />
+</Solution>
