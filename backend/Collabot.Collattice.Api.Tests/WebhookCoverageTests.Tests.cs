@@ -13,13 +13,14 @@ using Shouldly;
 namespace Collabot.Collattice.Api.Tests;
 
 // Webhook coverage. Every write surface the running app exposes — each REST route with a mutating
-// HTTP method, and each MCP tool not annotated read-only — must appear in exactly one of the two
-// lists below: EmittingSurfaces (the events it raises, each proven by driving the surface for real)
-// or SilentSurfaces (deliberately raises nothing, with the reason). The catalog tests prove that the
-// declared events are internally consistent; they cannot notice a write that declares nothing at all,
-// which is how card deletion and the whole size family once shipped silent under green CI
-// (https://github.com/MrBildo/collattice/issues/402). A new write surface that is neither wired to
-// emit nor listed as silent fails here, by name, and so does an emitting surface that stops emitting.
+// HTTP method or with no method restriction at all, and each MCP tool not annotated read-only — must
+// appear in exactly one of the two lists below: EmittingSurfaces (the events it raises, each proven by
+// driving the surface for real) or SilentSurfaces (deliberately raises nothing, with the reason). The
+// catalog tests prove that the declared events are internally consistent; they cannot notice a write
+// that declares nothing at all, which is how card deletion and the whole size family once shipped
+// silent under green CI (https://github.com/MrBildo/collattice/issues/402). A new write surface that
+// is neither wired to emit nor listed as silent fails here, by name, and so does an emitting surface
+// that stops emitting.
 // Sealed so the plain IDisposable shape below is complete; no derived class can add state to dispose.
 public sealed class WebhookCoverageTests(WebhookTestFactory factory) : IClassFixture<WebhookTestFactory>, IDisposable
 {
@@ -518,8 +519,9 @@ public sealed class WebhookCoverageTests(WebhookTestFactory factory) : IClassFix
         ["mcp delete_webhook"] = "Configures webhook delivery itself, not the board.",
         ["mcp test_webhook"] = "Sends webhook.ping to the one subscription under test; no board fact changed.",
         ["POST /mcp/"] = "The MCP transport; every tool behind it is enumerated as its own surface.",
-        ["POST /mcp/message"] = "The MCP transport's legacy message channel; every tool behind it is enumerated as its own surface.",
         ["DELETE /mcp/"] = "Ends an MCP transport session; no board fact changes.",
+        ["ANY /health"] = "Health probe; it reads state and never changes it, whatever the method.",
+        ["ANY /alive"] = "Liveness probe; it reads state and never changes it, whatever the method.",
     };
 
     // MA0005 misreads a collection expression that targets TheoryData as an empty-array allocation, and
@@ -603,13 +605,17 @@ public sealed class WebhookCoverageTests(WebhookTestFactory factory) : IClassFix
                 .ToHashSet(StringComparer.Ordinal);
     }
 
+    // A route that declares no HTTP method accepts every method, POST included, so it is a write
+    // surface too; it is keyed ANY because no single verb names it.
     private static IEnumerable<string> RestWriteSurfaces(RouteEndpoint endpoint)
     {
         var methods = endpoint.Metadata.GetMetadata<IHttpMethodMetadata>()?.HttpMethods ?? [];
 
-        return methods
-            .Where(_mutatingMethods.Contains)
-                .Select(method => $"{method} {endpoint.RoutePattern.RawText}");
+        return methods.Count == 0
+            ? [$"ANY {endpoint.RoutePattern.RawText}"]
+            : methods
+                .Where(_mutatingMethods.Contains)
+                    .Select(method => $"{method} {endpoint.RoutePattern.RawText}");
     }
 
     private sealed record EmittingSurface(string[] Events, Func<CoverageScenario, Task> Drive);

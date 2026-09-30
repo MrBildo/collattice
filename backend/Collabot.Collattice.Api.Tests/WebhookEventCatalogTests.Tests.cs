@@ -99,7 +99,9 @@ public sealed class WebhookEventCatalogTests
 
         var groups = await response.Content.ReadFromJsonAsync<JsonElement>(TestAuthHelper.JsonOptions);
 
-        // The endpoint serves the catalog's groups, in the catalog's order.
+        // The endpoint serves the catalog's groups, in the catalog's order. Which order that is stays
+        // deliberately unpinned: the picker renders whatever the server sends, and a reorder is a
+        // visible edit to the catalog file.
         var families = groups.EnumerateArray()
             .Select(group => group.GetProperty("family").GetString())
                 .ToList();
@@ -107,8 +109,8 @@ public sealed class WebhookEventCatalogTests
 
         var types = groups.EnumerateArray()
             .SelectMany(group => group.GetProperty("events").EnumerateArray())
-            .Select(descriptor => descriptor.GetProperty("type").GetString()!)
-            .ToList();
+                .Select(descriptor => descriptor.GetProperty("type").GetString()!)
+                    .ToList();
         types.Count.ShouldBe(27);
         types.ShouldBe(WebhookEventTypes.All, ignoreOrder: true);
 
