@@ -20,6 +20,7 @@ agent-facing docs.
 - [Working with cards](#working-with-cards)
   - [Creating a card](#creating-a-card)
   - [Opening and editing a card](#opening-and-editing-a-card)
+  - [Duplicating a card](#duplicating-a-card)
   - [Moving cards around](#moving-cards-around)
   - [Comments](#comments)
   - [Attachments](#attachments)
@@ -95,6 +96,11 @@ directly to that lane. Each card shows its number (like `#42`), its title, any
 labels, its size (the small `S` / `M` / `L` / `XL` badge in the corner), and small
 icons for its comment and attachment counts.
 
+To change a card's labels without opening it, use the small **tag** button beside its
+labels. It appears when you point at the card (on a touch screen it's always shown).
+It opens the label picker right on the board: select a label to add it or remove it,
+and each change saves the moment you make it.
+
 ---
 
 ## Working with cards
@@ -112,7 +118,7 @@ There are two ways to create a card:
 
 In the dialog, give the card a **title** (required), and optionally a description, a
 lane, a size, and labels. You can even attach files before the card exists — they
-upload as soon as you save. New cards land at the **top** of their lane.
+upload as soon as you save. New cards land at the **bottom** of their lane.
 
 ### Opening and editing a card
 
@@ -146,6 +152,21 @@ card without closing it — handy for reviewing a lane card by card.
 > on the field opens a panel showing their version with an **Accept their version**
 > button. Your save is never blocked; you choose whether to keep your text or take
 > theirs.
+
+### Duplicating a card
+
+To start a new card from an existing one, select **Duplicate** at the bottom-left of
+its detail panel. The **Duplicate Card** dialog opens with the card's title,
+description, size, lane, and labels already filled in; change anything you like, then
+save to create the copy. Nothing is created until you save. The copy is a new card
+with its own number: comments, attachments, and description history stay with the
+original.
+
+- **Unsaved edits?** Collattice asks first. **Save & Duplicate** saves your edits and
+  the copy includes them; **Discard & Duplicate** drops them and the copy starts from
+  the card as it was saved.
+- **Duplicating an archived card** works too, but the copy can't go into the archive,
+  so you choose a lane for it before saving.
 
 ### Moving cards around
 
