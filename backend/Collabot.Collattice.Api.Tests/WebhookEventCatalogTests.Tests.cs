@@ -64,18 +64,26 @@ public sealed class WebhookEventCatalogTests
     }
 
     [Fact]
-    public void Catalog_Groups_AreNonEmpty_WithStableFamilyKeys()
+    public void Catalog_Groups_AreNonEmpty_AndEachFamilyIsItsEventsNamespace()
     {
         foreach (var group in WebhookEventCatalog.Groups)
         {
             group.Family.ShouldNotBeNullOrWhiteSpace();
             group.Label.ShouldNotBeNullOrWhiteSpace();
             group.Events.ShouldNotBeEmpty();
+            group.Events.ShouldAllBe(descriptor => descriptor.Type.StartsWith(group.Family + ".", StringComparison.Ordinal));
         }
+
+        // Exactly one group per event namespace in the deliver/select source of truth. Derived rather
+        // than listed, so a new family is expected the moment its first event type is declared — whether
+        // a write surface declares any event at all is the coverage test's question, not this one's.
+        var namespaces = WebhookEventTypes.All
+            .Select(eventType => eventType[..eventType.IndexOf('.', StringComparison.Ordinal)])
+            .Distinct(StringComparer.Ordinal);
 
         WebhookEventCatalog.Groups
             .Select(group => group.Family)
-            .ShouldBe(["card", "comment", "label", "attachment", "lane", "size", "board"]);
+            .ShouldBe(namespaces, ignoreOrder: true);
     }
 
     [Fact]
@@ -91,10 +99,11 @@ public sealed class WebhookEventCatalogTests
 
         var groups = await response.Content.ReadFromJsonAsync<JsonElement>(TestAuthHelper.JsonOptions);
 
+        // The endpoint serves the catalog's groups, in the catalog's order.
         var families = groups.EnumerateArray()
             .Select(group => group.GetProperty("family").GetString())
-            .ToList();
-        families.ShouldBe(["card", "comment", "label", "attachment", "lane", "size", "board"]);
+                .ToList();
+        families.ShouldBe(WebhookEventCatalog.Groups.Select(group => group.Family));
 
         var types = groups.EnumerateArray()
             .SelectMany(group => group.GetProperty("events").EnumerateArray())
