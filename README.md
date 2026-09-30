@@ -480,6 +480,31 @@ runs, and leaves exactly those two files changed. Review the diff, then open a
 one-commit PR (`build:`). Run it in a Linux-like shell (Linux, macOS, or WSL) with
 `dotnet`, `npm`, and `jq` on `PATH` — the toolchain the release build uses.
 
+#### Checking the third-party notices locally
+
+CI's `publish-contract` job re-derives the notices inventory from a real build and
+fails if `THIRD-PARTY-NOTICES.md` disagrees. To run the same check before pushing
+(for example after adding or upgrading a dependency), reproduce its inputs — a
+self-contained publish and the frontend bundle's sourcemaps — then run the
+generator in `--check` mode. From the repository root, in a bash shell with
+`dotnet`, `npm`, and `jq` on `PATH` — Linux, macOS, WSL, or Git Bash on Windows.
+(The Windows build of `jq` that winget installs ends its output lines with CRLF;
+the generator strips the extra carriage return, so it works from Git Bash too.)
+
+```bash
+(cd frontend && npm ci && npx vite build --sourcemap hidden)
+scripts/extract-bundle-sourcemaps.sh frontend/dist /tmp/notices-sourcemaps
+dotnet publish backend/Collabot.Collattice.Api/Collabot.Collattice.Api.csproj \
+  -c Release -r win-x64 --self-contained -o /tmp/notices-publish
+scripts/generate-third-party-notices.sh --check THIRD-PARTY-NOTICES.md \
+  /tmp/notices-publish/Collabot.Collattice.Api.deps.json frontend /tmp/notices-sourcemaps
+```
+
+Drop `--check THIRD-PARTY-NOTICES.md` to print the freshly derived inventory
+instead. When the inventory legitimately changes, replace the block between the
+`BEGIN`/`END GENERATED INVENTORY` markers with that output (or, for a runtime bump,
+let `scripts/bump-runtime.sh` do it).
+
 **When to bump:** the `publish-contract` CI check compares the pinned runtime
 against Microsoft's current servicing release on every PR and goes **red when the
 pin has fallen behind** — that red is the prompt. .NET servicing releases are
