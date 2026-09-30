@@ -53,20 +53,21 @@ function setup(labels: CardLabelSummary[]) {
     cards: [makeCard(CARD_ID, labels), makeCard('card-2', [BUG])],
   };
   queryClient.setQueryData(queryKeys.boards.data(BOARD_ID), board);
-  const wrapper = ({ children }: { children: React.ReactNode }) =>
-    createElement(QueryClientProvider, { client: queryClient }, children);
+  function Wrapper({ children }: { children: React.ReactNode }) {
+    return createElement(QueryClientProvider, { client: queryClient }, children);
+  }
   const hook = renderHook(() => useToggleCardLabel({ cardId: CARD_ID, boardId: BOARD_ID }), {
-    wrapper,
+    wrapper: Wrapper,
   });
   return { queryClient, hook };
 }
 
-function labelIdsOf(queryClient: QueryClient, cardId: string): string[] {
+function readLabelIds(queryClient: QueryClient, cardId: string): string[] {
   const data = queryClient.getQueryData<BoardData>(queryKeys.boards.data(BOARD_ID));
   return (data?.cards.find((c) => c.id === cardId)?.labels ?? []).map((l) => l.id);
 }
 
-function deferred() {
+function createDeferred() {
   let resolve!: () => void;
   let reject!: (error: Error) => void;
   const promise = new Promise<void>((res, rej) => {
@@ -83,7 +84,7 @@ beforeEach(() => {
 describe('useToggleCardLabel', () => {
   test('adding a label calls the add endpoint and shows the label on the tile before the save lands', async () => {
     // Arrange
-    const save = deferred();
+    const save = createDeferred();
     mockAddCardLabel.mockReturnValue(save.promise);
     const { queryClient, hook } = setup([BUG]);
 
@@ -92,11 +93,11 @@ describe('useToggleCardLabel', () => {
 
     // Assert
     await waitFor(() =>
-      expect(labelIdsOf(queryClient, CARD_ID)).toEqual(['label-bug', 'label-feature']),
+      expect(readLabelIds(queryClient, CARD_ID)).toEqual(['label-bug', 'label-feature']),
     );
     expect(mockAddCardLabel).toHaveBeenCalledWith(CARD_ID, 'label-feature');
     expect(mockRemoveCardLabel).not.toHaveBeenCalled();
-    expect(labelIdsOf(queryClient, 'card-2')).toEqual(['label-bug']);
+    expect(readLabelIds(queryClient, 'card-2')).toEqual(['label-bug']);
 
     await act(async () => save.resolve());
   });
@@ -110,15 +111,15 @@ describe('useToggleCardLabel', () => {
     act(() => hook.result.current.mutate({ label: BUG, isAssigned: true }));
 
     // Assert
-    await waitFor(() => expect(labelIdsOf(queryClient, CARD_ID)).toEqual(['label-feature']));
+    await waitFor(() => expect(readLabelIds(queryClient, CARD_ID)).toEqual(['label-feature']));
     expect(mockRemoveCardLabel).toHaveBeenCalledWith(CARD_ID, 'label-bug');
     expect(mockAddCardLabel).not.toHaveBeenCalled();
   });
 
   test('a failed toggle reverts only its own label, leaving a concurrent toggle in place', async () => {
     // Arrange
-    const failing = deferred();
-    const succeeding = deferred();
+    const failing = createDeferred();
+    const succeeding = createDeferred();
     mockAddCardLabel.mockImplementation((_cardId, labelId) =>
       labelId === FEATURE.id ? failing.promise : succeeding.promise,
     );
@@ -128,7 +129,7 @@ describe('useToggleCardLabel', () => {
     act(() => hook.result.current.mutate({ label: FEATURE, isAssigned: false }));
     act(() => hook.result.current.mutate({ label: DOCS, isAssigned: false }));
     await waitFor(() =>
-      expect(labelIdsOf(queryClient, CARD_ID)).toEqual([
+      expect(readLabelIds(queryClient, CARD_ID)).toEqual([
         'label-bug',
         'label-feature',
         'label-docs',
@@ -138,7 +139,7 @@ describe('useToggleCardLabel', () => {
 
     // Assert
     await waitFor(() =>
-      expect(labelIdsOf(queryClient, CARD_ID)).toEqual(['label-bug', 'label-docs']),
+      expect(readLabelIds(queryClient, CARD_ID)).toEqual(['label-bug', 'label-docs']),
     );
 
     await act(async () => succeeding.resolve());
@@ -146,8 +147,8 @@ describe('useToggleCardLabel', () => {
 
   test('the board and the card label list refetch once, after the last in-flight toggle settles', async () => {
     // Arrange
-    const first = deferred();
-    const second = deferred();
+    const first = createDeferred();
+    const second = createDeferred();
     mockAddCardLabel.mockImplementation((_cardId, labelId) =>
       labelId === FEATURE.id ? first.promise : second.promise,
     );

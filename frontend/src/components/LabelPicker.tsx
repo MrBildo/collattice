@@ -47,7 +47,7 @@ export function LabelPicker({
   // option ids must be unique per instance for aria-controls/activedescendant.
   const idPrefix = useId();
   const listboxId = `${idPrefix}-listbox`;
-  const optionId = (labelId: string) => `${idPrefix}-option-${labelId}`;
+  const buildOptionId = (labelId: string) => `${idPrefix}-option-${labelId}`;
 
   const assignedIds = useMemo(() => new Set(assignedLabels.map((l) => l.id)), [assignedLabels]);
 
@@ -173,7 +173,7 @@ export function LabelPicker({
               aria-controls={listboxId}
               aria-activedescendant={
                 focusedIndex >= 0 && filtered[focusedIndex]
-                  ? optionId(filtered[focusedIndex].id)
+                  ? buildOptionId(filtered[focusedIndex].id)
                   : undefined
               }
             />
@@ -192,7 +192,7 @@ export function LabelPicker({
               return (
                 <Button
                   key={label.id}
-                  id={optionId(label.id)}
+                  id={buildOptionId(label.id)}
                   variant="ghost"
                   size="sm"
                   role="option"

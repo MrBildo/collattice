@@ -1,5 +1,5 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
 import { DndContext, MouseSensor, useSensor, useSensors } from '@dnd-kit/core';
@@ -13,6 +13,16 @@ vi.mock('@/lib/api', () => ({
   addCardLabel: vi.fn(),
   removeCardLabel: vi.fn(),
   fetchLabels: vi.fn(),
+}));
+
+// The label row sizes its badges by measuring text on a canvas against the
+// row's rendered width. jsdom has no canvas and lays out nothing, so the real
+// measurement cannot run here; every label is shown as a full badge instead.
+vi.mock('@/hooks/use-label-layout', () => ({
+  useLabelLayout: (labels: CardLabelSummary[]) => ({
+    items: labels.map((label) => ({ label, mode: 'full' })),
+    overflowCount: 0,
+  }),
 }));
 
 const mockAddCardLabel = vi.mocked(addCardLabel);
@@ -103,16 +113,33 @@ function setup({
   });
   const onCardClick = vi.fn();
   const onParentMouseDown = vi.fn();
+  const onParentPointerDown = vi.fn();
+  const onParentTouchStart = vi.fn();
   render(
     <QueryClientProvider client={queryClient}>
       {/* Stands in for the drag listeners, which sit on the tile and receive
-          every mouse press that bubbles up to it. */}
-      <div onMouseDown={onParentMouseDown}>
+          every mouse, pointer and touch press that bubbles up to it. */}
+      <div
+        onMouseDown={onParentMouseDown}
+        onPointerDown={onParentPointerDown}
+        onTouchStart={onParentTouchStart}
+      >
         <BoardTile onCardClick={onCardClick} isArchived={isArchived} />
       </div>
     </QueryClientProvider>,
   );
-  return { onCardClick, onParentMouseDown };
+  return { onCardClick, onParentMouseDown, onParentPointerDown, onParentTouchStart };
+}
+
+// The tile's own element: the picker's options render in a portal outside it,
+// and its trigger shows only an icon, so label text found in here is the tile's
+// label badges.
+function getTile(): HTMLElement {
+  const tile = screen
+    .getByText('Tile under test')
+    .closest<HTMLElement>('[aria-roledescription="sortable"]');
+  if (!tile) throw new Error('The tile element was not found');
+  return tile;
 }
 
 beforeEach(() => {
@@ -151,6 +178,8 @@ describe('SortableCard label picker', () => {
     // Arrange
     const user = userEvent.setup();
     const { onCardClick } = setup({ labels: [BOARD_LABELS[0]] });
+    expect(within(getTile()).getByText('Bug')).toBeInTheDocument();
+    expect(within(getTile()).queryByText('Feature')).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Edit labels on card #7' }));
 
     // Act
@@ -160,22 +189,30 @@ describe('SortableCard label picker', () => {
     // Assert
     expect(mockAddCardLabel).toHaveBeenCalledWith(CARD_ID, 'label-feature');
     expect(mockRemoveCardLabel).toHaveBeenCalledWith(CARD_ID, 'label-bug');
-    await waitFor(() =>
-      expect(screen.getByRole('option', { name: 'Feature' })).toHaveAttribute(
-        'aria-selected',
-        'true',
-      ),
+    await waitFor(() => expect(within(getTile()).getByText('Feature')).toBeInTheDocument());
+    expect(within(getTile()).queryByText('Bug')).not.toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Feature' })).toHaveAttribute(
+      'aria-selected',
+      'true',
     );
     expect(screen.getByRole('option', { name: 'Bug' })).toHaveAttribute('aria-selected', 'false');
     expect(onCardClick).not.toHaveBeenCalled();
   });
 
-  test('a press on the picker trigger does not reach the tile drag listeners', () => {
-    const { onParentMouseDown } = setup();
+  test('a mouse, pointer or touch press on the picker trigger does not reach the tile drag listeners', () => {
+    // Arrange
+    const { onParentMouseDown, onParentPointerDown, onParentTouchStart } = setup();
+    const trigger = screen.getByRole('button', { name: 'Edit labels on card #7' });
 
-    fireEvent.mouseDown(screen.getByRole('button', { name: 'Edit labels on card #7' }));
+    // Act
+    fireEvent.mouseDown(trigger);
+    fireEvent.pointerDown(trigger);
+    fireEvent.touchStart(trigger);
 
+    // Assert
     expect(onParentMouseDown).not.toHaveBeenCalled();
+    expect(onParentPointerDown).not.toHaveBeenCalled();
+    expect(onParentTouchStart).not.toHaveBeenCalled();
   });
 
   test('a click and a press on the tile itself still open the card and reach the drag listeners', async () => {

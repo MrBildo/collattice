@@ -26,15 +26,15 @@ function patchCardLabels(
   };
 }
 
-function withLabel(labels: CardLabelSummary[], label: CardLabelSummary): CardLabelSummary[] {
+function includeLabel(labels: CardLabelSummary[], label: CardLabelSummary): CardLabelSummary[] {
   return labels.some((l) => l.id === label.id) ? labels : [...labels, label];
 }
 
-function withoutLabel(labels: CardLabelSummary[], labelId: string): CardLabelSummary[] {
+function excludeLabel(labels: CardLabelSummary[], labelId: string): CardLabelSummary[] {
   return labels.filter((l) => l.id !== labelId);
 }
 
-function cardLabelsMutationKey(cardId: string) {
+function buildToggleMutationKey(cardId: string) {
   return ['cards', cardId, 'labels', 'toggle'] as const;
 }
 
@@ -46,7 +46,7 @@ export function useToggleCardLabel({ cardId, boardId }: UseToggleCardLabelOption
   const boardKey = queryKeys.boards.data(boardId);
 
   return useMutation({
-    mutationKey: cardLabelsMutationKey(cardId),
+    mutationKey: buildToggleMutationKey(cardId),
     // Board action with an optimistic update: a failure reverts the label on the
     // tile, and the global error floor toasts the reason.
     meta: { errorMessage: "Couldn't update labels" },
@@ -56,7 +56,7 @@ export function useToggleCardLabel({ cardId, boardId }: UseToggleCardLabelOption
       await queryClient.cancelQueries({ queryKey: boardKey });
       queryClient.setQueryData<BoardData>(boardKey, (old) =>
         patchCardLabels(old, cardId, (labels) =>
-          isAssigned ? withoutLabel(labels, label.id) : withLabel(labels, label),
+          isAssigned ? excludeLabel(labels, label.id) : includeLabel(labels, label),
         ),
       );
     },
@@ -65,14 +65,14 @@ export function useToggleCardLabel({ cardId, boardId }: UseToggleCardLabelOption
     onError: (_error, { label, isAssigned }) => {
       queryClient.setQueryData<BoardData>(boardKey, (old) =>
         patchCardLabels(old, cardId, (labels) =>
-          isAssigned ? withLabel(labels, label) : withoutLabel(labels, label.id),
+          isAssigned ? includeLabel(labels, label) : excludeLabel(labels, label.id),
         ),
       );
     },
     onSettled: () => {
       // Refetching while other toggles are still in flight would briefly paint
       // the server's older answer over them; wait for the last one to settle.
-      if (queryClient.isMutating({ mutationKey: cardLabelsMutationKey(cardId) }) > 1) return;
+      if (queryClient.isMutating({ mutationKey: buildToggleMutationKey(cardId) }) > 1) return;
       queryClient.invalidateQueries({ queryKey: boardKey });
       // The card dialog reads labels from its own query, which the board's
       // change events do not refresh — without this, opening the card right
