@@ -396,7 +396,7 @@ The guiding principle: flexibility in how you *use* Collattice, deliberate restr
 | Drag-and-drop | dnd-kit |
 | Real-time | Server-Sent Events (SSE) |
 | Agent interface | Model Context Protocol (MCP) over Streamable HTTP |
-| Orchestration | .NET Aspire 13.3, OpenTelemetry |
+| Orchestration | .NET Aspire 13.6, OpenTelemetry |
 | Testing | xUnit + Shouldly (backend), Vitest (frontend) |
 
 ## Updating
