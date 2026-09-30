@@ -16,16 +16,24 @@ jobs:
         with:
           dotnet-version: '10.0.x'
       - name: Restore
-        run: dotnet restore backend/Collabot.Collattice.sln
+        run: dotnet restore backend/Collabot.Collattice.slnx
+      # Known security advisories against the backend's NuGet packages, direct and
+      # transitive. Report-only by design: findings become a warning annotation and
+      # a table in the job summary, and the step never fails the build, because the
+      # severity threshold that should block a merge is still an open operator
+      # decision (see the script header). It sits right after restore so it runs,
+      # and reports, even when a later step fails.
+      - name: Dependency advisories (report only)
+        run: bash scripts/report-dependency-advisories.sh dotnet backend/Collabot.Collattice.slnx
       - name: Format
         # --severity error: the gate enforces exactly the editorconfig's :error
         # rules (the errors-or-quiet model the analyzer adoption is built on).
         # Default severity (warn) would also fail on the deferred warning-level
         # nudges, which belong to the separate recurring suggestion-resolution
         # gate, not this gate (#208).
-        run: dotnet format backend/Collabot.Collattice.sln --verify-no-changes --no-restore --severity error
+        run: dotnet format backend/Collabot.Collattice.slnx --verify-no-changes --no-restore --severity error
       - name: Build
-        run: dotnet build backend/Collabot.Collattice.sln --no-restore --no-incremental
+        run: dotnet build backend/Collabot.Collattice.slnx --no-restore --no-incremental
       - name: Test
         run: dotnet test backend/ --no-build --verbosity normal
 
@@ -42,6 +50,11 @@ jobs:
       - name: Install
         run: npm ci
         working-directory: frontend
+      # Known security advisories against the production dependencies (the ones
+      # that end up in the shipped bundle; dev tooling is excluded). Report-only,
+      # same policy and reasoning as the backend step.
+      - name: Dependency advisories (report only)
+        run: bash scripts/report-dependency-advisories.sh npm frontend
       - name: Lint
         run: npm run lint
         working-directory: frontend

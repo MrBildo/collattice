@@ -83,10 +83,10 @@ jobs:
 
       # CI validation
       - name: Restore backend
-        run: dotnet restore backend/Collabot.Collattice.sln
+        run: dotnet restore backend/Collabot.Collattice.slnx
 
       - name: Build backend
-        run: dotnet build backend/Collabot.Collattice.sln --no-restore
+        run: dotnet build backend/Collabot.Collattice.slnx --no-restore
 
       - name: Test backend
         run: dotnet test backend/ --no-build --verbosity normal
