@@ -229,6 +229,25 @@ public sealed class WebhookLaneCatalogTests : IClassFixture<WebhookTestFactory>,
         }
     }
 
+    [Fact]
+    public async Task UpdateLaneSamePosition_EmitsNoLaneReordered_OnEitherSurface()
+    {
+        var sink = Sink;
+        var tools = CreateLaneTools();
+        var laneId = await CreateLaneAsync("parked");
+        var position = await LanePositionAsync(laneId);
+        sink.Clear();
+
+        // Re-send the lane's own position — the per-axis no-op guard suppresses lane.reordered on
+        // REST and MCP alike (a changed position is covered by the reorder tests above).
+        var response = await _client.PatchAsJsonAsync($"/api/v1/lanes/{laneId}", new { position });
+        response.EnsureSuccessStatusCode();
+
+        (await tools.UpdateLaneAsync(CollatticeApiFactory.TestAdminAuthKey, laneId, position: position)).ShouldNotContain("Error");
+
+        sink.Captured.ShouldBeEmpty();
+    }
+
     // ── lane.reordered (bulk reorder) — exactly ONE event, the FULL new order ──────
 
     [Fact]
@@ -375,6 +394,17 @@ public sealed class WebhookLaneCatalogTests : IClassFixture<WebhookTestFactory>,
                 .MaxAsync(l => (int?)l.Position);
 
         return (max ?? -1) + 1;
+    }
+
+    private async Task<int> LanePositionAsync(Guid laneId)
+    {
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<BoardDbContext>();
+
+        return await db.Lanes
+            .Where(l => l.Id == laneId)
+                .Select(l => l.Position)
+                    .SingleAsync();
     }
 
     private async Task<List<Guid>> NonArchiveLaneIdsInOrderAsync()

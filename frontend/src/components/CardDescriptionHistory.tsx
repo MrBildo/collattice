@@ -35,33 +35,40 @@ function DiffView({ diff }: { diff: string }) {
 
   return (
     <div className="overflow-x-auto font-mono text-xs leading-5">
-      {lines.map((line, index) => (
-        <div
-          key={index}
-          className={cn(
-            'flex min-h-5 whitespace-pre',
-            line.kind === 'hunk' && 'bg-muted/60 text-muted-foreground',
-            line.kind === 'add' && 'bg-primary/10',
-            line.kind === 'remove' && 'bg-destructive/10',
-          )}
-        >
-          <span
-            aria-hidden="true"
+      {/* Lines never wrap, so a long one overflows the scroll box. Block rows size to
+          the box, not to their content, which would stop each row's colour band at the
+          visible width and leave the rest of a long line unshaded once scrolled. Sizing
+          this wrapper to the widest line (never narrower than the box) makes every row —
+          and its band — as wide as the longest line. */}
+      <div className="w-max min-w-full">
+        {lines.map((line, index) => (
+          <div
+            key={index}
             className={cn(
-              'w-5 shrink-0 select-none pl-1.5',
-              line.kind === 'add' && 'text-primary',
-              line.kind === 'remove' && 'text-destructive',
+              'flex min-h-5 whitespace-pre',
+              line.kind === 'hunk' && 'bg-muted/60 text-muted-foreground',
+              line.kind === 'add' && 'bg-primary/10',
+              line.kind === 'remove' && 'bg-destructive/10',
             )}
           >
-            {line.kind === 'add' ? '+' : line.kind === 'remove' ? '-' : ''}
-          </span>
-          {/* The gutter glyph above is aria-hidden and colour-coded — a screen-reader
-              user can't perceive either, so add/remove needs a spoken equivalent. */}
-          {line.kind === 'add' && <span className="sr-only">Added: </span>}
-          {line.kind === 'remove' && <span className="sr-only">Removed: </span>}
-          <span className="pr-3">{line.text}</span>
-        </div>
-      ))}
+            <span
+              aria-hidden="true"
+              className={cn(
+                'w-5 shrink-0 select-none pl-1.5',
+                line.kind === 'add' && 'text-primary',
+                line.kind === 'remove' && 'text-destructive',
+              )}
+            >
+              {line.kind === 'add' ? '+' : line.kind === 'remove' ? '-' : ''}
+            </span>
+            {/* The gutter glyph above is aria-hidden and colour-coded — a screen-reader
+                user can't perceive either, so add/remove needs a spoken equivalent. */}
+            {line.kind === 'add' && <span className="sr-only">Added: </span>}
+            {line.kind === 'remove' && <span className="sr-only">Removed: </span>}
+            <span className="pr-3">{line.text}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -77,13 +84,26 @@ function FullTextView({ value }: { value: string }) {
   );
 }
 
+// How the original version's attribution reads. The name is always hedged with
+// how it was inferred, because nobody observed who wrote that text: a card
+// created before history recording began may have been edited by someone else
+// first. With no inference available the view says so rather than rendering an
+// empty name.
+function formatOriginalAttribution(inferredEditor: CardHistoryEntry['inferredEditor']): string {
+  if (!inferredEditor) {
+    return 'original version — author unknown';
+  }
+  const basisLabel = inferredEditor.basis === 'creator' ? 'card creator' : 'inferred';
+  return `original version — ${inferredEditor.name} (${basisLabel})`;
+}
+
 function RevisionItem({ entry }: { entry: CardHistoryEntry }) {
   const [isFullTextShown, setIsFullTextShown] = useState(false);
 
   // The trail's first revision holds the text as it stood when recording began.
-  // Its author and timestamp are null on purpose — nobody observed that value
-  // being written, and the backend refuses to invent provenance — so this view
-  // says so instead of rendering an empty name or an invalid date.
+  // Its observed author and timestamp are null on purpose — nobody saw that
+  // value being written — so this view never renders an empty name or an
+  // invalid date for it, and shows the inferred attribution instead.
   const isOriginal = entry.revision === 1;
 
   return (
@@ -91,7 +111,9 @@ function RevisionItem({ entry }: { entry: CardHistoryEntry }) {
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 bg-muted/30 px-3 py-1.5 text-xs">
         <span className="font-medium text-foreground">Revision {entry.revision}</span>
         {isOriginal ? (
-          <span className="text-muted-foreground">original version — author unknown</span>
+          <span className="text-muted-foreground">
+            {formatOriginalAttribution(entry.inferredEditor)}
+          </span>
         ) : (
           <span className="text-muted-foreground">
             {entry.editedByName ?? 'Unknown user'}

@@ -67,6 +67,16 @@ done
 
 command -v jq >/dev/null 2>&1 || { echo "generate-third-party-notices: jq is required." >&2; exit 2; }
 
+# Every jq result below is read as line-oriented text -- package ids, versions,
+# paths, license identifiers. The native Windows build of jq (the one winget
+# installs, used from Git Bash) ends each output line with CRLF, and the stray
+# carriage return then rides inside the value: a NuGet package path built from it
+# never resolves, and the run fails at the first package. Stripping it here, at
+# the one place jq is invoked, makes every read line-ending-agnostic; on Linux and
+# WSL, where jq already emits LF, it changes nothing. (xargs cannot call a shell
+# function, so the one jq run through xargs below strips it the same way inline.)
+jq() { command jq "$@" | tr -d '\r'; }
+
 NUGET_ROOT="${NUGET_PACKAGES:-${HOME}/.nuget/packages}"
 
 # Components whose own manifest does not state a copyright holder, resolved from
@@ -78,12 +88,16 @@ NUGET_ROOT="${NUGET_PACKAGES:-${HOME}/.nuget/packages}"
 #                   their own. Read from the sibling packages in the same
 #                   published set that do carry one (@radix-ui/react-slot/LICENSE
 #                   and radix-ui/LICENSE), which are identical.
+#   fastdom      -- ships no LICENSE file; its package.json says MIT, and the
+#                   package's own README.md carries the MIT text under its
+#                   "License" heading, with this copyright line.
 override_copyright() {
   case "$1" in
     @radix-ui/number|@radix-ui/react-compose-refs|@radix-ui/react-context|\
 @radix-ui/react-direction|@radix-ui/react-use-layout-effect|\
 @radix-ui/react-use-previous|@radix-ui/react-use-size)
       echo "Copyright (c) 2022 WorkOS" ;;
+    fastdom) echo "Copyright (c) 2016 Wilson Page <wilsonpage@me.com>" ;;
     *) echo "" ;;
   esac
 }
@@ -325,6 +339,7 @@ emit_inventory() {
   pkg_list="$(
     find "${SOURCEMAP_DIR}" -name '*.map' -type f -print0 \
       | xargs -0 -r jq -r '.sources[]?' \
+      | tr -d '\r' \
       | sed 's|^\(\.\./\)*||' \
       | awk '
           {

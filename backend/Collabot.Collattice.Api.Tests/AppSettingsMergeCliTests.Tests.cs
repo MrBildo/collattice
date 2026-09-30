@@ -1,4 +1,5 @@
 using Collabot.Collattice.Api.Installation;
+using Collabot.Collattice.Api.Tests.Infrastructure;
 
 using Shouldly;
 
@@ -325,7 +326,7 @@ public class AppSettingsMergeCliTests : IDisposable
         // --version output.
         var programPath = Path.Combine
         (
-            FindRepoRoot(),
+            TestRepositoryHelper.FindRoot(),
             "backend",
             "Collabot.Collattice.Api",
             "Program.cs"
@@ -389,17 +390,5 @@ public class AppSettingsMergeCliTests : IDisposable
         var path = Path.Combine(_scratchDir, fileName);
         File.WriteAllText(path, content);
         return path;
-    }
-
-    private static string FindRepoRoot()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null && !Directory.Exists(Path.Combine(dir.FullName, ".git")))
-        {
-            dir = dir.Parent;
-        }
-
-        dir.ShouldNotBeNull("Could not locate repo root (.git) from test base dir");
-        return dir.FullName;
     }
 }

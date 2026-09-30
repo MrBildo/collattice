@@ -25,7 +25,8 @@ public class McpTransportSmokeTests(CollatticeApiFactory factory) : IClassFixtur
     // reorder_sizes (SizeTools) added: 38 -> 39.
     // WebhookTools (create/list/update/delete/test_webhook) added: 39 -> 44.
     // get_card_history (HistoryTools) added: 44 -> 45.
-    private const int _expectedToolCount = 45;
+    // duplicate_card (DuplicateCardTools) added: 45 -> 46.
+    private const int _expectedToolCount = 46;
 
     private readonly CollatticeApiFactory _factory = factory;
 
