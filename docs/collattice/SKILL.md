@@ -29,13 +29,13 @@ It uses the **streamable HTTP** transport. Point your MCP client at
 with `/mcp` appended. If you don't know the base URL at runtime, the
 `get_api_info` tool returns it along with the REST API prefix.
 
-The endpoint hosts **45 tools** across these groups:
+The endpoint hosts **46 tools** across these groups:
 
 | Group | Tools |
 |---|---|
 | System | `get_api_info` |
 | Boards | `get_boards`, `get_lanes`, `get_sizes`, `create_board`, `update_board` |
-| Cards | `create_card`, `move_card`, `update_card`, `get_cards`, `get_card` |
+| Cards | `create_card`, `duplicate_card`, `move_card`, `update_card`, `get_cards`, `get_card` |
 | History | `get_card_history` |
 | Archive | `archive_card`, `restore_card` |
 | Comments | `add_comment`, `update_comment`, `delete_comment` |
@@ -345,12 +345,30 @@ is on; use `get_cards` when you only need one board.
 ### Cards
 
 #### `create_card`
-Create a card. It is placed at the top of the target lane. Defaults to the board's
+Create a card. It is placed at the bottom of the target lane. Defaults to the board's
 lowest-ordinal size if you don't specify one. Returns the enriched card summary.
 - **Params:** `authKey`, `name`, `laneId` (GUID). Optional: `descriptionMarkdown`,
   `sizeId` **or** `sizeName`, `labelIds` (assign labels at creation — comma-
   separated GUIDs or a JSON-array string; all must belong to the lane's board).
 - Creating into an archive lane is rejected.
+
+#### `duplicate_card`
+Create a new card that starts from an existing one. The copy carries the source's
+**name, description, labels, and size** — and nothing else: no comments, no
+attachments, no description history, no position. Nothing links the copy back to
+its source, and neither card records that a copy was made. Otherwise the copy is an
+ordinary new card: it takes the next card number on the board, lands at the bottom
+of its lane exactly as `create_card` would place it, and raises `card.created`.
+Returns the enriched card summary, like `create_card`.
+- **Params:** `authKey`, a card ref (the source). Optional: `laneId` (GUID) — where
+  the copy goes; defaults to the source's lane. Optional overrides: `name`,
+  `sizeName`, `labelIds` (**replaces** the copied label set — comma-separated GUIDs
+  or a JSON-array string; an empty string gives the copy no labels).
+- **Duplicating an archived card needs `laneId`.** An archived card lives in the
+  board's hidden archive lane, where no card can be created, so there is no default
+  to fall back on — without `laneId` the call returns an error and creates nothing.
+- The copy stays on the source's board (labels and sizes are board-scoped): a
+  `laneId` from another board is rejected, and so is the archive lane.
 
 #### `move_card`
 Move a card to a lane and/or to a position within it.
@@ -422,8 +440,14 @@ get it. Pass `full` for the whole text at each revision, or `both`.
 - **The trail's oldest revision has a null author and timestamp — only the oldest.**
   History is not back-filled, so revision 1 holds whatever the description said
   when recording began; nobody observed it being written, so it is left
-  un-attributed rather than credited to a guess. Its `diff` is `""` — there is
+  un-attributed in those fields rather than credited to a guess. Its `diff` is `""` — there is
   nothing older to compare it against. Every later revision is fully attributed.
+  That oldest revision alone also carries `inferredEditor` —
+  `{ userId, name, basis }`, the best available attribution — where `basis`
+  `"creator"` means the card's creator. It is inferred, not observed (a card
+  older than history recording may have been edited by someone else first), so
+  say so when you report it: *"Bill Wheelock (card creator)"*. The key is absent
+  on every observed revision.
   **Only the oldest revision has an empty diff**, so an empty diff is a reliable
   test for "this is the start of the record" — no revision ever repeats the text
   of the one below it.

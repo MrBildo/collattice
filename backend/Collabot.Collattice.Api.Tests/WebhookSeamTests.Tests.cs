@@ -326,7 +326,8 @@ public sealed class WebhookSeamTests(WebhookTestFactory factory) : IClassFixture
         var cardId = await CreateCardViaMcpAsync(tools, laneId, "Name Only");
         sink.Clear();
 
-        // Name-only update (no laneId) — and a same-lane "move" via PATCH.
+        // Name-only update (no laneId) — and a PATCH re-asserting the current lane on the lane's last
+        // card, which re-appends it to exactly the position it already holds.
         var nameResult = await tools.UpdateCardAsync(CollatticeApiFactory.TestAdminAuthKey, cardId: cardId, name: "Renamed");
         nameResult.ShouldNotContain("Error");
 
@@ -334,7 +335,73 @@ public sealed class WebhookSeamTests(WebhookTestFactory factory) : IClassFixture
         var sameLanePatch = await _client.PatchAsJsonAsync($"/api/v1/cards/{cardId}", new { laneId });
         sameLanePatch.EnsureSuccessStatusCode();
 
-        // No card.moved for either: name-only, and a PATCH whose laneId == the current lane.
+        // No card.moved for either: nothing about the card's placement changed.
+        sink.Captured.ShouldNotContain(e => e.EventType == "card.moved");
+    }
+
+    // ── Scenario 4d: re-asserting the current lane is a move when the card lands somewhere new ──
+
+    [Fact]
+    public async Task RestPatchSameLaneNoPosition_NonLastCard_FiresCardMoved_WithinLane()
+    {
+        var sink = Sink;
+        TestAuthHelper.SetAdminAuth(_client, _factory);
+        var (laneA, _) = await GetTwoLanesAsync();
+        var cardId = await CreateCardInLaneViaRestAsync(laneA, "Reshuffled");
+        await CreateCardInLaneViaRestAsync(laneA, "Behind It");
+        var fromPosition = await CardPositionAsync(cardId);
+        sink.Clear();
+
+        // The current lane with no position re-appends the card to the lane's end — a visible move
+        // for a card that was not already last, so it reports exactly one within-lane card.moved.
+        var response = await _client.PatchAsJsonAsync($"/api/v1/cards/{cardId}", new { laneId = laneA });
+        response.EnsureSuccessStatusCode();
+
+        (await CardPositionAsync(cardId)).ShouldBeGreaterThan(fromPosition);
+
+        var laneName = await LaneNameAsync(laneA);
+        await AssertSingleMoveAsync(sink, cardId, laneA, laneName, fromPosition, laneA, laneName);
+    }
+
+    [Fact]
+    public async Task McpUpdateCardSameLane_PositionChanged_FiresCardMoved_WithinLane()
+    {
+        var sink = Sink;
+        var (laneA, _) = await GetTwoLanesAsync();
+        var tools = CreateCardTools();
+        await CreateCardViaMcpAsync(tools, laneA, "Already Here");
+        var cardId = await CreateCardViaMcpAsync(tools, laneA, "Moves To Top");
+        var fromPosition = await CardPositionAsync(cardId);
+        sink.Clear();
+
+        // update_card with the current lane and no index places the card at the top of that lane —
+        // the MCP twin of the REST re-assert, held to the same resolved-position rule.
+        var result = await tools.UpdateCardAsync(CollatticeApiFactory.TestAdminAuthKey, cardId: cardId, laneId: laneA);
+        result.ShouldNotContain("Error");
+
+        (await CardPositionAsync(cardId)).ShouldNotBe(fromPosition);
+
+        var laneName = await LaneNameAsync(laneA);
+        await AssertSingleMoveAsync(sink, cardId, laneA, laneName, fromPosition, laneA, laneName);
+    }
+
+    [Fact]
+    public async Task McpUpdateCardSameLane_PositionUnchanged_FiresNoCardMoved()
+    {
+        var sink = Sink;
+        var (laneA, _) = await GetTwoLanesAsync();
+        var tools = CreateCardTools();
+        var cardId = await CreateCardViaMcpAsync(tools, laneA, "Stays On Top");
+
+        // The first call puts the card at the top; the second asks for exactly where it already is.
+        (await tools.UpdateCardAsync(CollatticeApiFactory.TestAdminAuthKey, cardId: cardId, laneId: laneA, index: 0)).ShouldNotContain("Error");
+        var settledPosition = await CardPositionAsync(cardId);
+        sink.Clear();
+
+        var result = await tools.UpdateCardAsync(CollatticeApiFactory.TestAdminAuthKey, cardId: cardId, laneId: laneA, index: 0);
+        result.ShouldNotContain("Error");
+
+        (await CardPositionAsync(cardId)).ShouldBe(settledPosition);
         sink.Captured.ShouldNotContain(e => e.EventType == "card.moved");
     }
 

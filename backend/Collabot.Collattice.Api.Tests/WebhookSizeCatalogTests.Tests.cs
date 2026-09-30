@@ -228,6 +228,25 @@ public sealed class WebhookSizeCatalogTests : IClassFixture<WebhookTestFactory>,
         }
     }
 
+    [Fact]
+    public async Task UpdateSizeSameOrdinal_EmitsNoSizeReordered_OnEitherSurface()
+    {
+        var sink = Sink;
+        var tools = CreateSizeTools();
+        var sizeId = await CreateSizeAsync("parked");
+        var ordinal = await SizeOrdinalAsync(sizeId);
+        sink.Clear();
+
+        // Re-send the size's own ordinal — the per-axis no-op guard suppresses size.reordered on REST
+        // and MCP alike (a changed ordinal is covered by the reorder tests above).
+        var response = await _client.PatchAsJsonAsync($"/api/v1/sizes/{sizeId}", new { ordinal });
+        response.EnsureSuccessStatusCode();
+
+        (await tools.UpdateSizeAsync(CollatticeApiFactory.TestAdminAuthKey, sizeId, ordinal: ordinal)).ShouldNotContain("Error");
+
+        sink.Captured.ShouldBeEmpty();
+    }
+
     // ── size.reordered (bulk reorder) — exactly ONE event, the FULL new order ──────
 
     [Fact]
@@ -374,6 +393,17 @@ public sealed class WebhookSizeCatalogTests : IClassFixture<WebhookTestFactory>,
                 .MaxAsync(s => (int?)s.Ordinal);
 
         return (max ?? -1) + 1;
+    }
+
+    private async Task<int> SizeOrdinalAsync(Guid sizeId)
+    {
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<BoardDbContext>();
+
+        return await db.CardSizes
+            .Where(s => s.Id == sizeId)
+                .Select(s => s.Ordinal)
+                    .SingleAsync();
     }
 
     private async Task<List<Guid>> SizeIdsInOrderAsync()

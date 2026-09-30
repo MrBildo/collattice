@@ -101,8 +101,8 @@ report of drift.
 
 Redistributed in full by the self-contained publish.
 
-- `Microsoft.AspNetCore.App.Runtime` 10.0.11 — MIT — Copyright (c) .NET Foundation and Contributors
-- `Microsoft.NETCore.App.Runtime` 10.0.11 — MIT — Copyright (c) .NET Foundation and Contributors
+- `Microsoft.AspNetCore.App.Runtime` 10.0.12 — MIT — Copyright (c) .NET Foundation and Contributors
+- `Microsoft.NETCore.App.Runtime` 10.0.12 — MIT — Copyright (c) .NET Foundation and Contributors
 - `Microsoft.NETCore.App.Host` — MIT — Copyright (c) .NET Foundation and Contributors
   Shipped as the `Collabot.Collattice.Api` executable (`Collabot.Collattice.Api.exe` on Windows): the
   .NET SDK's native launcher, patched with the application name. It comes from
@@ -114,45 +114,45 @@ Redistributed in full by the self-contained publish.
 Shipped as managed assemblies alongside the executable.
 
 - `DiffPlex` 1.9.0 — Apache-2.0 — states no copyright notice; authored by Matthew Manela
-- `Microsoft.AspNetCore.OpenApi` 10.0.5 — MIT — © Microsoft Corporation. All rights reserved.
-- `Microsoft.Data.Sqlite.Core` 10.0.5 — MIT — © Microsoft Corporation. All rights reserved.
-- `Microsoft.EntityFrameworkCore` 10.0.5 — MIT — © Microsoft Corporation. All rights reserved.
-- `Microsoft.EntityFrameworkCore.Abstractions` 10.0.5 — MIT — © Microsoft Corporation. All rights reserved.
-- `Microsoft.EntityFrameworkCore.Relational` 10.0.5 — MIT — © Microsoft Corporation. All rights reserved.
-- `Microsoft.EntityFrameworkCore.Sqlite` 10.0.5 — MIT — © Microsoft Corporation. All rights reserved.
-- `Microsoft.EntityFrameworkCore.Sqlite.Core` 10.0.5 — MIT — © Microsoft Corporation. All rights reserved.
-- `Microsoft.Extensions.AI.Abstractions` 10.3.0 — MIT — © Microsoft Corporation. All rights reserved.
-- `Microsoft.Extensions.AmbientMetadata.Application` 10.4.0 — MIT — © Microsoft Corporation. All rights reserved.
-- `Microsoft.Extensions.Compliance.Abstractions` 10.4.0 — MIT — © Microsoft Corporation. All rights reserved.
-- `Microsoft.Extensions.DependencyInjection.AutoActivation` 10.4.0 — MIT — © Microsoft Corporation. All rights reserved.
-- `Microsoft.Extensions.DependencyModel` 10.0.5 — MIT — © Microsoft Corporation. All rights reserved.
-- `Microsoft.Extensions.Diagnostics.ExceptionSummarization` 10.4.0 — MIT — © Microsoft Corporation. All rights reserved.
-- `Microsoft.Extensions.Http.Diagnostics` 10.4.0 — MIT — © Microsoft Corporation. All rights reserved.
-- `Microsoft.Extensions.Http.Resilience` 10.4.0 — MIT — © Microsoft Corporation. All rights reserved.
-- `Microsoft.Extensions.Resilience` 10.4.0 — MIT — © Microsoft Corporation. All rights reserved.
-- `Microsoft.Extensions.ServiceDiscovery` 10.4.0 — MIT — © Microsoft Corporation. All rights reserved.
-- `Microsoft.Extensions.ServiceDiscovery.Abstractions` 10.4.0 — MIT — © Microsoft Corporation. All rights reserved.
-- `Microsoft.Extensions.Telemetry` 10.4.0 — MIT — © Microsoft Corporation. All rights reserved.
-- `Microsoft.Extensions.Telemetry.Abstractions` 10.4.0 — MIT — © Microsoft Corporation. All rights reserved.
-- `Microsoft.OpenApi` 2.7.5 — MIT — © Microsoft Corporation. All rights reserved.
-- `ModelContextProtocol` 1.1.0 — Apache-2.0 — © Model Context Protocol a Series of LF Projects, LLC.
-- `ModelContextProtocol.AspNetCore` 1.1.0 — Apache-2.0 — © Model Context Protocol a Series of LF Projects, LLC.
-- `ModelContextProtocol.Core` 1.1.0 — Apache-2.0 — © Model Context Protocol a Series of LF Projects, LLC.
-- `OpenTelemetry` 1.15.3 — Apache-2.0 — Copyright The OpenTelemetry Authors
-- `OpenTelemetry.Api` 1.15.3 — Apache-2.0 — Copyright The OpenTelemetry Authors
-- `OpenTelemetry.Api.ProviderBuilderExtensions` 1.15.3 — Apache-2.0 — Copyright The OpenTelemetry Authors
-- `OpenTelemetry.Exporter.OpenTelemetryProtocol` 1.15.3 — Apache-2.0 — Copyright The OpenTelemetry Authors
-- `OpenTelemetry.Extensions.Hosting` 1.15.3 — Apache-2.0 — Copyright The OpenTelemetry Authors
-- `OpenTelemetry.Instrumentation.AspNetCore` 1.15.2 — Apache-2.0 — Copyright The OpenTelemetry Authors
-- `OpenTelemetry.Instrumentation.Http` 1.15.1 — Apache-2.0 — Copyright The OpenTelemetry Authors
-- `OpenTelemetry.Instrumentation.Runtime` 1.15.1 — Apache-2.0 — Copyright The OpenTelemetry Authors
+- `Microsoft.AspNetCore.OpenApi` 10.0.12 — MIT — © Microsoft Corporation. All rights reserved.
+- `Microsoft.Data.Sqlite.Core` 10.0.12 — MIT — © Microsoft Corporation. All rights reserved.
+- `Microsoft.EntityFrameworkCore` 10.0.12 — MIT — © Microsoft Corporation. All rights reserved.
+- `Microsoft.EntityFrameworkCore.Abstractions` 10.0.12 — MIT — © Microsoft Corporation. All rights reserved.
+- `Microsoft.EntityFrameworkCore.Relational` 10.0.12 — MIT — © Microsoft Corporation. All rights reserved.
+- `Microsoft.EntityFrameworkCore.Sqlite` 10.0.12 — MIT — © Microsoft Corporation. All rights reserved.
+- `Microsoft.EntityFrameworkCore.Sqlite.Core` 10.0.12 — MIT — © Microsoft Corporation. All rights reserved.
+- `Microsoft.Extensions.AI.Abstractions` 10.5.2 — MIT — © Microsoft Corporation. All rights reserved.
+- `Microsoft.Extensions.AmbientMetadata.Application` 10.10.0 — MIT — © Microsoft Corporation. All rights reserved.
+- `Microsoft.Extensions.Compliance.Abstractions` 10.10.0 — MIT — © Microsoft Corporation. All rights reserved.
+- `Microsoft.Extensions.DependencyInjection.AutoActivation` 10.10.0 — MIT — © Microsoft Corporation. All rights reserved.
+- `Microsoft.Extensions.DependencyModel` 10.0.12 — MIT — © Microsoft Corporation. All rights reserved.
+- `Microsoft.Extensions.Diagnostics.ExceptionSummarization` 10.10.0 — MIT — © Microsoft Corporation. All rights reserved.
+- `Microsoft.Extensions.Http.Diagnostics` 10.10.0 — MIT — © Microsoft Corporation. All rights reserved.
+- `Microsoft.Extensions.Http.Resilience` 10.10.0 — MIT — © Microsoft Corporation. All rights reserved.
+- `Microsoft.Extensions.Resilience` 10.10.0 — MIT — © Microsoft Corporation. All rights reserved.
+- `Microsoft.Extensions.ServiceDiscovery` 10.10.0 — MIT — © Microsoft Corporation. All rights reserved.
+- `Microsoft.Extensions.ServiceDiscovery.Abstractions` 10.10.0 — MIT — © Microsoft Corporation. All rights reserved.
+- `Microsoft.Extensions.Telemetry` 10.10.0 — MIT — © Microsoft Corporation. All rights reserved.
+- `Microsoft.Extensions.Telemetry.Abstractions` 10.10.0 — MIT — © Microsoft Corporation. All rights reserved.
+- `Microsoft.OpenApi` 2.12.0 — MIT — © Microsoft Corporation. All rights reserved.
+- `ModelContextProtocol` 1.4.1 — Apache-2.0 — © Model Context Protocol a Series of LF Projects, LLC.
+- `ModelContextProtocol.AspNetCore` 1.4.1 — Apache-2.0 — © Model Context Protocol a Series of LF Projects, LLC.
+- `ModelContextProtocol.Core` 1.4.1 — Apache-2.0 — © Model Context Protocol a Series of LF Projects, LLC.
+- `OpenTelemetry` 1.19.1 — Apache-2.0 — Copyright The OpenTelemetry Authors
+- `OpenTelemetry.Api` 1.19.1 — Apache-2.0 — Copyright The OpenTelemetry Authors
+- `OpenTelemetry.Api.ProviderBuilderExtensions` 1.19.1 — Apache-2.0 — Copyright The OpenTelemetry Authors
+- `OpenTelemetry.Exporter.OpenTelemetryProtocol` 1.19.1 — Apache-2.0 — Copyright The OpenTelemetry Authors
+- `OpenTelemetry.Extensions.Hosting` 1.19.1 — Apache-2.0 — Copyright The OpenTelemetry Authors
+- `OpenTelemetry.Instrumentation.AspNetCore` 1.19.0 — Apache-2.0 — Copyright The OpenTelemetry Authors
+- `OpenTelemetry.Instrumentation.Http` 1.19.0 — Apache-2.0 — Copyright The OpenTelemetry Authors
+- `OpenTelemetry.Instrumentation.Runtime` 1.19.0 — Apache-2.0 — Copyright The OpenTelemetry Authors
 - `Polly.Core` 8.4.2 — BSD-3-Clause — Copyright (c) 2024, App vNext
 - `Polly.Extensions` 8.4.2 — BSD-3-Clause — Copyright (c) 2024, App vNext
 - `Polly.RateLimiting` 8.4.2 — BSD-3-Clause — Copyright (c) 2024, App vNext
-- `SQLitePCLRaw.bundle_e_sqlite3` 2.1.11 — Apache-2.0 — Copyright 2014-2024 SourceGear, LLC
-- `SQLitePCLRaw.core` 2.1.11 — Apache-2.0 — Copyright 2014-2024 SourceGear, LLC
-- `SQLitePCLRaw.lib.e_sqlite3` 2.1.13 — Apache-2.0 — Copyright 2014-2024 SourceGear, LLC
-- `SQLitePCLRaw.provider.e_sqlite3` 2.1.11 — Apache-2.0 — Copyright 2014-2024 SourceGear, LLC
+- `SQLitePCLRaw.bundle_e_sqlite3` 2.1.12 — Apache-2.0 — Copyright 2014-2024 SourceGear, LLC
+- `SQLitePCLRaw.core` 2.1.12 — Apache-2.0 — Copyright 2014-2024 SourceGear, LLC
+- `SQLitePCLRaw.lib.e_sqlite3` 2.1.12 — Apache-2.0 — Copyright 2014-2024 SourceGear, LLC
+- `SQLitePCLRaw.provider.e_sqlite3` 2.1.12 — Apache-2.0 — Copyright 2014-2024 SourceGear, LLC
 - `Ulid` 1.4.1 — MIT — © Cysharp, Inc.
 
 ### Native libraries (server)
@@ -167,41 +167,42 @@ Shipped as managed assemblies alongside the executable.
 
 Compiled into the JavaScript served from `wwwroot`.
 
-- `@base-ui/react` 1.3.0 — MIT — Copyright (c) 2019 Material-UI SAS
-- `@base-ui/utils` 0.2.6 — MIT — Copyright (c) 2019 Material-UI SAS
+- `@base-ui/react` 1.8.0 — MIT — Copyright (c) 2019 Material-UI SAS
+- `@base-ui/utils` 0.4.0 — MIT — Copyright (c) 2019 Material-UI SAS
 - `@braintree/sanitize-url` 7.1.2 — MIT — Copyright (c) 2017 Braintree
 - `@dnd-kit/accessibility` 3.1.1 — MIT — Copyright (c) 2021, Claudéric Demers
 - `@dnd-kit/core` 6.3.1 — MIT — Copyright (c) 2021, Claudéric Demers
 - `@dnd-kit/sortable` 10.0.0 — MIT — Copyright (c) 2021, Claudéric Demers
 - `@dnd-kit/utilities` 3.2.2 — MIT — Copyright (c) 2021, Claudéric Demers
-- `@floating-ui/core` 1.7.5 — MIT — Copyright (c) 2021-present Floating UI contributors
-- `@floating-ui/dom` 1.7.6 — MIT — Copyright (c) 2021-present Floating UI contributors
-- `@floating-ui/react-dom` 2.1.8 — MIT — Copyright (c) 2021-present Floating UI contributors
-- `@floating-ui/utils` 0.2.11 — MIT — Copyright (c) 2021-present Floating UI contributors
-- `@iconify/utils` 3.1.0 — MIT — Copyright (c) 2021-PRESENT Vjacheslav Trushkin
-- `@mermaid-js/parser` 1.2.0 — MIT — Copyright (c) 2023 Yokozuna59
-- `@radix-ui/number` 1.1.1 — MIT — Copyright (c) 2022 WorkOS
-- `@radix-ui/primitive` 1.1.3 — MIT — Copyright (c) 2022 WorkOS
-- `@radix-ui/react-collection` 1.1.7 — MIT — Copyright (c) 2022 WorkOS
-- `@radix-ui/react-compose-refs` 1.1.2 — MIT — Copyright (c) 2022 WorkOS
-- `@radix-ui/react-context` 1.1.2 — MIT — Copyright (c) 2022 WorkOS
-- `@radix-ui/react-direction` 1.1.1 — MIT — Copyright (c) 2022 WorkOS
-- `@radix-ui/react-primitive` 2.1.3 — MIT — Copyright (c) 2022 WorkOS
-- `@radix-ui/react-slider` 1.3.6 — MIT — Copyright (c) 2022 WorkOS
-- `@radix-ui/react-slot` 1.2.3 — MIT — Copyright (c) 2022 WorkOS
-- `@radix-ui/react-use-controllable-state` 1.2.2 — MIT — Copyright (c) 2022 WorkOS
-- `@radix-ui/react-use-layout-effect` 1.1.1 — MIT — Copyright (c) 2022 WorkOS
-- `@radix-ui/react-use-previous` 1.1.1 — MIT — Copyright (c) 2022 WorkOS
-- `@radix-ui/react-use-size` 1.1.1 — MIT — Copyright (c) 2022 WorkOS
+- `@floating-ui/core` 1.8.0 — MIT — Copyright (c) 2021-present Floating UI contributors
+- `@floating-ui/dom` 1.8.0 — MIT — Copyright (c) 2021-present Floating UI contributors
+- `@floating-ui/react-dom` 2.1.9 — MIT — Copyright (c) 2021-present Floating UI contributors
+- `@floating-ui/utils` 0.2.12 — MIT — Copyright (c) 2021-present Floating UI contributors
+- `@iconify/utils` 3.1.7 — MIT — Copyright (c) 2021-PRESENT Vjacheslav Trushkin
+- `@mermaid-js/parser` 1.2.1 — MIT — Copyright (c) 2023 Yokozuna59
+- `@radix-ui/number` 1.1.3 — MIT — Copyright (c) 2022 WorkOS
+- `@radix-ui/primitive` 1.1.7 — MIT — Copyright (c) 2022 WorkOS
+- `@radix-ui/react-collection` 1.1.15 — MIT — Copyright (c) 2022 WorkOS
+- `@radix-ui/react-compose-refs` 1.1.5 — MIT — Copyright (c) 2022 WorkOS
+- `@radix-ui/react-context` 1.2.2 — MIT — Copyright (c) 2022 WorkOS
+- `@radix-ui/react-direction` 1.1.4 — MIT — Copyright (c) 2022 WorkOS
+- `@radix-ui/react-primitive` 2.1.10 — MIT — Copyright (c) 2022 WorkOS
+- `@radix-ui/react-slider` 1.4.7 — MIT — Copyright (c) 2022 WorkOS
+- `@radix-ui/react-slot` 1.3.3 — MIT — Copyright (c) 2022 WorkOS
+- `@radix-ui/react-use-controllable-state` 1.2.6 — MIT — Copyright (c) 2022 WorkOS
+- `@radix-ui/react-use-effect-event` 0.0.5 — MIT — Copyright (c) 2022 WorkOS
+- `@radix-ui/react-use-layout-effect` 1.1.4 — MIT — Copyright (c) 2022 WorkOS
+- `@radix-ui/react-use-previous` 1.1.4 — MIT — Copyright (c) 2022 WorkOS
+- `@radix-ui/react-use-size` 1.1.4 — MIT — Copyright (c) 2022 WorkOS
 - `@sindresorhus/is` 4.6.0 — MIT — Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (https://sindresorhus.com)
-- `@tanstack/query-core` 5.90.20 — MIT — Copyright (c) 2021-present Tanner Linsley
-- `@tanstack/query-persist-client-core` 5.92.1 — MIT — Copyright (c) 2021-present Tanner Linsley
-- `@tanstack/query-sync-storage-persister` 5.90.24 — MIT — Copyright (c) 2021-present Tanner Linsley
-- `@tanstack/react-query` 5.90.21 — MIT — Copyright (c) 2021-present Tanner Linsley
-- `@tanstack/react-query-persist-client` 5.90.24 — MIT — Copyright (c) 2021-present Tanner Linsley
-- `@ungap/structured-clone` 1.3.0 — ISC — Copyright (c) 2021, Andrea Giammarchi, @WebReflection
+- `@tanstack/query-core` 5.104.0 — MIT — Copyright (c) 2021-present Tanner Linsley
+- `@tanstack/query-persist-client-core` 5.104.0 — MIT — Copyright (c) 2021-present Tanner Linsley
+- `@tanstack/query-sync-storage-persister` 5.104.0 — MIT — Copyright (c) 2021-present Tanner Linsley
+- `@tanstack/react-query` 5.104.0 — MIT — Copyright (c) 2021-present Tanner Linsley
+- `@tanstack/react-query-persist-client` 5.104.0 — MIT — Copyright (c) 2021-present Tanner Linsley
+- `@ungap/structured-clone` 1.4.0 — ISC — Copyright (c) 2021, Andrea Giammarchi, @WebReflection
 - `@upsetjs/venn.js` 2.0.0 — MIT — Copyright (c) 2013 Ben Frederickson
-- `axios` 1.19.0 — MIT — Copyright (c) 2014-present Matt Zabriskie & Collaborators
+- `axios` 1.20.0 — MIT — Copyright (c) 2014-present Matt Zabriskie & Collaborators
 - `bail` 2.0.2 — MIT — Copyright (c) 2015 Titus Wormer <tituswormer@gmail.com>
 - `ccount` 2.0.1 — MIT — Copyright (c) 2015 Titus Wormer <tituswormer@gmail.com>
 - `char-regex` 1.0.2 — MIT — Copyright (c) 2019 Richie Bendall
@@ -210,7 +211,7 @@ Compiled into the JavaScript served from `wwwroot`.
 - `comma-separated-tokens` 2.0.3 — MIT — Copyright (c) 2016 Titus Wormer <tituswormer@gmail.com>
 - `cose-base` 1.0.3 — MIT — Copyright (c) 2019 - present, iVis@Bilkent.
 - `cose-base` 2.2.0 — MIT — Copyright (c) 2019 - present, iVis@Bilkent.
-- `cytoscape` 3.34.0 — MIT — Copyright (c) 2016-2026, The Cytoscape Consortium.
+- `cytoscape` 3.34.3 — MIT — Copyright (c) 2016-2026, The Cytoscape Consortium.
 - `cytoscape-cose-bilkent` 4.1.0 — MIT — Copyright (c) 2016-2018, The Cytoscape Consortium.
 - `cytoscape-fcose` 2.2.0 — MIT — Copyright (c) 2018 - present, iVis-at-Bilkent.
 - `d3-array` 3.2.4 — ISC — Copyright 2010-2023 Mike Bostock
@@ -236,16 +237,17 @@ Compiled into the JavaScript served from `wwwroot`.
 - `d3-transition` 3.0.1 — ISC — Copyright 2010-2021 Mike Bostock
 - `d3-zoom` 3.0.0 — ISC — Copyright 2010-2021 Mike Bostock
 - `dagre-d3-es` 7.0.14 — MIT — Copyright (c) 2022-2024 Thibaut Lassalle, David Newell, Alois Klink, Sidharth Vinod and dagre-es contributors
-- `dayjs` 1.11.20 — MIT — Copyright (c) 2018-present, iamkun
+- `dayjs` 1.11.23 — MIT — Copyright (c) 2018-present, iamkun
 - `decode-named-character-reference` 1.3.0 — MIT — Copyright (c) Titus Wormer <tituswormer@gmail.com>
-- `dompurify` 3.4.13 — (MPL-2.0 OR Apache-2.0) — Copyright [yyyy] [name of copyright owner]
+- `dompurify` 3.4.16 — (MPL-2.0 OR Apache-2.0) — Copyright [yyyy] [name of copyright owner]
 - `emojilib` 2.4.0 — MIT — Copyright (c) 2014 Mu-An Chiou
 - `emoticon` 4.1.0 — MIT — Copyright (c) 2014 Titus Wormer <tituswormer@gmail.com>
 - `entities` 6.0.1 — BSD-2-Clause — Copyright (c) Felix Böhm
-- `es-toolkit` 1.50.0 — MIT — Copyright (c) 2024 Viva Republica, Inc.
+- `es-toolkit` 1.52.0 — MIT — Copyright (c) 2024 Viva Republica, Inc.
 - `escape-string-regexp` 5.0.0 — MIT — Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (https://sindresorhus.com)
 - `estree-util-is-identifier-name` 3.0.0 — MIT — Copyright (c) 2020 Titus Wormer <tituswormer@gmail.com>
 - `extend` 3.0.2 — MIT — Copyright (c) 2014 Stefan Thomas
+- `fastdom` 1.0.12 — MIT — Copyright (c) 2016 Wilson Page <wilsonpage@me.com>
 - `hast-util-from-parse5` 8.0.3 — MIT — Copyright (c) Titus Wormer <tituswormer@gmail.com>
 - `hast-util-is-element` 3.0.0 — MIT — Copyright (c) 2016 Titus Wormer <tituswormer@gmail.com>
 - `hast-util-parse-selector` 4.0.0 — MIT — Copyright (c) 2016 Titus Wormer <tituswormer@gmail.com>
@@ -256,7 +258,7 @@ Compiled into the JavaScript served from `wwwroot`.
 - `hast-util-to-text` 4.0.2 — MIT — Copyright (c) 2019 Titus Wormer <tituswormer@gmail.com>
 - `hast-util-whitespace` 3.0.0 — MIT — Copyright (c) 2016 Titus Wormer <tituswormer@gmail.com>
 - `hastscript` 9.0.1 — MIT — Copyright (c) Titus Wormer <tituswormer@gmail.com>
-- `highlight.js` 11.11.1 — BSD-3-Clause — Copyright (c) 2006, Ivan Sagalaev.
+- `highlight.js` 11.11.2 — BSD-3-Clause — Copyright (c) 2006, Ivan Sagalaev.
 - `html-url-attributes` 3.0.1 — MIT — Copyright (c) Titus Wormer
 - `html-void-elements` 3.0.0 — MIT — Copyright (c) 2016 Titus Wormer <tituswormer@gmail.com>
 - `inline-style-parser` 0.2.7 — MIT — Copyright (c) 2012 TJ Holowaychuk <tj@vision-media.ca>
@@ -278,25 +280,25 @@ Compiled into the JavaScript served from `wwwroot`.
 - `mdast-util-gfm` 3.1.0 — MIT — Copyright (c) Titus Wormer <tituswormer@gmail.com>
 - `mdast-util-gfm-autolink-literal` 2.0.1 — MIT — Copyright (c) 2020 Titus Wormer <tituswormer@gmail.com>
 - `mdast-util-gfm-footnote` 2.1.0 — MIT — Copyright (c) Titus Wormer <tituswormer@gmail.com>
-- `mdast-util-gfm-strikethrough` 2.0.0 — MIT — Copyright (c) 2020 Titus Wormer <tituswormer@gmail.com>
+- `mdast-util-gfm-strikethrough` 2.0.1 — MIT — Copyright (c) Titus Wormer <tituswormer@gmail.com>
 - `mdast-util-gfm-table` 2.0.0 — MIT — Copyright (c) 2020 Titus Wormer <tituswormer@gmail.com>
 - `mdast-util-gfm-task-list-item` 2.0.0 — MIT — Copyright (c) 2020 Titus Wormer <tituswormer@gmail.com>
 - `mdast-util-phrasing` 4.1.0 — MIT — Copyright (c) 2017 Titus Wormer <tituswormer@gmail.com>
 - `mdast-util-to-hast` 13.2.1 — MIT — Copyright (c) 2016 Titus Wormer <tituswormer@gmail.com>
-- `mdast-util-to-markdown` 2.1.2 — MIT — Copyright (c) Titus Wormer <tituswormer@gmail.com>
+- `mdast-util-to-markdown` 2.1.3 — MIT — Copyright (c) Titus Wormer <tituswormer@gmail.com>
 - `mdast-util-to-string` 4.0.0 — MIT — Copyright (c) 2015 Titus Wormer <tituswormer@gmail.com>
-- `mermaid` 11.16.1 — MIT — Copyright (c) 2014 - 2022 Knut Sveidqvist
-- `micromark` 4.0.2 — MIT — Copyright (c) Titus Wormer <tituswormer@gmail.com>
-- `micromark-core-commonmark` 2.0.3 — MIT — Copyright (c) Titus Wormer <tituswormer@gmail.com>
+- `mermaid` 11.17.2 — MIT — Copyright (c) 2014 - 2022 Knut Sveidqvist
+- `micromark` 4.0.3 — MIT — Copyright (c) Titus Wormer <tituswormer@gmail.com>
+- `micromark-core-commonmark` 2.0.4 — MIT — Copyright (c) Titus Wormer <tituswormer@gmail.com>
 - `micromark-extension-gfm` 3.0.0 — MIT — Copyright (c) 2020 Titus Wormer <tituswormer@gmail.com>
 - `micromark-extension-gfm-autolink-literal` 2.1.0 — MIT — Copyright (c) 2020 Titus Wormer <tituswormer@gmail.com>
 - `micromark-extension-gfm-footnote` 2.1.0 — MIT — Copyright (c) 2021 Titus Wormer <tituswormer@gmail.com>
 - `micromark-extension-gfm-strikethrough` 2.1.0 — MIT — Copyright (c) 2020 Titus Wormer <tituswormer@gmail.com>
-- `micromark-extension-gfm-table` 2.1.1 — MIT — Copyright (c) Titus Wormer <tituswormer@gmail.com>
+- `micromark-extension-gfm-table` 2.1.2 — MIT — Copyright (c) Titus Wormer <tituswormer@gmail.com>
 - `micromark-extension-gfm-task-list-item` 2.1.0 — MIT — Copyright (c) 2020 Titus Wormer <tituswormer@gmail.com>
 - `micromark-factory-destination` 2.0.1 — MIT — Copyright (c) Titus Wormer <tituswormer@gmail.com>
 - `micromark-factory-label` 2.0.1 — MIT — Copyright (c) Titus Wormer <tituswormer@gmail.com>
-- `micromark-factory-space` 2.0.1 — MIT — Copyright (c) Titus Wormer <tituswormer@gmail.com>
+- `micromark-factory-space` 2.1.0 — MIT — Copyright (c) Titus Wormer <tituswormer@gmail.com>
 - `micromark-factory-title` 2.0.1 — MIT — Copyright (c) Titus Wormer <tituswormer@gmail.com>
 - `micromark-factory-whitespace` 2.0.1 — MIT — Copyright (c) Titus Wormer <tituswormer@gmail.com>
 - `micromark-util-character` 2.1.1 — MIT — Copyright (c) Titus Wormer <tituswormer@gmail.com>
@@ -305,6 +307,7 @@ Compiled into the JavaScript served from `wwwroot`.
 - `micromark-util-combine-extensions` 2.0.1 — MIT — Copyright (c) Titus Wormer <tituswormer@gmail.com>
 - `micromark-util-decode-numeric-character-reference` 2.0.2 — MIT — Copyright (c) Titus Wormer <tituswormer@gmail.com>
 - `micromark-util-decode-string` 2.0.1 — MIT — Copyright (c) Titus Wormer <tituswormer@gmail.com>
+- `micromark-util-edit-map` 1.0.0 — MIT — Copyright (c) Titus Wormer <tituswormer@gmail.com>
 - `micromark-util-html-tag-name` 2.0.1 — MIT — Copyright (c) Titus Wormer <tituswormer@gmail.com>
 - `micromark-util-normalize-identifier` 2.0.1 — MIT — Copyright (c) Titus Wormer <tituswormer@gmail.com>
 - `micromark-util-resolve-all` 2.0.1 — MIT — Copyright (c) Titus Wormer <tituswormer@gmail.com>
@@ -312,11 +315,11 @@ Compiled into the JavaScript served from `wwwroot`.
 - `micromark-util-subtokenize` 2.1.0 — MIT — Copyright (c) Titus Wormer <tituswormer@gmail.com>
 - `node-emoji` 2.2.0 — MIT — Copyright (c) 2014-2023 Daniel Bugl
 - `parse5` 7.3.0 — MIT — Copyright (c) 2013-2019 Ivan Nikulin (ifaaan@gmail.com, https://github.com/inikulin)
-- `property-information` 7.1.0 — MIT — Copyright (c) Titus Wormer <mailto:tituswormer@gmail.com>
+- `property-information` 7.2.0 — MIT — Copyright (c) Titus Wormer <mailto:tituswormer@gmail.com>
 - `react` 18.3.1 — MIT — Copyright (c) Facebook, Inc. and its affiliates.
 - `react-dom` 18.3.1 — MIT — Copyright (c) Facebook, Inc. and its affiliates.
 - `react-markdown` 9.1.0 — MIT — Copyright (c) Espen Hovlandsdal
-- `react-router` 7.18.2 — MIT — Copyright (c) React Training LLC 2015-2019
+- `react-router` 7.18.4 — MIT — Copyright (c) React Training LLC 2015-2019
 - `rehype-external-links` 3.0.0 — MIT — Copyright (c) 2016 Titus Wormer <tituswormer@gmail.com>
 - `rehype-highlight` 7.0.2 — MIT — Copyright (c) Titus Wormer <tituswormer@gmail.com>
 - `rehype-raw` 7.0.0 — MIT — Copyright (c) 2016 Titus Wormer <tituswormer@gmail.com>
@@ -325,19 +328,17 @@ Compiled into the JavaScript served from `wwwroot`.
 - `remark-gfm` 4.0.1 — MIT — Copyright (c) Titus Wormer <tituswormer@gmail.com>
 - `remark-parse` 11.0.0 — MIT — Copyright (c) 2014 Titus Wormer <tituswormer@gmail.com>
 - `remark-rehype` 11.1.2 — MIT — Copyright (c) Titus Wormer <tituswormer@gmail.com>
-- `reselect` 5.1.1 — MIT — Copyright (c) 2015-2018 Reselect Contributors
 - `roughjs` 4.6.6 — MIT — Copyright (c) 2019 Preet Shihn
 - `scheduler` 0.23.2 — MIT — Copyright (c) Facebook, Inc. and its affiliates.
-- `sonner` 2.0.7 — MIT — Copyright (c) 2023 Emil Kowalski
+- `sonner` 2.0.8 — MIT — Copyright (c) 2023 Emil Kowalski
 - `space-separated-tokens` 2.0.2 — MIT — Copyright (c) 2016 Titus Wormer <tituswormer@gmail.com>
 - `style-to-js` 1.1.21 — MIT — Copyright (c) 2020 Menglin "Mark" Xu <mark@remarkablemark.org>
 - `style-to-object` 1.0.14 — MIT — Copyright (c) 2017 Menglin "Mark" Xu <mark@remarkablemark.org>
-- `stylis` 4.3.6 — MIT — Copyright (c) 2016-present Sultan Tarimo
-- `tabbable` 6.4.0 — MIT — Copyright (c) 2015 David Clark
-- `tailwind-merge` 3.5.0 — MIT — Copyright (c) 2021 Dany Castillo
+- `stylis` 4.4.0 — MIT — Copyright (c) 2016-present Sultan Tarimo
+- `tailwind-merge` 3.7.0 — MIT — Copyright (c) 2021 Dany Castillo
 - `trim-lines` 3.0.1 — MIT — Copyright (c) 2015 Titus Wormer <mailto:tituswormer@gmail.com>
 - `trough` 2.2.0 — MIT — Copyright (c) 2016 Titus Wormer <tituswormer@gmail.com>
-- `ts-dedent` 2.2.0 — MIT — Copyright (c) 2018 Tamino Martinius
+- `ts-dedent` 2.3.0 — MIT — Copyright (c) 2018 Tamino Martinius
 - `unified` 11.0.5 — MIT — Copyright (c) 2015 Titus Wormer <tituswormer@gmail.com>
 - `unist-util-find-after` 5.0.0 — MIT — Copyright (c) 2015 Titus Wormer <tituswormer@gmail.com>
 - `unist-util-is` 6.0.1 — MIT — Copyright (c) 2015 Titus Wormer <tituswormer@gmail.com>
@@ -345,21 +346,21 @@ Compiled into the JavaScript served from `wwwroot`.
 - `unist-util-stringify-position` 4.0.0 — MIT — Copyright (c) 2016 Titus Wormer <tituswormer@gmail.com>
 - `unist-util-visit` 5.1.0 — MIT — Copyright (c) 2015 Titus Wormer <tituswormer@gmail.com>
 - `unist-util-visit-parents` 6.0.2 — MIT — Copyright (c) 2016 Titus Wormer <tituswormer@gmail.com>
-- `use-sync-external-store` 1.6.0 — MIT — Copyright (c) Meta Platforms, Inc. and affiliates.
-- `uuid` 14.0.1 — MIT — Copyright (c) 2010-2020 Robert Kieffer and other contributors
+- `use-sync-external-store` 1.7.0 — MIT — Copyright (c) Meta Platforms, Inc. and affiliates.
+- `uuid` 14.0.2 — MIT — Copyright (c) 2010-2020 Robert Kieffer and other contributors
 - `vfile` 6.0.3 — MIT — Copyright (c) 2015 Titus Wormer <tituswormer@gmail.com>
 - `vfile-location` 5.0.3 — MIT — Copyright (c) 2016 Titus Wormer <tituswormer@gmail.com>
 - `vfile-message` 4.0.3 — MIT — Copyright (c) Titus Wormer <tituswormer@gmail.com>
 - `web-namespaces` 2.0.1 — MIT — Copyright (c) 2016 Titus Wormer <tituswormer@gmail.com>
-- `zod` 4.3.6 — MIT — Copyright (c) 2025 Colin McDonnell
+- `zod` 4.6.5 — MIT — Copyright (c) 2025 Colin McDonnell
 - `zwitch` 2.0.4 — MIT — Copyright (c) 2016 Titus Wormer <tituswormer@gmail.com>
 
 ### CSS toolchain (browser bundle)
 
 Emit generated CSS into the shipped stylesheet.
 
-- `@tailwindcss/typography` 0.5.19 — MIT — Copyright (c) Tailwind Labs, Inc.
-- `tailwindcss` 4.3.1 — MIT — Copyright (c) Tailwind Labs, Inc.
+- `@tailwindcss/typography` 0.5.20 — MIT — Copyright (c) Tailwind Labs, Inc.
+- `tailwindcss` 4.3.3 — MIT — Copyright (c) Tailwind Labs, Inc.
 - `tw-animate-css` 1.4.0 — MIT — Copyright (c) 2025 Wombosvideo
 <!-- END GENERATED INVENTORY -->
 

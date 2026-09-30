@@ -141,6 +141,11 @@ It is `0` or at least `2`, never `1`: a card's first edit records two revisions,
       "editedByUserId": null,
       "editedByName": null,
       "editedAtUtc": null,
+      "inferredEditor": {
+        "userId": "52df8c11-2c9a-4d1e-8b3f-7a6e5d4c3b2a",
+        "name": "Bill Wheelock",
+        "basis": "creator"
+      },
       "value": "the description as it stood when recording began",
       "diff": ""
     }
@@ -153,7 +158,8 @@ It is `0` or at least `2`, never `1`: a card's first edit records two revisions,
 
 - `entries` is ordered **newest first**. Each entry is a *version* of the text, not an edit delta — so the newest entry's `value` is the card's current description, and `diff` answers "what did this edit change?".
 - `revision` is a monotonic integer starting at 1, unique within a card and field. It is the addressing scheme `from`/`to` uses.
-- **The oldest revision carries a `null` author and timestamp**, and only the oldest. History is not back-filled, so revision 1 holds whatever the description said when recording began — nobody observed it being written, and an audit trail should not attribute a value to someone who may not have written it. Every later revision is fully attributed. Render this case explicitly (*"original version — author unknown"*), not as an empty name or an invalid date.
+- **The oldest revision carries a `null` author and timestamp**, and only the oldest. History is not back-filled, so revision 1 holds whatever the description said when recording began — nobody observed it being written, and an audit trail should not attribute a value to someone who may not have written it. Every later revision is fully attributed. Render this case explicitly, not as an empty name or an invalid date.
+- **The oldest revision also carries `inferredEditor`** — `{ userId, name, basis }`, the best available attribution for that unobserved text. `basis` says how it was inferred: `"creator"` means the card's creator. It is an inference, not an observation: a card created before history was recorded may have been edited by someone else before recording began. Keep the two apart when you render it — the history panel shows *"original version — Bill Wheelock (card creator)"*. `inferredEditor` is absent (not `null`) on every observed revision, so its presence is itself the signal that the name is inferred. There is no inferred timestamp: the card's creation time is on the card, but it is not necessarily when this text was written. Treat an unfamiliar `basis` value as a generic inference rather than an error; more may be added.
 - The oldest revision's `diff` is `""` — an empty string, never `null`. There is nothing older to compare it against. **Only the oldest revision has an empty diff**, so an empty diff is a reliable test for "this is the start of the record": no revision is ever recorded holding the same text as the one before it, including when two people save the same wording at the same moment.
 - `editedAtUtc` is stamped when the revision is recorded, not when the request arrived, so **timestamps never decrease as `revision` increases**. Where the two could disagree — two stamps can land on the same clock tick — **`revision` is the authority**; sort by it, not by time.
 - `value` and `diff` are **omitted from the JSON entirely** (not serialized as `null`) when the requested `format` does not include them, so `format=diff` carries no wasted padding.
@@ -255,7 +261,7 @@ Search supports:
 
 | Path | Notes |
 |------|-------|
-| /mcp | Streamable HTTP transport — 45 tools (boards, cards, card history, lanes, sizes, labels, comments, attachments, archive, bulk operations, search, prune, webhooks) |
+| /mcp | Streamable HTTP transport — 46 tools (boards, cards, card history, lanes, sizes, labels, comments, attachments, archive, bulk operations, search, prune, webhooks) |
 
 For the full agent-facing tool reference — connecting a client, every tool, the board model, and the identifier rules — see the [MCP skill](collattice/SKILL.md), a drop-in `SKILL.md` you can add to an agent harness rather than writing your own from the tool schemas.
 
@@ -376,8 +382,8 @@ A subscription receives an event only when its `events` selection includes that 
 
 | Family | Event | Fires when |
 |--------|-------|------------|
-| Cards | `card.created` | A card first comes into existence — via REST `POST /boards/{boardId}/cards`, MCP `create_card`, or when an interactive draft card is finalized. A draft (temp) card does **not** fire until it is finalized. |
-| | `card.moved` | A card moves to a different lane **or position** through any successful non-archive mutation — the dedicated reorder/move paths, a `PATCH /cards/{id}` that sets `laneId` or `position`, an `update_card` that sets `laneId`, or `bulk_update_cards` (one event per moved card). A within-lane move carries equal `from`/`to` lane ids. A `PATCH` that changes the position to the same value fires no `card.moved`. Archiving and restoring do **not** fire `card.moved` (they fire `card.archived` / `card.restored`). |
+| Cards | `card.created` | A card first comes into existence — via REST `POST /boards/{boardId}/cards`, MCP `create_card` or `duplicate_card` (a copy of an existing card is a new card), or when an interactive draft card is finalized. A draft (temp) card does **not** fire until it is finalized. |
+| | `card.moved` | A card moves to a different lane **or position** through any successful non-archive mutation — the dedicated reorder/move paths, a `PATCH /cards/{id}` that sets `laneId` or `position`, an `update_card` that sets `laneId`, or `bulk_update_cards` (one event per card moved to a different lane). A within-lane move carries equal `from`/`to` lane ids. For `PATCH /cards/{id}` and `update_card` the rule is where the card actually lands, however the request expressed it: re-sending the card's current lane still fires `card.moved` when that re-positions the card (a `PATCH` with the current `laneId` and no `position` re-appends the card to the end of its lane), and a request that leaves the card exactly where it was fires none. Archiving and restoring do **not** fire `card.moved` (they fire `card.archived` / `card.restored`). |
 | | `card.updated` | A card's name, description, or size changes. |
 | | `card.archived` | A card is archived. |
 | | `card.restored` | A card is restored from the archive. |
