@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Check, Tag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -7,19 +7,47 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { cn, getContrastColor, getReadableColor } from '@/lib/utils';
 import type { Label } from '@/types';
 
-type LabelPickerProps = {
-  allLabels: Label[];
-  assignedLabels: Label[];
-  onAdd: (labelId: string) => void;
-  onRemove: (labelId: string) => void;
+type AssignedLabel = Pick<Label, 'id' | 'name' | 'color'>;
+
+type LabelPickerTrigger = {
+  // The element the popover trigger renders as (e.g. a compact icon Button).
+  render: React.ReactElement;
+  content: React.ReactNode;
 };
 
-export function LabelPicker({ allLabels, assignedLabels, onAdd, onRemove }: LabelPickerProps) {
+type LabelPickerProps = {
+  allLabels: Label[];
+  assignedLabels: AssignedLabel[];
+  onAdd: (labelId: string) => void;
+  onRemove: (labelId: string) => void;
+  // Replaces the default trigger — an outline button listing the assigned
+  // labels — where the picker lives somewhere that trigger would not fit.
+  trigger?: LabelPickerTrigger;
+  // True while the board's label list is still being fetched, so the list
+  // says "loading" instead of claiming there are no labels.
+  isLoading?: boolean;
+  onOpenChange?: (isOpen: boolean) => void;
+};
+
+export function LabelPicker({
+  allLabels,
+  assignedLabels,
+  onAdd,
+  onRemove,
+  trigger,
+  isLoading = false,
+  onOpenChange,
+}: LabelPickerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [filter, setFilter] = useState('');
   const [focusedIndex, setFocusedIndex] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  // Many pickers can exist on one page (one per board tile), so the listbox and
+  // option ids must be unique per instance for aria-controls/activedescendant.
+  const idPrefix = useId();
+  const listboxId = `${idPrefix}-listbox`;
+  const optionId = (labelId: string) => `${idPrefix}-option-${labelId}`;
 
   const assignedIds = useMemo(() => new Set(assignedLabels.map((l) => l.id)), [assignedLabels]);
 
@@ -58,6 +86,7 @@ export function LabelPicker({ allLabels, assignedLabels, onAdd, onRemove }: Labe
 
   const handleOpenChange = (open: boolean) => {
     setIsOpen(open);
+    onOpenChange?.(open);
     if (open) {
       setFilter('');
       setFocusedIndex(-1);
@@ -79,46 +108,51 @@ export function LabelPicker({ allLabels, assignedLabels, onAdd, onRemove }: Labe
       } else if (e.key === 'Escape') {
         e.preventDefault();
         setIsOpen(false);
+        onOpenChange?.(false);
       }
     },
-    [filtered, focusedIndex, toggle],
+    [filtered, focusedIndex, toggle, onOpenChange],
   );
 
   return (
     <div className="w-fit">
       <Popover open={isOpen} onOpenChange={handleOpenChange}>
-        <PopoverTrigger
-          render={
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-auto min-h-8 gap-1.5 px-2.5 py-1"
-              aria-haspopup="listbox"
-            />
-          }
-        >
-          <Tag className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
-          {assignedLabels.length > 0 ? (
-            <span className="flex flex-wrap gap-1">
-              {assignedLabels.map((label) => (
-                <Badge
-                  key={label.id}
-                  variant="secondary"
-                  className="rounded-sm px-1.5 py-0 text-xs leading-4"
-                  style={{
-                    backgroundColor: label.color ?? '#6b7280',
-                    color: getContrastColor(label.color),
-                    borderColor: label.color ?? '#6b7280',
-                  }}
-                >
-                  {label.name}
-                </Badge>
-              ))}
-            </span>
-          ) : (
-            <span className="text-muted-foreground">Labels</span>
-          )}
-        </PopoverTrigger>
+        {trigger ? (
+          <PopoverTrigger render={trigger.render}>{trigger.content}</PopoverTrigger>
+        ) : (
+          <PopoverTrigger
+            render={
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-auto min-h-8 gap-1.5 px-2.5 py-1"
+                aria-haspopup="listbox"
+              />
+            }
+          >
+            <Tag className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
+            {assignedLabels.length > 0 ? (
+              <span className="flex flex-wrap gap-1">
+                {assignedLabels.map((label) => (
+                  <Badge
+                    key={label.id}
+                    variant="secondary"
+                    className="rounded-sm px-1.5 py-0 text-xs leading-4"
+                    style={{
+                      backgroundColor: label.color ?? '#6b7280',
+                      color: getContrastColor(label.color),
+                      borderColor: label.color ?? '#6b7280',
+                    }}
+                  >
+                    {label.name}
+                  </Badge>
+                ))}
+              </span>
+            ) : (
+              <span className="text-muted-foreground">Labels</span>
+            )}
+          </PopoverTrigger>
+        )}
 
         <PopoverContent
           side="bottom"
@@ -136,9 +170,11 @@ export function LabelPicker({ allLabels, assignedLabels, onAdd, onRemove }: Labe
               aria-label="Search labels"
               role="combobox"
               aria-expanded={true}
-              aria-controls="label-picker-listbox"
+              aria-controls={listboxId}
               aria-activedescendant={
-                focusedIndex >= 0 ? `label-option-${filtered[focusedIndex]?.id}` : undefined
+                focusedIndex >= 0 && filtered[focusedIndex]
+                  ? optionId(filtered[focusedIndex].id)
+                  : undefined
               }
             />
           </div>
@@ -146,8 +182,9 @@ export function LabelPicker({ allLabels, assignedLabels, onAdd, onRemove }: Labe
             ref={listRef}
             className="max-h-48 overflow-y-auto p-1"
             role="listbox"
-            id="label-picker-listbox"
+            id={listboxId}
             aria-label="Available labels"
+            aria-busy={isLoading}
           >
             {filtered.map((label, index) => {
               const selected = assignedIds.has(label.id);
@@ -155,7 +192,7 @@ export function LabelPicker({ allLabels, assignedLabels, onAdd, onRemove }: Labe
               return (
                 <Button
                   key={label.id}
-                  id={`label-option-${label.id}`}
+                  id={optionId(label.id)}
                   variant="ghost"
                   size="sm"
                   role="option"
@@ -179,7 +216,9 @@ export function LabelPicker({ allLabels, assignedLabels, onAdd, onRemove }: Labe
               );
             })}
             {filtered.length === 0 && (
-              <p className="py-2 text-center text-sm text-muted-foreground">No labels found.</p>
+              <p className="py-2 text-center text-sm text-muted-foreground">
+                {isLoading ? 'Loading labels...' : 'No labels found.'}
+              </p>
             )}
           </div>
         </PopoverContent>
