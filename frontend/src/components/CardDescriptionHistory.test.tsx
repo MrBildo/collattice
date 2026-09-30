@@ -123,6 +123,56 @@ describe('CardDescriptionHistory', () => {
     expect(container.textContent).not.toContain('Invalid Date');
   });
 
+  test('the oldest revision names the card creator, hedged as the card creator, and observed revisions are untouched', async () => {
+    mockedFetchCardHistory.mockResolvedValue(
+      makeTrail([
+        makeEntry({ revision: 2, editedByName: 'Bot Cora' }),
+        makeEntry({
+          revision: 1,
+          editedByUserId: null,
+          editedByName: null,
+          editedAtUtc: null,
+          inferredEditor: { userId: 'user-9', name: 'Bot Cairn', basis: 'creator' },
+          diff: '',
+          value: 'the original text',
+        }),
+      ]),
+    );
+
+    const { container } = renderPanel();
+
+    await waitFor(() => {
+      expect(screen.getByText('original version — Bot Cairn (card creator)')).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/author unknown/)).not.toBeInTheDocument();
+    // The inferred name belongs to the original version only; the observed
+    // revision still reads as its own editor.
+    expect(screen.getByText(/^Bot Cora/)).toBeInTheDocument();
+    expect(container.textContent).not.toContain('Invalid Date');
+  });
+
+  test('an inference basis this view does not recognise still renders hedged, never as an observed author', async () => {
+    mockedFetchCardHistory.mockResolvedValue(
+      makeTrail([
+        makeEntry({ revision: 2 }),
+        makeEntry({
+          revision: 1,
+          editedByUserId: null,
+          editedByName: null,
+          editedAtUtc: null,
+          inferredEditor: { userId: 'user-9', name: 'Bot Cairn', basis: 'something-new' },
+          diff: '',
+        }),
+      ]),
+    );
+
+    renderPanel();
+
+    await waitFor(() => {
+      expect(screen.getByText('original version — Bot Cairn (inferred)')).toBeInTheDocument();
+    });
+  });
+
   test('renders diff lines with their content and marks additions and removals', async () => {
     mockedFetchCardHistory.mockResolvedValue(
       makeTrail([

@@ -64,6 +64,8 @@ internal static class CardHistoryBuilder
 
         var editorNames = await ResolveEditorNamesAsync(db, rows, ct);
 
+        var inferredEditor = await ResolveInferredEditorAsync(db, cardId, rows, ct);
+
         List<CardHistoryEntry> entries = [];
 
         for (var index = 0; index < rows.Count; index++)
@@ -73,7 +75,7 @@ internal static class CardHistoryBuilder
             // which has nothing older to diff against.
             var older = index + 1 < rows.Count ? rows[index + 1] : predecessor;
 
-            entries.Add(BuildEntry(rows[index], older?.Value, editorNames, format));
+            entries.Add(BuildEntry(rows[index], older?.Value, editorNames, inferredEditor, format));
         }
 
         return new CardHistoryResult(cardId, field, entries, totalCount, offset, limit);
@@ -138,6 +140,7 @@ internal static class CardHistoryBuilder
         CardFieldHistory row,
         string? previousValue,
         IReadOnlyDictionary<Guid, string> editorNames,
+        CardHistoryInferredEditor? inferredEditor,
         CardHistoryFormat format
     )
     {
@@ -146,6 +149,11 @@ internal static class CardHistoryBuilder
         {
             editorName = editorNames.GetValueOrDefault(row.EditedByUserId.Value);
         }
+
+        // The inference belongs only to a revision nobody observed being written. An observed
+        // revision keeps its own editor and carries no inferred one, so its entry reads exactly as
+        // it did before the inference existed.
+        var entryInferredEditor = row.EditedByUserId is null ? inferredEditor : null;
 
         string? value = null;
         if (IncludesValue(format))
@@ -165,6 +173,7 @@ internal static class CardHistoryBuilder
             row.EditedByUserId,
             editorName,
             row.EditedAtUtc,
+            entryInferredEditor,
             value,
             diff
         );
@@ -191,6 +200,44 @@ internal static class CardHistoryBuilder
                     .ToDictionaryAsync(u => u.Id, u => u.Name, ct);
     }
 
+    // The trail's oldest revision holds the text as it stood when recording began, and its stored
+    // author stays null because nobody observed that text being written. Readers still want a name
+    // there, and the card's creator is the best one available — but only as an inference: a card
+    // created before history was recorded may have been edited by someone else before recording
+    // began. So the creator is resolved here, on read, into a field of its own that says it is
+    // inferred and on what basis, and the stored row is never written to. The record keeps saying
+    // only what was observed, and an attribution rule that is later refined changes one read
+    // rather than rewriting history rows.
+    //
+    // No inferred timestamp is offered. The card's creation time is exactly right for a card
+    // created after recording began and wrong for an older card edited before recording began,
+    // which are the cards the inference exists for. editedAtUtc stays null, and the card's own
+    // creation time is on the card for anyone who wants it.
+    private static async Task<CardHistoryInferredEditor?> ResolveInferredEditorAsync
+    (
+        BoardDbContext db,
+        Guid cardId,
+        List<CardFieldHistory> rows,
+        CancellationToken ct
+    )
+    {
+        // Only the oldest revision is ever un-attributed, so a page that stops short of it needs
+        // no lookup.
+        if (!rows.Any(r => r.EditedByUserId is null))
+        {
+            return null;
+        }
+
+        var creator = await db.Cards
+            .Where(c => c.Id == cardId)
+            .Join(db.Users, c => c.CreatedByUserId, u => u.Id, (c, u) => new { u.Id, u.Name })
+                .SingleOrDefaultAsync(ct);
+
+        return creator is null
+            ? null
+            : new CardHistoryInferredEditor(creator.Id, creator.Name, CardHistoryInferredEditor.CreatorBasis);
+    }
+
     private static string MissingRevisionError(int revision, string field) =>
         string.Create(CultureInfo.InvariantCulture, $"Revision {revision} not found in this card's {field} history.");
 
@@ -210,8 +257,10 @@ internal enum CardHistoryFormat
 
 // One revision in a card field's trail. Value and Diff drop off the wire entirely when the caller's
 // format did not ask for them, so format=diff (the MCP default) carries no null padding. The
-// attribution fields stay on the wire even when null — "who wrote this is unknown" is information a
-// reader needs, and only the trail's oldest revision carries it.
+// observed attribution fields stay on the wire even when null — "nobody saw who wrote this" is
+// information a reader needs, and only the trail's oldest revision carries it. InferredEditor rides
+// beside them on that revision alone and is absent from every other entry, so an observed author
+// and an inferred one can never be mistaken for each other by a reader that looks at the shape.
 internal record CardHistoryEntry
 (
     int Revision,
@@ -219,10 +268,19 @@ internal record CardHistoryEntry
     string? EditedByName,
     DateTimeOffset? EditedAtUtc,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    CardHistoryInferredEditor? InferredEditor,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     string? Value,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     string? Diff
 );
+
+// The best available attribution for a revision nobody observed being written. Basis names how it
+// was inferred, so a reader can say so ("card creator") rather than present the name as observed.
+internal record CardHistoryInferredEditor(Guid UserId, string Name, string Basis)
+{
+    public const string CreatorBasis = "creator";
+}
 
 // Entries carries the requested page; TotalCount is the whole trail's length regardless of paging,
 // so a consumer can tell "this is all of it" from "there is more above or below". The collection

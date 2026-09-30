@@ -422,8 +422,14 @@ get it. Pass `full` for the whole text at each revision, or `both`.
 - **The trail's oldest revision has a null author and timestamp — only the oldest.**
   History is not back-filled, so revision 1 holds whatever the description said
   when recording began; nobody observed it being written, so it is left
-  un-attributed rather than credited to a guess. Its `diff` is `""` — there is
+  un-attributed in those fields rather than credited to a guess. Its `diff` is `""` — there is
   nothing older to compare it against. Every later revision is fully attributed.
+  That oldest revision alone also carries `inferredEditor` —
+  `{ userId, name, basis }`, the best available attribution — where `basis`
+  `"creator"` means the card's creator. It is inferred, not observed (a card
+  older than history recording may have been edited by someone else first), so
+  say so when you report it: *"Bill Wheelock (card creator)"*. The key is absent
+  on every observed revision.
   **Only the oldest revision has an empty diff**, so an empty diff is a reliable
   test for "this is the start of the record" — no revision ever repeats the text
   of the one below it.
