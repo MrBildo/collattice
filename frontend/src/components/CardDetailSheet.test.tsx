@@ -57,8 +57,13 @@ function makeCard(overrides: Partial<CardItem> = {}): CardItem {
   };
 }
 
+function makeSavedCard(name: string) {
+  return { ...makeCard({ name }), labels: [], sizeName: 'M', commentCount: 0, attachmentCount: 0 };
+}
+
 function setup() {
   const onDuplicate = vi.fn();
+  const onOpenChange = vi.fn();
   const card = makeCard();
   // A stable lane list: the sheet snapshots it for prev/next navigation, and a
   // fresh array on every render would never settle.
@@ -71,7 +76,7 @@ function setup() {
           card={card}
           cardsInLane={cardsInLane}
           open
-          onOpenChange={() => {}}
+          onOpenChange={onOpenChange}
           currentUserId="me"
           currentUserRole={ROLES.Human}
           lanes={lanes}
@@ -81,7 +86,7 @@ function setup() {
       </QueryClientProvider>
     </MemoryRouter>,
   );
-  return { onDuplicate };
+  return { onDuplicate, onOpenChange };
 }
 
 async function editNameThenDuplicate(user: ReturnType<typeof userEvent.setup>) {
@@ -139,13 +144,7 @@ describe('CardDetailSheet duplicate', () => {
 
   test('saving the edits first stores them and the copy includes them', async () => {
     const user = userEvent.setup();
-    vi.mocked(updateCard).mockResolvedValue({
-      ...makeCard({ name: 'Original name v2' }),
-      labels: [],
-      sizeName: 'M',
-      commentCount: 0,
-      attachmentCount: 0,
-    });
+    vi.mocked(updateCard).mockResolvedValue(makeSavedCard('Original name v2'));
     const { onDuplicate } = setup();
 
     await editNameThenDuplicate(user);
@@ -165,5 +164,50 @@ describe('CardDetailSheet duplicate', () => {
 
     expect(onDuplicate).not.toHaveBeenCalled();
     expect(screen.getByDisplayValue('Original name v2')).toBeInTheDocument();
+  });
+
+  test('a failed save, then a manual save, opens nothing', async () => {
+    // Arrange
+    const user = userEvent.setup();
+    vi.mocked(updateCard)
+      .mockRejectedValueOnce(new Error('The save failed'))
+      .mockResolvedValueOnce(makeSavedCard('Original name v2 fixed'));
+    const { onDuplicate } = setup();
+
+    // Act
+    await editNameThenDuplicate(user);
+    await user.click(await screen.findByRole('button', { name: 'Save & Duplicate' }));
+    expect(await screen.findByText('The save failed')).toBeInTheDocument();
+    await user.type(screen.getByDisplayValue('Original name v2'), ' fixed');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    // Assert
+    expect(await screen.findByText('Saved')).toBeInTheDocument();
+    expect(updateCard).toHaveBeenCalledTimes(2);
+    expect(onDuplicate).not.toHaveBeenCalled();
+  });
+});
+
+describe('CardDetailSheet save failure', () => {
+  test('a failed Save & Close, then a manual save, leaves the card open', async () => {
+    // Arrange
+    const user = userEvent.setup();
+    vi.mocked(updateCard)
+      .mockRejectedValueOnce(new Error('The save failed'))
+      .mockResolvedValueOnce(makeSavedCard('Original name v2 fixed'));
+    const { onOpenChange } = setup();
+    await user.type(await screen.findByDisplayValue('Original name'), ' v2');
+
+    // Act — the footer's Close; the dialog's corner X reaches the same guard
+    await user.click(screen.getAllByRole('button', { name: 'Close' })[0]);
+    await user.click(await screen.findByRole('button', { name: 'Save & Close' }));
+    expect(await screen.findByText('The save failed')).toBeInTheDocument();
+    await user.type(screen.getByDisplayValue('Original name v2'), ' fixed');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    // Assert
+    expect(await screen.findByText('Saved')).toBeInTheDocument();
+    expect(updateCard).toHaveBeenCalledTimes(2);
+    expect(onOpenChange).not.toHaveBeenCalled();
   });
 });

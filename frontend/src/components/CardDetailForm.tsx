@@ -211,6 +211,7 @@ type CardDetailFormProps = {
   card: CardItem;
   onClose: () => void;
   onSaveComplete?: () => void;
+  onSaveError?: () => void;
   currentUserId?: string;
   currentUserRole?: number;
   lanes?: Lane[];
@@ -229,6 +230,7 @@ export const CardDetailForm = forwardRef<CardDetailFormHandle, CardDetailFormPro
       card,
       onClose,
       onSaveComplete,
+      onSaveError,
       currentUserId,
       currentUserRole,
       lanes,
@@ -577,6 +579,9 @@ export const CardDetailForm = forwardRef<CardDetailFormHandle, CardDetailFormPro
       onError: (error: unknown) => {
         // Inline surface: render the message in the form (skipToast above).
         setSaveError(toMessage(error));
+        // Signal the failure so the sheet can drop any action that was waiting
+        // on this save, rather than running it after some later save.
+        onSaveError?.();
       },
     });
 

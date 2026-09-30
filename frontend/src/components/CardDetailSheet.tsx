@@ -113,6 +113,13 @@ export function CardDetailSheet({
     }
   }, [executePendingAction]);
 
+  // A failed save cancels the action that was waiting on it. Left queued, it
+  // would run after the user's next successful save, which they did not ask
+  // for, and a queued duplicate would carry the draft from the failed attempt.
+  const handleSaveError = useCallback(() => {
+    pendingAfterSaveRef.current = null;
+  }, []);
+
   const handleUnsavedAction = useCallback(
     (action: UnsavedChangesAction) => {
       const pending = pendingAction;
@@ -256,6 +263,7 @@ export function CardDetailSheet({
               card={card}
               onClose={() => handleDialogOpenChange(false)}
               onSaveComplete={handleSaveComplete}
+              onSaveError={handleSaveError}
               currentUserId={currentUserId}
               currentUserRole={currentUserRole}
               lanes={lanes}
