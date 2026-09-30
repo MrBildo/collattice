@@ -39,6 +39,7 @@ import { queryKeys } from '@/lib/query-keys';
 import { QUERY_DEFAULTS } from '@/lib/query-config';
 import { Loader2 } from 'lucide-react';
 import type { PendingFile } from '@/lib/attachments';
+import type { CardPrefill } from '@/lib/duplicate-card';
 import type { BoardData, CardSize, Lane } from '@/types';
 
 type CreateCardDialogProps = {
@@ -48,6 +49,8 @@ type CreateCardDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   defaultLaneId?: string;
+  // Starting values when the dialog is opened to duplicate an existing card.
+  prefill?: CardPrefill;
 };
 
 export function CreateCardDialog({
@@ -57,6 +60,7 @@ export function CreateCardDialog({
   open,
   onOpenChange,
   defaultLaneId,
+  prefill,
 }: CreateCardDialogProps) {
   const queryClient = useQueryClient();
   const dialogContentRef = useRef<HTMLDivElement>(null);
@@ -64,11 +68,18 @@ export function CreateCardDialog({
 
   const defaultSizeId =
     sizes.length > 0 ? [...sizes].sort((a, b) => a.ordinal - b.ordinal)[0].id : '';
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [sizeId, setSizeId] = useState(defaultSizeId);
-  const [laneId, setLaneId] = useState(defaultLaneId ?? lanes[0]?.id ?? '');
-  const [selectedLabelIds, setSelectedLabelIds] = useState<string[]>([]);
+  const initialDraft = {
+    name: prefill?.name ?? '',
+    description: prefill?.descriptionMarkdown ?? '',
+    sizeId: prefill && sizes.some((s) => s.id === prefill.sizeId) ? prefill.sizeId : defaultSizeId,
+    laneId: prefill ? prefill.laneId : (defaultLaneId ?? lanes[0]?.id ?? ''),
+    labelIds: prefill?.labelIds ?? [],
+  };
+  const [name, setName] = useState(initialDraft.name);
+  const [description, setDescription] = useState(initialDraft.description);
+  const [sizeId, setSizeId] = useState(initialDraft.sizeId);
+  const [laneId, setLaneId] = useState(initialDraft.laneId);
+  const [selectedLabelIds, setSelectedLabelIds] = useState<string[]>(initialDraft.labelIds);
   const [isPreviewingDescription, setIsPreviewingDescription] = useState(false);
 
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
@@ -149,11 +160,11 @@ export function CreateCardDialog({
   });
 
   const resetState = () => {
-    setName('');
-    setDescription('');
-    setSizeId(defaultSizeId);
-    setLaneId(defaultLaneId ?? lanes[0]?.id ?? '');
-    setSelectedLabelIds([]);
+    setName(initialDraft.name);
+    setDescription(initialDraft.description);
+    setSizeId(initialDraft.sizeId);
+    setLaneId(initialDraft.laneId);
+    setSelectedLabelIds(initialDraft.labelIds);
     setIsPreviewingDescription(false);
     setPendingFiles([]);
     setTempCardId(null);
@@ -179,7 +190,7 @@ export function CreateCardDialog({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !sizeId) return;
+    if (!name.trim() || !sizeId || !laneId) return;
 
     setCreateError(null);
 
@@ -287,7 +298,8 @@ export function CreateCardDialog({
     (f) => f.status === 'error' && f.error?.includes('5MB'),
   );
   const isFormDisabled = isCreating;
-  const canSubmit = name.trim().length > 0 && !!sizeId && !isCreating && !createMutation.isPending;
+  const canSubmit =
+    name.trim().length > 0 && !!sizeId && !!laneId && !isCreating && !createMutation.isPending;
 
   return (
     <Dialog
@@ -305,8 +317,12 @@ export function CreateCardDialog({
       >
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
           <DialogHeader className="border-b p-4">
-            <DialogTitle>Create Card</DialogTitle>
-            <DialogDescription>Add a new card to the board.</DialogDescription>
+            <DialogTitle>{prefill ? 'Duplicate Card' : 'Create Card'}</DialogTitle>
+            <DialogDescription>
+              {prefill
+                ? `Starts from #${prefill.source.number}. Nothing is created until you save.`
+                : 'Add a new card to the board.'}
+            </DialogDescription>
           </DialogHeader>
 
           <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
@@ -412,13 +428,17 @@ export function CreateCardDialog({
 
             {/* Lane */}
             <div className="flex flex-col gap-1.5">
-              <Label>Lane</Label>
+              <Label htmlFor="new-card-lane">Lane</Label>
               <Select
                 value={laneId}
                 onValueChange={(v) => v && setLaneId(v)}
                 disabled={isFormDisabled}
               >
-                <SelectTrigger className="w-36">
+                <SelectTrigger
+                  id="new-card-lane"
+                  className="w-36"
+                  aria-describedby={laneId ? undefined : 'new-card-lane-hint'}
+                >
                   <SelectValue placeholder="Select lane">
                     {lanes.find((l) => l.id === laneId)?.name ?? 'Select lane'}
                   </SelectValue>
@@ -431,6 +451,16 @@ export function CreateCardDialog({
                   ))}
                 </SelectContent>
               </Select>
+              {/* A blank lane only happens when there is no lane to default to —
+                  most often a duplicate of an archived card, whose own lane is
+                  the hidden archive lane. Say why Create is unavailable. */}
+              {!laneId && (
+                <p id="new-card-lane-hint" className="text-sm text-muted-foreground">
+                  {prefill?.source.isArchived
+                    ? `#${prefill.source.number} is archived, so choose a lane for the copy.`
+                    : 'Choose a lane for the card.'}
+                </p>
+              )}
             </div>
 
             {/* Labels — explain the absence instead of silently hiding it. Wait

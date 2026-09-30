@@ -54,11 +54,14 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  Copy,
   History,
   RefreshCw,
   RotateCcw,
 } from 'lucide-react';
 import { ROLES } from '@/lib/roles';
+import { buildCardPrefill } from '@/lib/duplicate-card';
+import type { DuplicateRequest } from '@/lib/duplicate-card';
 import type { BoardData, CardItem, CardSize, Lane, UpdateCardPatch } from '@/types';
 
 type FieldName = 'name' | 'description' | 'sizeId' | 'laneId' | 'labelIds';
@@ -217,6 +220,7 @@ type CardDetailFormProps = {
   navPosition?: string | null;
   onNavigatePrev?: () => void;
   onNavigateNext?: () => void;
+  onDuplicate?: (request: DuplicateRequest) => void;
 };
 
 export const CardDetailForm = forwardRef<CardDetailFormHandle, CardDetailFormProps>(
@@ -234,6 +238,7 @@ export const CardDetailForm = forwardRef<CardDetailFormHandle, CardDetailFormPro
       navPosition,
       onNavigatePrev,
       onNavigateNext,
+      onDuplicate,
     },
     ref,
   ) {
@@ -675,6 +680,49 @@ export const CardDetailForm = forwardRef<CardDetailFormHandle, CardDetailFormPro
       onClose();
     };
 
+    // The copy's labels come from this card's label query; until it has loaded
+    // (or if it failed) a duplicate would silently drop them, so wait for it.
+    const canDuplicate = labelsQuery.data !== undefined;
+
+    const handleDuplicate = () => {
+      if (!onDuplicate || !canDuplicate) {
+        return;
+      }
+
+      const visibleLanes = lanes ?? [];
+      onDuplicate({
+        draft: buildCardPrefill(
+          {
+            name,
+            descriptionMarkdown: description,
+            sizeId,
+            labelIds: effectiveLabelIds,
+            laneId: currentLaneId,
+          },
+          card,
+          visibleLanes,
+        ),
+        saved: buildCardPrefill(
+          {
+            name: card.name,
+            descriptionMarkdown: card.descriptionMarkdown ?? '',
+            sizeId: card.sizeId,
+            labelIds: originalLabelIds,
+            laneId: card.laneId,
+          },
+          card,
+          visibleLanes,
+        ),
+      });
+    };
+
+    const duplicateButton = onDuplicate && (
+      <Button variant="outline" size="sm" onClick={handleDuplicate} disabled={!canDuplicate}>
+        <Copy className="mr-1 h-4 w-4" />
+        Duplicate
+      </Button>
+    );
+
     return (
       <div
         ref={dialogRef}
@@ -1070,10 +1118,15 @@ export const CardDetailForm = forwardRef<CardDetailFormHandle, CardDetailFormPro
                   </Button>
                 </div>
               ) : (
-                <Button size="sm" onClick={handleRestore}>
-                  <ArchiveRestore className="mr-1 h-4 w-4" />
-                  Restore
-                </Button>
+                <>
+                  <Button size="sm" onClick={handleRestore}>
+                    <ArchiveRestore className="mr-1 h-4 w-4" />
+                    Restore
+                  </Button>
+                  {/* Step aside while a delete is being confirmed, as the other
+                      footer actions do while archive or restore is in progress. */}
+                  {!isConfirmingDelete && duplicateButton}
+                </>
               )}
               {canDelete && !showRestorePicker && (
                 <Button
@@ -1116,10 +1169,13 @@ export const CardDetailForm = forwardRef<CardDetailFormHandle, CardDetailFormPro
             </div>
           ) : (
             /* Active card — default state with archive button (all roles can archive) */
-            <Button variant="outline" size="sm" onClick={handleArchiveClick}>
-              <Archive className="mr-1 h-4 w-4" />
-              Archive
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={handleArchiveClick}>
+                <Archive className="mr-1 h-4 w-4" />
+                Archive
+              </Button>
+              {duplicateButton}
+            </div>
           )}
           {!isArchived && !showArchiveActions && (
             <div className="flex items-center gap-2">

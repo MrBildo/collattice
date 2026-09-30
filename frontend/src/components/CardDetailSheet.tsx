@@ -8,6 +8,7 @@ import { UnsavedChangesDialog } from '@/components/UnsavedChangesDialog';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { CardItem, CardSize, Lane } from '@/types';
 import type { UnsavedChangesAction } from '@/components/UnsavedChangesDialog';
+import type { CardPrefill, DuplicateRequest } from '@/lib/duplicate-card';
 
 // Snapshot navigation context so lane changes don't shift prev/next nav.
 // Uses "setState during render" pattern — React allows this when value differs.
@@ -38,7 +39,10 @@ function useNavSnapshot(card: CardItem | null, cardsInLane: CardItem[] | undefin
   return snapshot.cards;
 }
 
-type PendingAction = { type: 'close' } | { type: 'navigate'; cardNumber: number };
+type PendingAction =
+  | { type: 'close' }
+  | { type: 'navigate'; cardNumber: number }
+  | { type: 'duplicate'; request: DuplicateRequest };
 
 type CardDetailSheetProps = {
   card: CardItem | null;
@@ -51,6 +55,7 @@ type CardDetailSheetProps = {
   sizes?: CardSize[];
   cardsInLane?: CardItem[];
   onNavigateCard?: (cardNumber: number) => void;
+  onDuplicate?: (prefill: CardPrefill) => void;
 };
 
 export function CardDetailSheet({
@@ -64,6 +69,7 @@ export function CardDetailSheet({
   sizes,
   cardsInLane,
   onNavigateCard,
+  onDuplicate,
 }: CardDetailSheetProps) {
   const isDirtyRef = useRef(false);
   const formRef = useRef<CardDetailFormHandle>(null);
@@ -82,14 +88,18 @@ export function CardDetailSheet({
   }, [card, navSnapshot]);
 
   const executePendingAction = useCallback(
-    (action: PendingAction) => {
+    (action: PendingAction, isDiscarding = false) => {
       if (action.type === 'close') {
         onOpenChange(false);
       } else if (action.type === 'navigate' && onNavigateCard) {
         onNavigateCard(action.cardNumber);
+      } else if (action.type === 'duplicate' && onDuplicate) {
+        // Discarding the unsaved edits means the copy starts from the card as
+        // stored; saving them (or having none) means it starts from the form.
+        onDuplicate(isDiscarding ? action.request.saved : action.request.draft);
       }
     },
-    [onOpenChange, onNavigateCard],
+    [onOpenChange, onNavigateCard, onDuplicate],
   );
 
   // Ref to hold the pending action that should be executed after save completes
@@ -119,7 +129,7 @@ export function CardDetailSheet({
 
       // discard
       isDirtyRef.current = false;
-      if (pending) executePendingAction(pending);
+      if (pending) executePendingAction(pending, true);
     },
     [pendingAction, executePendingAction],
   );
@@ -255,6 +265,9 @@ export function CardDetailSheet({
               navPosition={navPosition}
               onNavigatePrev={prevCard ? () => handleNavigate('prev') : undefined}
               onNavigateNext={nextCard ? () => handleNavigate('next') : undefined}
+              onDuplicate={
+                onDuplicate ? (request) => requestAction({ type: 'duplicate', request }) : undefined
+              }
             />
           </div>
         </DialogContent>
