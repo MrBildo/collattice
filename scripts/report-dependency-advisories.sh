@@ -48,7 +48,12 @@ jqr() { jq "$@" | tr -d '\r'; }
 annotate() {
   # $1 = warning|notice, $2 = title, $3 = message. GitHub Actions turns these
   # lines into annotations on the run; anywhere else they are plain log lines.
-  echo "::$1 title=$2::$3"
+  # A comma or colon inside a property value ends it early (the title gets cut at
+  # its first comma), so they are percent-encoded as the command syntax requires.
+  local title="${2//%/%25}" message="${3//%/%25}"
+  title="${title//,/%2C}"
+  title="${title//:/%3A}"
+  echo "::$1 title=${title}::${message}"
 }
 
 could_not_run() {
