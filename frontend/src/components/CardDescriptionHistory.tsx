@@ -35,33 +35,40 @@ function DiffView({ diff }: { diff: string }) {
 
   return (
     <div className="overflow-x-auto font-mono text-xs leading-5">
-      {lines.map((line, index) => (
-        <div
-          key={index}
-          className={cn(
-            'flex min-h-5 whitespace-pre',
-            line.kind === 'hunk' && 'bg-muted/60 text-muted-foreground',
-            line.kind === 'add' && 'bg-primary/10',
-            line.kind === 'remove' && 'bg-destructive/10',
-          )}
-        >
-          <span
-            aria-hidden="true"
+      {/* Lines never wrap, so a long one overflows the scroll box. Block rows size to
+          the box, not to their content, which would stop each row's colour band at the
+          visible width and leave the rest of a long line unshaded once scrolled. Sizing
+          this wrapper to the widest line (never narrower than the box) makes every row —
+          and its band — as wide as the longest line. */}
+      <div className="w-max min-w-full">
+        {lines.map((line, index) => (
+          <div
+            key={index}
             className={cn(
-              'w-5 shrink-0 select-none pl-1.5',
-              line.kind === 'add' && 'text-primary',
-              line.kind === 'remove' && 'text-destructive',
+              'flex min-h-5 whitespace-pre',
+              line.kind === 'hunk' && 'bg-muted/60 text-muted-foreground',
+              line.kind === 'add' && 'bg-primary/10',
+              line.kind === 'remove' && 'bg-destructive/10',
             )}
           >
-            {line.kind === 'add' ? '+' : line.kind === 'remove' ? '-' : ''}
-          </span>
-          {/* The gutter glyph above is aria-hidden and colour-coded — a screen-reader
-              user can't perceive either, so add/remove needs a spoken equivalent. */}
-          {line.kind === 'add' && <span className="sr-only">Added: </span>}
-          {line.kind === 'remove' && <span className="sr-only">Removed: </span>}
-          <span className="pr-3">{line.text}</span>
-        </div>
-      ))}
+            <span
+              aria-hidden="true"
+              className={cn(
+                'w-5 shrink-0 select-none pl-1.5',
+                line.kind === 'add' && 'text-primary',
+                line.kind === 'remove' && 'text-destructive',
+              )}
+            >
+              {line.kind === 'add' ? '+' : line.kind === 'remove' ? '-' : ''}
+            </span>
+            {/* The gutter glyph above is aria-hidden and colour-coded — a screen-reader
+                user can't perceive either, so add/remove needs a spoken equivalent. */}
+            {line.kind === 'add' && <span className="sr-only">Added: </span>}
+            {line.kind === 'remove' && <span className="sr-only">Removed: </span>}
+            <span className="pr-3">{line.text}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
