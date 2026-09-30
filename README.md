@@ -96,6 +96,14 @@ Open **http://localhost:8080** in your browser. The admin auth key is printed to
 <br>
 
 <p align="center">
+  <a href="docs/images/duplicate-card.gif"><img src="docs/images/duplicate-card.gif" alt="Duplicating a card from its detail panel" width="800"></a>
+</p>
+
+<p align="center"><sub>Duplicate. Start a new card from an existing one: the title, description, size, lane, and labels come along, ready to edit, and the copy lands at the bottom of its lane.</sub></p>
+
+<br>
+
+<p align="center">
   <a href="docs/images/search.png"><img src="docs/images/search.png" alt="Cross-board search" width="800"></a>
 </p>
 
