@@ -26,6 +26,33 @@ irm https://raw.githubusercontent.com/MrBildo/collattice/main/install.ps1 | iex
 > show the fresh-install location; if you are upgrading an existing install, run the
 > binary from your existing directory instead.
 
+### Installing a specific release
+
+By default the installers fetch the latest release. To pin a particular one, set
+`COLLATTICE_VERSION` to its release tag. GitHub's "latest release" never points at a
+pre-release, so this is also how you install a release candidate.
+
+```bash
+curl -sSL https://raw.githubusercontent.com/MrBildo/collattice/main/install.sh | COLLATTICE_VERSION=v3.1.0 bash
+```
+
+```powershell
+$env:COLLATTICE_VERSION = 'v3.1.0'
+irm https://raw.githubusercontent.com/MrBildo/collattice/main/install.ps1 | iex
+```
+
+The value must be a release tag such as `v3.1.0`, or a pre-release tag such as
+`v3.2.0-rc.1`; anything else stops the installer before it downloads. Pin `v3.0.0` or
+later: older releases were published under the project's previous name, and the installer
+can't find their downloads.
+
+In PowerShell the variable stays set for the rest of the window, so a later plain install
+would reinstall the pinned release. Clear it when you're done:
+
+```powershell
+Remove-Item Env:COLLATTICE_VERSION
+```
+
 ## Manual Download
 
 Download the latest release for your platform from [GitHub Releases](https://github.com/MrBildo/collattice/releases/latest):

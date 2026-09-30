@@ -47,7 +47,8 @@ If you're building an AI harness, agent framework, or multi-agent system that ne
 - **Cross-board search** — find cards by name, description, or number (`#42`) across every board. Open it with `/` or `Ctrl+K`.
 - **Attachments** — paste screenshots straight from the clipboard or drag files onto a card (up to 5 MB in the browser; larger files up to 50 MB via the API).
 - **Multi-board** — run as many boards as you like from a single instance.
-- **Board-scoped labels** — color-coded labels with a full color picker (spectrum, hex input, eyedropper).
+- **Board-scoped labels** — color-coded labels with a full color picker (spectrum, hex input, eyedropper). Add or remove a card's labels right from the board with the tag button on each card; every change saves as you make it.
+- **Duplicate a card** — start a new card from an existing one: title, description, size, lane, and labels come along, ready to edit before you save.
 - **Archive** — hide finished cards from the board without deleting them; restore any time.
 - **Deep linking** — direct URLs to boards and cards (`/boards/my-board/cards/42`).
 - **Dark and light themes** — toggle and it's remembered per browser.
@@ -74,7 +75,7 @@ Open **http://localhost:8080** in your browser. The admin auth key is printed to
 [INF] Admin auth key: 01JQXYZ...
 ```
 
-> For detailed installation options — manual download, macOS Gatekeeper, upgrades — see the [Installation Guide](docs/installation.md). For day-to-day usage, see the [User Guide](docs/user-guide.md).
+> For detailed installation options — manual download, installing a specific release, macOS Gatekeeper, upgrades — see the [Installation Guide](docs/installation.md). For day-to-day usage, see the [User Guide](docs/user-guide.md).
 
 ## A Tour
 
@@ -83,6 +84,22 @@ Open **http://localhost:8080** in your browser. The admin auth key is printed to
 </p>
 
 <p align="center"><sub>Card detail. Rich Markdown — Mermaid diagrams, syntax-highlighted code, tables, and emoji all render inline — alongside comments, labels, size, and attachments in one panel.</sub></p>
+
+<br>
+
+<p align="center">
+  <a href="docs/images/quick-label-picker.gif"><img src="docs/images/quick-label-picker.gif" alt="Changing a card's labels from the board" width="800"></a>
+</p>
+
+<p align="center"><sub>Quick labels. Point at a card and use its tag button to add or remove labels without opening it; each change saves the moment you make it.</sub></p>
+
+<br>
+
+<p align="center">
+  <a href="docs/images/duplicate-card.gif"><img src="docs/images/duplicate-card.gif" alt="Duplicating a card from its detail panel" width="800"></a>
+</p>
+
+<p align="center"><sub>Duplicate. Start a new card from an existing one: the title, description, size, lane, and labels come along, ready to edit, and the copy lands at the bottom of its lane.</sub></p>
 
 <br>
 
@@ -362,7 +379,7 @@ The bare server name grants the whole tool surface; to allow a single tool inste
 Tools are grouped by workflow — discover the board, work cards, then manage the board structure (the last group needs an admin-level key).
 
 - **Discover** — `get_api_info`, `get_boards`, `get_lanes`, `get_sizes`, `get_labels`, `get_cards`, `get_card`, `get_card_history`, `search_cards`. The agent's starting point: what boards exist, what's on them, and where. `get_cards` and `get_card` return enriched data (labels, sizes, comment and attachment counts) so one call answers most questions. `get_card_history` returns a card's description edit trail — every past version, with who changed it and when. `search_cards` is cross-board; prefix the query with `#` for an exact card-number lookup.
-- **Work cards** — `create_card`, `move_card`, `update_card`, `archive_card`, `restore_card`. The core loop. `update_card` is a power tool: change fields, move lanes, and replace labels in a single call.
+- **Work cards** — `create_card`, `duplicate_card`, `move_card`, `update_card`, `archive_card`, `restore_card`. The core loop. `update_card` is a power tool: change fields, move lanes, and replace labels in a single call. `duplicate_card` copies a card's name, description, labels, and size into a new card, optionally in another lane.
 - **Comment** — `add_comment`, `update_comment`, `delete_comment`. Markdown supported.
 - **Attachments** — `upload_attachment` (up to 5 MB inline as base64; larger files up to 50 MB go through the REST endpoint), `download_attachment`, `delete_attachment`.
 - **Labels** — `add_label_to_card`, `remove_label_from_card` (both accept a label *name* or ID).
@@ -449,7 +466,7 @@ mkdir -p backend/Collabot.Collattice.Api/wwwroot
 cp -r frontend/dist/* backend/Collabot.Collattice.Api/wwwroot/
 dotnet publish backend/Collabot.Collattice.Api/Collabot.Collattice.Api.csproj \
   -c Release -r osx-arm64 --self-contained \
-  /p:PublishSingleFile=true /p:Version=1.0.0 \
+  /p:Version=1.0.0 \
   -o publish/
 ```
 
@@ -513,27 +530,27 @@ point; the gate makes falling behind visible instead of silent.
 
 ## Credits
 
-Collattice is built by a human-AI collaborative team. The bots are autonomous AI agents on the Collabot.dev™ platform — they design, write code, review each other's work, and ship features alongside their human teammate.
+Collattice is built by a human-AI collaborative team. The bots are autonomous AI agents on the [Collabot.dev](https://collabot.dev)™ platform — they design, write code, review each other's work, and ship features alongside their human teammate.
 
-**Bill Wheelock** — Concept, design, and technical leadership — [mrbildo@mrbildo.net](mailto:mrbildo@mrbildo.net)
+**[Bill Wheelock](https://collabot.dev/#team/bill)** — Concept, design, and technical leadership — [mrbildo@mrbildo.net](mailto:mrbildo@mrbildo.net)
 
-**Bot Cora** — Project coordination and release lifecycle — [cora@collabot.dev](mailto:cora@collabot.dev)
+**[Bot Cora](https://collabot.dev/#team/cora)** — Project coordination and release lifecycle — [cora@collabot.dev](mailto:cora@collabot.dev)
 
-**Bot Dana** — Frontend lead; design, TypeScript, and React — [dana@collabot.dev](mailto:dana@collabot.dev)
+**[Bot Dana](https://collabot.dev/#team/dana)** — Frontend lead; design, TypeScript, and React — [dana@collabot.dev](mailto:dana@collabot.dev)
 
-**Bot Iris** — Frontend engineering and JavaScript craft — [iris@collabot.dev](mailto:iris@collabot.dev)
+**[Bot Iris](https://collabot.dev/#team/iris)** — Frontend engineering and JavaScript craft — [iris@collabot.dev](mailto:iris@collabot.dev)
 
-**Bot Marcus** — Backend architecture and C# — [marcus@collabot.dev](mailto:marcus@collabot.dev)
+**[Bot Marcus](https://collabot.dev/#team/marcus)** — Backend architecture and C# — [marcus@collabot.dev](mailto:marcus@collabot.dev)
 
-**Bot Mira** — Backend engineering and domain modeling — [mira@collabot.dev](mailto:mira@collabot.dev)
+**[Bot Mira](https://collabot.dev/#team/mira)** — Backend engineering and domain modeling — [mira@collabot.dev](mailto:mira@collabot.dev)
 
-**Bot Alan** — Backend performance engineering; allocations, spans, and benchmarks — [alan@collabot.dev](mailto:alan@collabot.dev)
+**[Bot Alan](https://collabot.dev/#team/alan)** — Backend performance engineering; allocations, spans, and benchmarks — [alan@collabot.dev](mailto:alan@collabot.dev)
 
-**Bot Kai** — Code review and simplification — [kai@collabot.dev](mailto:kai@collabot.dev)
+**[Bot Kai](https://collabot.dev/#team/kai)** — Code review and simplification — [kai@collabot.dev](mailto:kai@collabot.dev)
 
-**Bot Remy** — Deployment and installation infrastructure — [remy@collabot.dev](mailto:remy@collabot.dev)
+**[Bot Remy](https://collabot.dev/#team/remy)** — Deployment and installation infrastructure — [remy@collabot.dev](mailto:remy@collabot.dev)
 
-**Bot Theo** — Infrastructure and operations across the Collabot.dev suite — [theo@collabot.dev](mailto:theo@collabot.dev)
+**[Bot Theo](https://collabot.dev/#team/theo)** — Infrastructure and operations across the [Collabot.dev](https://collabot.dev) suite — [theo@collabot.dev](mailto:theo@collabot.dev)
 
 ## License
 
