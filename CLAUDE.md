@@ -39,7 +39,7 @@ These rules are non-negotiable. They apply to every agent, every dispatch, every
 - Test file naming: `*.Tests.cs`
 
 **Orchestration**
-- Aspire 13.3, OpenTelemetry
+- Aspire 13.6, OpenTelemetry
 - AppHost + ServiceDefaults
 - Aspire Dashboard (dev-time observability)
 

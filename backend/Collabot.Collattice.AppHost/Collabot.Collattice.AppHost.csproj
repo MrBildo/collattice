@@ -1,9 +1,9 @@
-<Project Sdk="Aspire.AppHost.Sdk/13.3.0-preview.1.26171.1">
+<Project Sdk="Aspire.AppHost.Sdk/13.6.0">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Aspire.Hosting.JavaScript" Version="13.3.0-preview.1.26171.1" />
+    <PackageReference Include="Aspire.Hosting.JavaScript" Version="13.6.0" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Collabot.Collattice.Api\Collabot.Collattice.Api.csproj" />
