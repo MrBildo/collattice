@@ -42,7 +42,16 @@ irm https://raw.githubusercontent.com/MrBildo/collattice/main/install.ps1 | iex
 ```
 
 The value must be a release tag such as `v3.1.0`, or a pre-release tag such as
-`v3.2.0-rc.1`; anything else stops the installer before it downloads.
+`v3.2.0-rc.1`; anything else stops the installer before it downloads. Pin `v3.0.0` or
+later: older releases were published under the project's previous name, and the installer
+can't find their downloads.
+
+In PowerShell the variable stays set for the rest of the window, so a later plain install
+would reinstall the pinned release. Clear it when you're done:
+
+```powershell
+Remove-Item Env:COLLATTICE_VERSION
+```
 
 ## Manual Download
 
