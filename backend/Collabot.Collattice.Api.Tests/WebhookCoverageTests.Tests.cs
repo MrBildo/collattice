@@ -260,6 +260,14 @@ public sealed class WebhookCoverageTests(WebhookTestFactory factory) : IClassFix
             scenario.StartCapture();
             CoverageScenario.Ok(await tools.CreateCardAsync(scenario.AdminKey, "Created", board.LaneA));
         }),
+        ["mcp duplicate_card"] = new(["card.created"], static async scenario =>
+        {
+            var board = await scenario.BoardAsync();
+            var cardId = await scenario.CardAsync(board);
+            var tools = scenario.Tool<DuplicateCardTools>();
+            scenario.StartCapture();
+            CoverageScenario.Ok(await tools.DuplicateCardAsync(scenario.AdminKey, cardId: cardId));
+        }),
         ["mcp move_card"] = new(["card.moved"], static async scenario =>
         {
             var board = await scenario.BoardAsync();
