@@ -101,8 +101,8 @@ report of drift.
 
 Redistributed in full by the self-contained publish.
 
-- `Microsoft.AspNetCore.App.Runtime` 10.0.11 — MIT — Copyright (c) .NET Foundation and Contributors
-- `Microsoft.NETCore.App.Runtime` 10.0.11 — MIT — Copyright (c) .NET Foundation and Contributors
+- `Microsoft.AspNetCore.App.Runtime` 10.0.12 — MIT — Copyright (c) .NET Foundation and Contributors
+- `Microsoft.NETCore.App.Runtime` 10.0.12 — MIT — Copyright (c) .NET Foundation and Contributors
 - `Microsoft.NETCore.App.Host` — MIT — Copyright (c) .NET Foundation and Contributors
   Shipped as the `Collabot.Collattice.Api` executable (`Collabot.Collattice.Api.exe` on Windows): the
   .NET SDK's native launcher, patched with the application name. It comes from
@@ -114,45 +114,45 @@ Redistributed in full by the self-contained publish.
 Shipped as managed assemblies alongside the executable.
 
 - `DiffPlex` 1.9.0 — Apache-2.0 — states no copyright notice; authored by Matthew Manela
-- `Microsoft.AspNetCore.OpenApi` 10.0.5 — MIT — © Microsoft Corporation. All rights reserved.
-- `Microsoft.Data.Sqlite.Core` 10.0.5 — MIT — © Microsoft Corporation. All rights reserved.
-- `Microsoft.EntityFrameworkCore` 10.0.5 — MIT — © Microsoft Corporation. All rights reserved.
-- `Microsoft.EntityFrameworkCore.Abstractions` 10.0.5 — MIT — © Microsoft Corporation. All rights reserved.
-- `Microsoft.EntityFrameworkCore.Relational` 10.0.5 — MIT — © Microsoft Corporation. All rights reserved.
-- `Microsoft.EntityFrameworkCore.Sqlite` 10.0.5 — MIT — © Microsoft Corporation. All rights reserved.
-- `Microsoft.EntityFrameworkCore.Sqlite.Core` 10.0.5 — MIT — © Microsoft Corporation. All rights reserved.
-- `Microsoft.Extensions.AI.Abstractions` 10.3.0 — MIT — © Microsoft Corporation. All rights reserved.
-- `Microsoft.Extensions.AmbientMetadata.Application` 10.4.0 — MIT — © Microsoft Corporation. All rights reserved.
-- `Microsoft.Extensions.Compliance.Abstractions` 10.4.0 — MIT — © Microsoft Corporation. All rights reserved.
-- `Microsoft.Extensions.DependencyInjection.AutoActivation` 10.4.0 — MIT — © Microsoft Corporation. All rights reserved.
-- `Microsoft.Extensions.DependencyModel` 10.0.5 — MIT — © Microsoft Corporation. All rights reserved.
-- `Microsoft.Extensions.Diagnostics.ExceptionSummarization` 10.4.0 — MIT — © Microsoft Corporation. All rights reserved.
-- `Microsoft.Extensions.Http.Diagnostics` 10.4.0 — MIT — © Microsoft Corporation. All rights reserved.
-- `Microsoft.Extensions.Http.Resilience` 10.4.0 — MIT — © Microsoft Corporation. All rights reserved.
-- `Microsoft.Extensions.Resilience` 10.4.0 — MIT — © Microsoft Corporation. All rights reserved.
-- `Microsoft.Extensions.ServiceDiscovery` 10.4.0 — MIT — © Microsoft Corporation. All rights reserved.
-- `Microsoft.Extensions.ServiceDiscovery.Abstractions` 10.4.0 — MIT — © Microsoft Corporation. All rights reserved.
-- `Microsoft.Extensions.Telemetry` 10.4.0 — MIT — © Microsoft Corporation. All rights reserved.
-- `Microsoft.Extensions.Telemetry.Abstractions` 10.4.0 — MIT — © Microsoft Corporation. All rights reserved.
-- `Microsoft.OpenApi` 2.7.5 — MIT — © Microsoft Corporation. All rights reserved.
-- `ModelContextProtocol` 1.1.0 — Apache-2.0 — © Model Context Protocol a Series of LF Projects, LLC.
-- `ModelContextProtocol.AspNetCore` 1.1.0 — Apache-2.0 — © Model Context Protocol a Series of LF Projects, LLC.
-- `ModelContextProtocol.Core` 1.1.0 — Apache-2.0 — © Model Context Protocol a Series of LF Projects, LLC.
-- `OpenTelemetry` 1.15.3 — Apache-2.0 — Copyright The OpenTelemetry Authors
-- `OpenTelemetry.Api` 1.15.3 — Apache-2.0 — Copyright The OpenTelemetry Authors
-- `OpenTelemetry.Api.ProviderBuilderExtensions` 1.15.3 — Apache-2.0 — Copyright The OpenTelemetry Authors
-- `OpenTelemetry.Exporter.OpenTelemetryProtocol` 1.15.3 — Apache-2.0 — Copyright The OpenTelemetry Authors
-- `OpenTelemetry.Extensions.Hosting` 1.15.3 — Apache-2.0 — Copyright The OpenTelemetry Authors
-- `OpenTelemetry.Instrumentation.AspNetCore` 1.15.2 — Apache-2.0 — Copyright The OpenTelemetry Authors
-- `OpenTelemetry.Instrumentation.Http` 1.15.1 — Apache-2.0 — Copyright The OpenTelemetry Authors
-- `OpenTelemetry.Instrumentation.Runtime` 1.15.1 — Apache-2.0 — Copyright The OpenTelemetry Authors
+- `Microsoft.AspNetCore.OpenApi` 10.0.12 — MIT — © Microsoft Corporation. All rights reserved.
+- `Microsoft.Data.Sqlite.Core` 10.0.12 — MIT — © Microsoft Corporation. All rights reserved.
+- `Microsoft.EntityFrameworkCore` 10.0.12 — MIT — © Microsoft Corporation. All rights reserved.
+- `Microsoft.EntityFrameworkCore.Abstractions` 10.0.12 — MIT — © Microsoft Corporation. All rights reserved.
+- `Microsoft.EntityFrameworkCore.Relational` 10.0.12 — MIT — © Microsoft Corporation. All rights reserved.
+- `Microsoft.EntityFrameworkCore.Sqlite` 10.0.12 — MIT — © Microsoft Corporation. All rights reserved.
+- `Microsoft.EntityFrameworkCore.Sqlite.Core` 10.0.12 — MIT — © Microsoft Corporation. All rights reserved.
+- `Microsoft.Extensions.AI.Abstractions` 10.5.2 — MIT — © Microsoft Corporation. All rights reserved.
+- `Microsoft.Extensions.AmbientMetadata.Application` 10.10.0 — MIT — © Microsoft Corporation. All rights reserved.
+- `Microsoft.Extensions.Compliance.Abstractions` 10.10.0 — MIT — © Microsoft Corporation. All rights reserved.
+- `Microsoft.Extensions.DependencyInjection.AutoActivation` 10.10.0 — MIT — © Microsoft Corporation. All rights reserved.
+- `Microsoft.Extensions.DependencyModel` 10.0.12 — MIT — © Microsoft Corporation. All rights reserved.
+- `Microsoft.Extensions.Diagnostics.ExceptionSummarization` 10.10.0 — MIT — © Microsoft Corporation. All rights reserved.
+- `Microsoft.Extensions.Http.Diagnostics` 10.10.0 — MIT — © Microsoft Corporation. All rights reserved.
+- `Microsoft.Extensions.Http.Resilience` 10.10.0 — MIT — © Microsoft Corporation. All rights reserved.
+- `Microsoft.Extensions.Resilience` 10.10.0 — MIT — © Microsoft Corporation. All rights reserved.
+- `Microsoft.Extensions.ServiceDiscovery` 10.10.0 — MIT — © Microsoft Corporation. All rights reserved.
+- `Microsoft.Extensions.ServiceDiscovery.Abstractions` 10.10.0 — MIT — © Microsoft Corporation. All rights reserved.
+- `Microsoft.Extensions.Telemetry` 10.10.0 — MIT — © Microsoft Corporation. All rights reserved.
+- `Microsoft.Extensions.Telemetry.Abstractions` 10.10.0 — MIT — © Microsoft Corporation. All rights reserved.
+- `Microsoft.OpenApi` 2.12.0 — MIT — © Microsoft Corporation. All rights reserved.
+- `ModelContextProtocol` 1.4.1 — Apache-2.0 — © Model Context Protocol a Series of LF Projects, LLC.
+- `ModelContextProtocol.AspNetCore` 1.4.1 — Apache-2.0 — © Model Context Protocol a Series of LF Projects, LLC.
+- `ModelContextProtocol.Core` 1.4.1 — Apache-2.0 — © Model Context Protocol a Series of LF Projects, LLC.
+- `OpenTelemetry` 1.19.1 — Apache-2.0 — Copyright The OpenTelemetry Authors
+- `OpenTelemetry.Api` 1.19.1 — Apache-2.0 — Copyright The OpenTelemetry Authors
+- `OpenTelemetry.Api.ProviderBuilderExtensions` 1.19.1 — Apache-2.0 — Copyright The OpenTelemetry Authors
+- `OpenTelemetry.Exporter.OpenTelemetryProtocol` 1.19.1 — Apache-2.0 — Copyright The OpenTelemetry Authors
+- `OpenTelemetry.Extensions.Hosting` 1.19.1 — Apache-2.0 — Copyright The OpenTelemetry Authors
+- `OpenTelemetry.Instrumentation.AspNetCore` 1.19.0 — Apache-2.0 — Copyright The OpenTelemetry Authors
+- `OpenTelemetry.Instrumentation.Http` 1.19.0 — Apache-2.0 — Copyright The OpenTelemetry Authors
+- `OpenTelemetry.Instrumentation.Runtime` 1.19.0 — Apache-2.0 — Copyright The OpenTelemetry Authors
 - `Polly.Core` 8.4.2 — BSD-3-Clause — Copyright (c) 2024, App vNext
 - `Polly.Extensions` 8.4.2 — BSD-3-Clause — Copyright (c) 2024, App vNext
 - `Polly.RateLimiting` 8.4.2 — BSD-3-Clause — Copyright (c) 2024, App vNext
-- `SQLitePCLRaw.bundle_e_sqlite3` 2.1.11 — Apache-2.0 — Copyright 2014-2024 SourceGear, LLC
-- `SQLitePCLRaw.core` 2.1.11 — Apache-2.0 — Copyright 2014-2024 SourceGear, LLC
-- `SQLitePCLRaw.lib.e_sqlite3` 2.1.13 — Apache-2.0 — Copyright 2014-2024 SourceGear, LLC
-- `SQLitePCLRaw.provider.e_sqlite3` 2.1.11 — Apache-2.0 — Copyright 2014-2024 SourceGear, LLC
+- `SQLitePCLRaw.bundle_e_sqlite3` 2.1.12 — Apache-2.0 — Copyright 2014-2024 SourceGear, LLC
+- `SQLitePCLRaw.core` 2.1.12 — Apache-2.0 — Copyright 2014-2024 SourceGear, LLC
+- `SQLitePCLRaw.lib.e_sqlite3` 2.1.12 — Apache-2.0 — Copyright 2014-2024 SourceGear, LLC
+- `SQLitePCLRaw.provider.e_sqlite3` 2.1.12 — Apache-2.0 — Copyright 2014-2024 SourceGear, LLC
 - `Ulid` 1.4.1 — MIT — © Cysharp, Inc.
 
 ### Native libraries (server)
