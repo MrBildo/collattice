@@ -88,12 +88,16 @@ NUGET_ROOT="${NUGET_PACKAGES:-${HOME}/.nuget/packages}"
 #                   their own. Read from the sibling packages in the same
 #                   published set that do carry one (@radix-ui/react-slot/LICENSE
 #                   and radix-ui/LICENSE), which are identical.
+#   fastdom      -- ships no LICENSE file; its package.json says MIT, and the
+#                   package's own README.md carries the MIT text under its
+#                   "License" heading, with this copyright line.
 override_copyright() {
   case "$1" in
     @radix-ui/number|@radix-ui/react-compose-refs|@radix-ui/react-context|\
 @radix-ui/react-direction|@radix-ui/react-use-layout-effect|\
 @radix-ui/react-use-previous|@radix-ui/react-use-size)
       echo "Copyright (c) 2022 WorkOS" ;;
+    fastdom) echo "Copyright (c) 2016 Wilson Page <wilsonpage@me.com>" ;;
     *) echo "" ;;
   esac
 }
