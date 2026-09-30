@@ -152,6 +152,40 @@ public class McpCardHistoryToolTests(CollatticeApiFactory factory) : IClassFixtu
     }
 
     [Fact]
+    public async Task GetCardHistory_OldestRevisionCarriesTheCardCreatorAsAnInferredEditor()
+    {
+        // Arrange — created by the admin, first edited over MCP by someone else, so the inferred
+        // editor can only be the creator if it is not simply whoever triggered the first capture.
+        TestAuthHelper.SetAdminAuth(_client, _factory);
+        var cardId = await CreateCardAsync("Mcp History Inferred Editor", "genesis");
+        var agent = await TestAuthHelper.CreateUserAsync(_client, _factory, "Mcp History Later Editor", UserRole.AgentUser);
+
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<BoardDbContext>();
+        var authService = scope.ServiceProvider.GetRequiredService<McpAuthService>();
+        var broadcaster = scope.ServiceProvider.GetRequiredService<BoardEventBroadcaster>();
+
+        var cardTools = new CardTools(db, authService, broadcaster);
+        await cardTools.UpdateCardAsync(agent.AuthKey, cardId: cardId, descriptionMarkdown: "rewritten");
+
+        // Act — the tool's default format
+        var historyTools = new HistoryTools(db, authService);
+        var json = await historyTools.GetCardHistoryAsync(agent.AuthKey, cardId: cardId);
+
+        // Assert — the observed editor stays null and the inference rides in its own field.
+        var entries = ParseEntries(json);
+
+        var oldest = entries[1];
+        oldest.GetProperty("editedByName").ValueKind.ShouldBe(JsonValueKind.Null);
+        oldest.GetProperty("inferredEditor").GetProperty("name").GetString().ShouldBe("Admin");
+        oldest.GetProperty("inferredEditor").GetProperty("basis").GetString().ShouldBe("creator");
+
+        var newest = entries[0];
+        newest.GetProperty("editedByName").GetString().ShouldBe("Mcp History Later Editor");
+        newest.TryGetProperty("inferredEditor", out _).ShouldBeFalse();
+    }
+
+    [Fact]
     public async Task GetCardHistory_NeverEditedCard_ReturnsAnEmptyTrail()
     {
         // Arrange

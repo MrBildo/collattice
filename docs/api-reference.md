@@ -141,6 +141,11 @@ It is `0` or at least `2`, never `1`: a card's first edit records two revisions,
       "editedByUserId": null,
       "editedByName": null,
       "editedAtUtc": null,
+      "inferredEditor": {
+        "userId": "52df8c11-2c9a-4d1e-8b3f-7a6e5d4c3b2a",
+        "name": "Bill Wheelock",
+        "basis": "creator"
+      },
       "value": "the description as it stood when recording began",
       "diff": ""
     }
@@ -153,7 +158,8 @@ It is `0` or at least `2`, never `1`: a card's first edit records two revisions,
 
 - `entries` is ordered **newest first**. Each entry is a *version* of the text, not an edit delta — so the newest entry's `value` is the card's current description, and `diff` answers "what did this edit change?".
 - `revision` is a monotonic integer starting at 1, unique within a card and field. It is the addressing scheme `from`/`to` uses.
-- **The oldest revision carries a `null` author and timestamp**, and only the oldest. History is not back-filled, so revision 1 holds whatever the description said when recording began — nobody observed it being written, and an audit trail should not attribute a value to someone who may not have written it. Every later revision is fully attributed. Render this case explicitly (*"original version — author unknown"*), not as an empty name or an invalid date.
+- **The oldest revision carries a `null` author and timestamp**, and only the oldest. History is not back-filled, so revision 1 holds whatever the description said when recording began — nobody observed it being written, and an audit trail should not attribute a value to someone who may not have written it. Every later revision is fully attributed. Render this case explicitly, not as an empty name or an invalid date.
+- **The oldest revision also carries `inferredEditor`** — `{ userId, name, basis }`, the best available attribution for that unobserved text. `basis` says how it was inferred: `"creator"` means the card's creator. It is an inference, not an observation: a card created before history was recorded may have been edited by someone else before recording began. Keep the two apart when you render it — the history panel shows *"original version — Bill Wheelock (card creator)"*. `inferredEditor` is absent (not `null`) on every observed revision, so its presence is itself the signal that the name is inferred. There is no inferred timestamp: the card's creation time is on the card, but it is not necessarily when this text was written. Treat an unfamiliar `basis` value as a generic inference rather than an error; more may be added.
 - The oldest revision's `diff` is `""` — an empty string, never `null`. There is nothing older to compare it against. **Only the oldest revision has an empty diff**, so an empty diff is a reliable test for "this is the start of the record": no revision is ever recorded holding the same text as the one before it, including when two people save the same wording at the same moment.
 - `editedAtUtc` is stamped when the revision is recorded, not when the request arrived, so **timestamps never decrease as `revision` increases**. Where the two could disagree — two stamps can land on the same clock tick — **`revision` is the authority**; sort by it, not by time.
 - `value` and `diff` are **omitted from the JSON entirely** (not serialized as `null`) when the requested `format` does not include them, so `format=diff` carries no wasted padding.
