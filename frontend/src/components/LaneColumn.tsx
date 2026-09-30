@@ -119,6 +119,7 @@ export function LaneColumn({
               <div key={card.id} className="mb-2 last:mb-0">
                 <SortableCard
                   card={card}
+                  boardId={lane.boardId}
                   onCardClick={onCardClick}
                   isDragging={card.id === activeCardId}
                   sizeMap={sizeMap}
