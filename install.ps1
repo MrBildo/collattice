@@ -44,17 +44,30 @@ if ($InstallKind -eq 'existing') {
 }
 Write-Host
 
-# Get latest release tag
-Write-Host 'Fetching latest release...'
-$release = Invoke-RestMethod "https://api.github.com/repos/$Repo/releases/latest"
-$tag = $release.tag_name
+# COLLATTICE_VERSION optionally pins the release to install (for example v3.1.0,
+# or a pre-release such as v3.2.0-rc.1). Unset, the latest release is installed.
+# GitHub's "latest release" never points at a pre-release, so the pin is also how
+# a release candidate gets installed.
+if ($env:COLLATTICE_VERSION) {
+    if ($env:COLLATTICE_VERSION -cnotmatch '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$') {
+        Write-Error "COLLATTICE_VERSION '$($env:COLLATTICE_VERSION)' is not a release tag (expected vX.Y.Z or vX.Y.Z-<pre-release>)."
+        exit 1
+    }
+    $tag = $env:COLLATTICE_VERSION
+    Write-Host "Requested release: $tag"
+} else {
+    # Get latest release tag
+    Write-Host 'Fetching latest release...'
+    $release = Invoke-RestMethod "https://api.github.com/repos/$Repo/releases/latest"
+    $tag = $release.tag_name
 
-if (-not $tag) {
-    Write-Error 'Failed to fetch latest release.'
-    exit 1
+    if (-not $tag) {
+        Write-Error 'Failed to fetch latest release.'
+        exit 1
+    }
+
+    Write-Host "Latest release: $tag"
 }
-
-Write-Host "Latest release: $tag"
 
 # Download artifact
 $downloadUrl = "https://github.com/$Repo/releases/download/$tag/$ArtifactName.zip"

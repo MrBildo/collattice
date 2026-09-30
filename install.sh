@@ -64,16 +64,29 @@ if [ "${INSTALL_KIND}" = "existing" ]; then
 fi
 echo
 
-# Get latest release tag from GitHub API
-echo "Fetching latest release..."
-RELEASE_TAG=$(curl -sSf "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name"' | sed -E 's/.*"([^"]+)".*/\1/')
+# COLLATTICE_VERSION optionally pins the release to install (for example v3.1.0,
+# or a pre-release such as v3.2.0-rc.1). Unset, the latest release is installed.
+# GitHub's "latest release" never points at a pre-release, so the pin is also how
+# a release candidate gets installed.
+if [ -n "${COLLATTICE_VERSION:-}" ]; then
+    if [[ ! "${COLLATTICE_VERSION}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
+        echo "COLLATTICE_VERSION '${COLLATTICE_VERSION}' is not a release tag (expected vX.Y.Z or vX.Y.Z-<pre-release>)." >&2
+        exit 1
+    fi
+    RELEASE_TAG="${COLLATTICE_VERSION}"
+    echo "Requested release: ${RELEASE_TAG}"
+else
+    # Get latest release tag from GitHub API
+    echo "Fetching latest release..."
+    RELEASE_TAG=$(curl -sSf "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name"' | sed -E 's/.*"([^"]+)".*/\1/')
 
-if [ -z "$RELEASE_TAG" ]; then
-    echo "Failed to fetch latest release." >&2
-    exit 1
+    if [ -z "$RELEASE_TAG" ]; then
+        echo "Failed to fetch latest release." >&2
+        exit 1
+    fi
+
+    echo "Latest release: ${RELEASE_TAG}"
 fi
-
-echo "Latest release: ${RELEASE_TAG}"
 
 # Download artifact
 DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${RELEASE_TAG}/${ARTIFACT_NAME}.tar.gz"
