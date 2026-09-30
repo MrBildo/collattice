@@ -9,9 +9,11 @@ public static class TestRepositoryHelper
     // is a file pointing back at the main repository — so the walk must stop at either form.
     // Accepting only the directory form walks past the worktree root into whatever checkout
     // encloses it, and the tests then read (and vouch for) a different tree's source.
-    public static string FindRoot()
+    public static string FindRoot() => FindRoot(AppContext.BaseDirectory);
+
+    public static string FindRoot(string startDirectory)
     {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        var dir = new DirectoryInfo(startDirectory);
         while (dir is not null && !IsRepositoryRoot(dir.FullName))
         {
             dir = dir.Parent;
