@@ -249,3 +249,94 @@ describe('CardDetailForm concurrent-edit guard', () => {
     expect(screen.getByText('2 fields changed externally')).toBeInTheDocument();
   });
 });
+
+describe('CardDetailForm duplicate', () => {
+  const lanes = [
+    { id: 'lane-1', boardId: 'board-1', name: 'Backlog', position: 0 },
+    { id: 'lane-2', boardId: 'board-1', name: 'Doing', position: 1 },
+  ];
+  const bug = { id: 'label-bug', boardId: 'board-1', name: 'Bug', color: '#f00' };
+
+  function setupDuplicate(card: CardItem, onDuplicate = vi.fn()) {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <MemoryRouter>
+        <QueryClientProvider client={queryClient}>
+          <Dialog open onOpenChange={() => {}}>
+            <DialogContent>
+              <CardDetailForm
+                card={card}
+                onClose={() => {}}
+                currentUserId="me"
+                currentUserRole={ROLES.Human}
+                boardId="board-1"
+                lanes={lanes}
+                isDirtyRef={{ current: false }}
+                onDuplicate={onDuplicate}
+              />
+            </DialogContent>
+          </Dialog>
+        </QueryClientProvider>
+      </MemoryRouter>,
+    );
+    return { onDuplicate };
+  }
+
+  test('offers the source card as both draft and saved when nothing is edited', async () => {
+    const user = userEvent.setup();
+    vi.mocked(fetchCardLabels).mockResolvedValue([bug]);
+    const { onDuplicate } = setupDuplicate(makeCard({ laneId: 'lane-2' }));
+
+    const button = await screen.findByRole('button', { name: 'Duplicate' });
+    await waitFor(() => expect(button).toBeEnabled());
+    await user.click(button);
+
+    const expected = {
+      name: 'Original name',
+      descriptionMarkdown: 'Original description',
+      sizeId: 'size-1',
+      labelIds: ['label-bug'],
+      laneId: 'lane-2',
+      source: { number: 7, isArchived: false },
+    };
+    expect(onDuplicate).toHaveBeenCalledWith({ draft: expected, saved: expected });
+  });
+
+  test('an unsaved edit rides in the draft while the saved reading keeps the stored card', async () => {
+    const user = userEvent.setup();
+    const { onDuplicate } = setupDuplicate(makeCard());
+    const nameInput = await screen.findByDisplayValue('Original name');
+
+    await user.type(nameInput, ' v2');
+    const button = screen.getByRole('button', { name: 'Duplicate' });
+    await waitFor(() => expect(button).toBeEnabled());
+    await user.click(button);
+
+    const request = onDuplicate.mock.calls[0][0];
+    expect(request.draft.name).toBe('Original name v2');
+    expect(request.saved.name).toBe('Original name');
+  });
+
+  test('an archived card can be duplicated, and the copy has no lane chosen for it', async () => {
+    const user = userEvent.setup();
+    const { onDuplicate } = setupDuplicate(makeCard({ isArchived: true, laneId: 'lane-archive' }));
+
+    // Archived cards keep Restore as the primary action; Duplicate sits beside it.
+    expect(await screen.findByRole('button', { name: 'Restore' })).toBeInTheDocument();
+    const button = screen.getByRole('button', { name: 'Duplicate' });
+    await waitFor(() => expect(button).toBeEnabled());
+    await user.click(button);
+
+    const request = onDuplicate.mock.calls[0][0];
+    expect(request.draft.laneId).toBe('');
+    expect(request.saved.laneId).toBe('');
+    expect(request.saved.source).toEqual({ number: 7, isArchived: true });
+  });
+
+  test('Duplicate waits for the card labels so a copy never silently drops them', async () => {
+    vi.mocked(fetchCardLabels).mockReturnValue(new Promise(() => {}));
+    setupDuplicate(makeCard());
+
+    expect(await screen.findByRole('button', { name: 'Duplicate' })).toBeDisabled();
+  });
+});

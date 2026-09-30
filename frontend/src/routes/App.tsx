@@ -33,6 +33,7 @@ import { useLaneCollapse } from '@/hooks/use-lane-collapse';
 import { cn } from '@/lib/utils';
 import { isLaneDragEvent } from '@/lib/dnd-active-type';
 import { useLaneResize } from '@/hooks/use-lane-resize';
+import type { CardPrefill } from '@/lib/duplicate-card';
 import type { CardItem } from '@/types';
 
 export function App() {
@@ -84,6 +85,7 @@ export function App() {
   const [createOpen, setCreateOpen] = useState(false);
   const [createLaneId, setCreateLaneId] = useState<string | undefined>(undefined);
   const [createDialogKey, setCreateDialogKey] = useState(0);
+  const [createPrefill, setCreatePrefill] = useState<CardPrefill | undefined>(undefined);
   const [adminOpen, setAdminOpen] = useState(false);
   const [globalAdminOpen, setGlobalAdminOpen] = useState(false);
 
@@ -205,9 +207,23 @@ export function App() {
 
   const handleNewCard = useCallback(() => {
     setCreateLaneId(undefined);
+    setCreatePrefill(undefined);
     setCreateDialogKey((k) => k + 1);
     setCreateOpen(true);
   }, []);
+
+  // Duplicating closes the source card and opens the new-card dialog pre-filled;
+  // nothing is created until the user saves it.
+  const handleDuplicate = useCallback(
+    (prefill: CardPrefill) => {
+      navigate(`/boards/${slug}`, { replace: true });
+      setCreateLaneId(undefined);
+      setCreatePrefill(prefill);
+      setCreateDialogKey((k) => k + 1);
+      setCreateOpen(true);
+    },
+    [slug, navigate],
+  );
 
   if (!loggedIn) {
     return <LoginScreen onLogin={handleLogin} />;
@@ -271,6 +287,7 @@ export function App() {
                 onCardClick={handleCardClick}
                 onAddCard={() => {
                   setCreateLaneId(lane.id);
+                  setCreatePrefill(undefined);
                   setCreateDialogKey((k) => k + 1);
                   setCreateOpen(true);
                 }}
@@ -352,6 +369,7 @@ export function App() {
         sizes={sizes}
         cardsInLane={selectedCard ? (byLane.get(selectedCard.laneId) ?? []) : []}
         onNavigateCard={handleNavigateCard}
+        onDuplicate={handleDuplicate}
       />
 
       {boardId && (
@@ -363,6 +381,7 @@ export function App() {
           open={createOpen}
           onOpenChange={setCreateOpen}
           defaultLaneId={createLaneId}
+          prefill={createPrefill}
         />
       )}
 
