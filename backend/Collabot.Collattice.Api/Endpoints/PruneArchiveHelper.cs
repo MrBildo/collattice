@@ -5,8 +5,8 @@ namespace Collabot.Collattice.Api.Endpoints;
 
 // Shared prune archive-loop orchestration for the REST PruneEndpoints and the MCP
 // PruneTools. PruneFilter already shares the match query; the mutation loop that
-// archives the matched cards (archive-lane lookup -> foreach MoveCardToLaneAsync ->
-// save) was duplicated across both surfaces. Extracted on the PruneFilter
+// archives the matched cards (archive-lane lookup -> MoveCardsToLaneAsync -> save) was
+// duplicated across both surfaces. Extracted on the PruneFilter
 // precedent so the archive mutation cannot drift either.
 //
 // Archive only — the REST delete branch is REST-only by design and
@@ -32,10 +32,7 @@ internal static class PruneArchiveHelper
 
         var cards = await filtered.ToListAsync(ct);
 
-        foreach (var card in cards)
-        {
-            await CardReorderHelper.MoveCardToLaneAsync(db, card, archiveLane.Id, 0, ct);
-        }
+        await CardReorderHelper.MoveCardsToLaneAsync(db, cards, archiveLane.Id, 0, ct);
 
         await db.SaveChangesAsync(ct);
         return (cards, null);

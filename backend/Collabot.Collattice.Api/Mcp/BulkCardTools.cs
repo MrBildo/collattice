@@ -67,35 +67,39 @@ public sealed class BulkCardTools(BoardDbContext db, McpAuthService auth, BoardE
         var now = DateTimeOffset.UtcNow;
         var execution = new BulkExecution(db, broadcaster, user!.Id, now);
 
-        await execution.RunAsync(cards!, async card =>
+        await execution.RunAsync(cards!, card =>
         {
-            if (archiveLaneIds.Contains(card.LaneId))
-            {
-                return "Card is already archived.";
-            }
+            var perCardError = archiveLaneIds.Contains(card.LaneId)
+                ? "Card is already archived."
+                : archiveLaneByBoard.ContainsKey(card.BoardId) ? null : "Board has no archive lane.";
 
-            if (!archiveLaneByBoard.TryGetValue(card.BoardId, out var archiveLaneId))
-            {
-                return "Board has no archive lane.";
-            }
-
-            await CardReorderHelper.MoveCardToLaneAsync(db, card, archiveLaneId, 0, ct);
-            return null;
+            return Task.FromResult(perCardError);
         });
 
         // card.archived per succeeded card — one webhook event each, one SSE bell per board
         // (the BulkExecution coalesce); built in one batch pass off the after-save hook.
-        return await execution.SaveAndSerializeAsync(ct, async succeededCards =>
-        {
-            foreach (var archived in await WebhookEventFactory.BuildCardArchivedBatchAsync(db, succeededCards, user!, ct))
+        return await execution.SaveAndSerializeAsync
+        (
+            ct,
+            beforeSave: async succeededCards =>
             {
-                webhookSink.Enqueue(archived);
+                foreach (var boardCards in succeededCards.GroupBy(c => c.BoardId))
+                {
+                    await CardReorderHelper.MoveCardsToLaneAsync(db, [.. boardCards], archiveLaneByBoard[boardCards.Key], 0, ct);
+                }
+            },
+            afterSave: async succeededCards =>
+            {
+                foreach (var archived in await WebhookEventFactory.BuildCardArchivedBatchAsync(db, succeededCards, user!, ct))
+                {
+                    webhookSink.Enqueue(archived);
+                }
             }
-        });
+        );
     }
 
     [McpServerTool(Name = "bulk_restore_cards", Destructive = false)]
-    [Description("Restore multiple archived cards to a single target lane in one call. Provide cardIds (CSV of card GUIDs) OR cardNumbers (CSV) + boardId/boardSlug, not both. All cards must be on the same board as the target lane — cross-board mixing is rejected up-front with no mutations. Pre-validates all refs and the board match, then restores best-effort. Returns a per-card result envelope: { totalRequested, succeeded, failed, results: [{ cardId, number, status, error? }] }.")]
+    [Description("Restore multiple archived cards to a single target lane in one call. Provide cardIds (CSV of card GUIDs) OR cardNumbers (CSV) + boardId/boardSlug, not both. All cards must be on the same board as the target lane — cross-board mixing is rejected up-front with no mutations. Pre-validates all refs and the board match, then restores best-effort. Restored cards go to the top of the target lane, next to each other in the order you list them. Returns a per-card result envelope: { totalRequested, succeeded, failed, results: [{ cardId, number, status, error? }] }.")]
     public async Task<string> BulkRestoreCardsAsync
     (
         [Description("Your auth key")] string authKey,
@@ -147,25 +151,21 @@ public sealed class BulkCardTools(BoardDbContext db, McpAuthService auth, BoardE
         var now = DateTimeOffset.UtcNow;
         var execution = new BulkExecution(db, broadcaster, user!.Id, now);
 
-        await execution.RunAsync(cards!, async card =>
-        {
-            if (!archiveLaneIdSet.Contains(card.LaneId))
-            {
-                return "Card is not archived.";
-            }
-
-            await CardReorderHelper.MoveCardToLaneAsync(db, card, targetLaneId, 0, ct);
-            return null;
-        });
+        await execution.RunAsync(cards!, card => Task.FromResult(archiveLaneIdSet.Contains(card.LaneId) ? null : "Card is not archived."));
 
         // card.restored per succeeded card — NOT card.moved. One SSE bell per board.
-        return await execution.SaveAndSerializeAsync(ct, async succeededCards =>
-        {
-            foreach (var restored in await WebhookEventFactory.BuildCardRestoredBatchAsync(db, succeededCards, user!, ct))
+        return await execution.SaveAndSerializeAsync
+        (
+            ct,
+            beforeSave: succeededCards => CardReorderHelper.MoveCardsToLaneAsync(db, succeededCards, targetLaneId, 0, ct),
+            afterSave: async succeededCards =>
             {
-                webhookSink.Enqueue(restored);
+                foreach (var restored in await WebhookEventFactory.BuildCardRestoredBatchAsync(db, succeededCards, user!, ct))
+                {
+                    webhookSink.Enqueue(restored);
+                }
             }
-        });
+        );
     }
 
     [McpServerTool(Name = "bulk_update_cards", Destructive = false)]
@@ -176,7 +176,7 @@ public sealed class BulkCardTools(BoardDbContext db, McpAuthService auth, BoardE
         [Description("CSV of card GUIDs (provide this OR cardNumbers)")] string? cardIds = null,
         [Description("CSV of card numbers (requires boardId or boardSlug)")] string? cardNumbers = null,
         [Description("Target lane ID to move all cards to (optional)")] Guid? laneId = null,
-        [Description("0-based index position in the target lane (optional, requires laneId — defaults to top of lane). Note: cards are placed sequentially, so the relative order of the batch is preserved.")] int? index = null,
+        [Description("0-based index position in the target lane (optional, requires laneId — defaults to top of lane). The moved cards land next to each other in the order you list them, starting at this index. The index counts only the lane's cards that are not being moved, and those keep their order.")] int? index = null,
         [Description("New size ID (guid, optional) for all cards")] Guid? sizeId = null,
         [Description("New size name (e.g. 'M', 'XL', optional) for all cards. Used if sizeId is not provided.")] string? sizeName = null,
         [Description("Label GUIDs to replace current labels on all cards (optional). Accepts comma-separated ('guid1,guid2') or a JSON array string ('[\"guid1\",\"guid2\"]'). Empty string or empty array clears all.")] string? labelIds = null,
@@ -271,13 +271,11 @@ public sealed class BulkCardTools(BoardDbContext db, McpAuthService auth, BoardE
         //
         // Which positions count: the batch saves once, so the only placements anyone
         // outside this call can ever observe are the ones before it ran and the ones after.
-        // Every MoveCardToLaneAsync renumbers the lanes it touches, so a card's position at
-        // its own turn in the loop can already have been shifted by an earlier card's move
-        // and is never persisted. So "from" is the card's placement snapshotted here, before
-        // any card moves, and "to" is its saved placement. A card moved iff those differ —
-        // a different lane, or a different position in the same lane — which also makes a
-        // batch that leaves every card where it was silent. Only cards in the batch report.
-        // A lane neighbour renumbered by the batch does not, as with the single-card reorder.
+        // So "from" is the card's placement snapshotted here, before any card moves, and "to"
+        // is its saved placement. A card moved iff those differ — a different lane, or a
+        // different position in the same lane — which also makes a batch that leaves every
+        // card where it was silent. Only cards in the batch report. A lane neighbour
+        // renumbered by the batch does not, as with the single-card reorder.
         var startingPlacements = new Dictionary<Guid, (Guid LaneId, int Position)>();
         if (laneId.HasValue)
         {
@@ -319,11 +317,6 @@ public sealed class BulkCardTools(BoardDbContext db, McpAuthService auth, BoardE
                 card.SizeId = resolvedSizeId.Value;
             }
 
-            if (laneId.HasValue)
-            {
-                await CardReorderHelper.MoveCardToLaneAsync(db, card, laneId.Value, index, ct);
-            }
-
             if (desiredLabelIds is not null)
             {
                 var (added, removed) = await ApplyLabelSetAsync(card.Id, desiredLabelIds, ct);
@@ -336,62 +329,69 @@ public sealed class BulkCardTools(BoardDbContext db, McpAuthService auth, BoardE
             return null;
         });
 
-        return await execution.SaveAndSerializeAsync(ct, async succeededCards =>
-        {
-            // Resolve every label changed across the batch in one query for the
-            // card.labeled / card.unlabeled payloads.
-            var changedLabelIds = labelChangesByCard.Values
-                .SelectMany(change => change.Added.Concat(change.Removed))
-                .Distinct()
-                    .ToList();
-            Dictionary<Guid, Label> labelsById = [];
-            if (changedLabelIds.Count > 0)
+        return await execution.SaveAndSerializeAsync
+        (
+            ct,
+            beforeSave: succeededCards => laneId.HasValue
+                ? CardReorderHelper.MoveCardsToLaneAsync(db, succeededCards, laneId.Value, index, ct)
+                : Task.CompletedTask,
+            afterSave: async succeededCards =>
             {
-                labelsById = await db.Labels
-                    .Where(l => changedLabelIds.Contains(l.Id))
-                        .ToDictionaryAsync(l => l.Id, ct);
+                // Resolve every label changed across the batch in one query for the
+                // card.labeled / card.unlabeled payloads.
+                var changedLabelIds = labelChangesByCard.Values
+                    .SelectMany(change => change.Added.Concat(change.Removed))
+                    .Distinct()
+                        .ToList();
+                Dictionary<Guid, Label> labelsById = [];
+                if (changedLabelIds.Count > 0)
+                {
+                    labelsById = await db.Labels
+                        .Where(l => changedLabelIds.Contains(l.Id))
+                            .ToDictionaryAsync(l => l.Id, ct);
+                }
+
+                foreach (var card in succeededCards)
+                {
+                    if (targetLaneForMove is not null
+                        && startingPlacements.TryGetValue(card.Id, out var start)
+                        && (start.LaneId != card.LaneId || start.Position != card.Position))
+                    {
+                        var fromLane = await db.Lanes.FindAsync([start.LaneId], ct);
+                        if (fromLane is not null)
+                        {
+                            webhookSink.Enqueue(await WebhookEventFactory.BuildCardMovedAsync(db, card, fromLane, start.Position, targetLaneForMove, user, ct));
+                        }
+                    }
+
+                    if (sizeChangedCardIds.Contains(card.Id))
+                    {
+                        webhookSink.Enqueue(await WebhookEventFactory.BuildCardUpdatedAsync(db, card, user, ct));
+                    }
+
+                    if (!labelChangesByCard.TryGetValue(card.Id, out var labelChange))
+                    {
+                        continue;
+                    }
+
+                    foreach (var labelId in labelChange.Added)
+                    {
+                        if (labelsById.TryGetValue(labelId, out var label))
+                        {
+                            webhookSink.Enqueue(await WebhookEventFactory.BuildCardLabeledAsync(db, card, label, user, ct));
+                        }
+                    }
+
+                    foreach (var labelId in labelChange.Removed)
+                    {
+                        if (labelsById.TryGetValue(labelId, out var label))
+                        {
+                            webhookSink.Enqueue(await WebhookEventFactory.BuildCardUnlabeledAsync(db, card, label, user, ct));
+                        }
+                    }
+                }
             }
-
-            foreach (var card in succeededCards)
-            {
-                if (targetLaneForMove is not null
-                    && startingPlacements.TryGetValue(card.Id, out var start)
-                    && (start.LaneId != card.LaneId || start.Position != card.Position))
-                {
-                    var fromLane = await db.Lanes.FindAsync([start.LaneId], ct);
-                    if (fromLane is not null)
-                    {
-                        webhookSink.Enqueue(await WebhookEventFactory.BuildCardMovedAsync(db, card, fromLane, start.Position, targetLaneForMove, user, ct));
-                    }
-                }
-
-                if (sizeChangedCardIds.Contains(card.Id))
-                {
-                    webhookSink.Enqueue(await WebhookEventFactory.BuildCardUpdatedAsync(db, card, user, ct));
-                }
-
-                if (!labelChangesByCard.TryGetValue(card.Id, out var labelChange))
-                {
-                    continue;
-                }
-
-                foreach (var labelId in labelChange.Added)
-                {
-                    if (labelsById.TryGetValue(labelId, out var label))
-                    {
-                        webhookSink.Enqueue(await WebhookEventFactory.BuildCardLabeledAsync(db, card, label, user, ct));
-                    }
-                }
-
-                foreach (var labelId in labelChange.Removed)
-                {
-                    if (labelsById.TryGetValue(labelId, out var label))
-                    {
-                        webhookSink.Enqueue(await WebhookEventFactory.BuildCardUnlabeledAsync(db, card, label, user, ct));
-                    }
-                }
-            }
-        });
+        );
     }
 
     // Returns the actually-added and actually-removed label ids so the after-save hook can
@@ -455,14 +455,29 @@ file sealed class BulkExecution(BoardDbContext db, BoardEventBroadcaster broadca
         }
     }
 
+    // beforeSave (optional) places the succeeded cards in their lane, all at once. Lane order
+    // comes from the database, so a per-card move inside the loop would place every card after
+    // the first against the order from before the batch. It shares the save's failure handling:
+    // if it throws, nothing is saved.
+    //
     // afterSave (optional) runs only after a successful save, with the cards that
     // succeeded — the hook bulk_update_cards uses to enqueue one card.moved per
     // actually-moved card to the webhook sink, without disturbing the single
     // SSE-bell-per-board coalesce above. It is not reached on a save failure.
-    public async Task<string> SaveAndSerializeAsync(CancellationToken ct, Func<IReadOnlyList<CardItem>, Task>? afterSave = null)
+    public async Task<string> SaveAndSerializeAsync
+    (
+        CancellationToken ct,
+        Func<IReadOnlyList<CardItem>, Task>? beforeSave = null,
+        Func<IReadOnlyList<CardItem>, Task>? afterSave = null
+    )
     {
         try
         {
+            if (beforeSave is not null)
+            {
+                await beforeSave(_succeededCards);
+            }
+
             await db.SaveChangesAsync(ct);
         }
 #pragma warning disable CA1031 // A SaveChanges failure collapses the whole batch — report it as a single error string.
