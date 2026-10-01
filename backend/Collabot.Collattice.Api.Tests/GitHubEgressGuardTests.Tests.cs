@@ -24,10 +24,12 @@ public class GitHubEgressGuardTests
     }
 
     [Fact]
-    public async Task RealGitHubSource_IsRefusedRecordedAndFailsDisposal()
+    public async Task GetLatest_RealGitHubSource_IsRefusedRecordedAndFailsDisposal()
     {
         // Arrange — build the production GitHub source on the production typed-client
         // registration (base address, headers, and the guard the factory adds to every client).
+        // Not `await using`: disposal is the final assertion, and a second disposal at scope
+        // end would throw again on the same record.
         var factory = new CollatticeApiFactory();
         await factory.InitializeAsync();
 
