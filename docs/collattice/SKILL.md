@@ -546,7 +546,8 @@ Create a label on a board. Names are unique within a board.
   string).
 
 #### `update_label` *(admin-level)*
-Update a label's name and/or color.
+Update a label's name and/or color. A name already held by another label on the
+board is a conflict and is rejected, and nothing in the call is saved.
 - **Params:** `authKey`, `labelId` (GUID). Optional: `name`, `color`.
 
 #### `delete_label` *(destructive, admin-level)*
@@ -592,8 +593,8 @@ size on the board is a conflict and is rejected.
 - **Params:** `authKey`, `boardId` (GUID), `name`. Optional: `ordinal`.
 
 #### `update_size` *(admin-level)*
-Update a size's name and/or ordinal. An ordinal already held by another size on the
-board is a conflict.
+Update a size's name and/or ordinal. A name or an ordinal already held by another
+size on the board is a conflict, and nothing in the call is saved.
 - **Params:** `authKey`, `sizeId` (GUID). Optional: `name`, `ordinal`.
 
 #### `delete_size` *(destructive, admin-level)*

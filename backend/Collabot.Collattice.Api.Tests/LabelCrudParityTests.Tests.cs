@@ -11,11 +11,11 @@ using Shouldly;
 namespace Collabot.Collattice.Api.Tests;
 
 // Cross-surface parity tests for label CRUD.
-// LabelEndpoints.cs and LabelTools.cs
-// re-encode the same name-uniqueness-per-board rule independently, with no shared
-// service. These tests feed the same invalid input to both surfaces and assert both
-// reject identically; the delete-cleanup case asserts both surfaces un-assign the
-// label from its cards (the cheaply-assertable cleanup half).
+// LabelEndpoints.cs and LabelTools.cs share the rename rule (LabelUpdateHelper) and its
+// taken-name message, but each re-encodes the create check and the delete cleanup. These
+// tests feed the same input to both surfaces and assert both answer identically; the
+// delete-cleanup case asserts both surfaces un-assign the label from its cards (the
+// cheaply-assertable cleanup half).
 public class LabelCrudParityTests(CollatticeApiFactory factory) : IClassFixture<CollatticeApiFactory>, IDisposable
 {
     private readonly CollatticeApiFactory _factory = factory;
@@ -136,6 +136,67 @@ public class LabelCrudParityTests(CollatticeApiFactory factory) : IClassFixture<
         restBody.ShouldNotContain("Error:");
 
         mcpResult.ShouldContain("Error: A label with that name already exists on this board");
+    }
+
+    // ── update_label: renaming onto another label's name is a conflict ─────────
+    // The unique (BoardId, Name) index would otherwise answer a 500. A rejected rename writes
+    // nothing, including a color sent alongside it.
+
+    [Fact]
+    public async Task UpdateLabel_TakenName_ConflictsOnBothSurfacesAndWritesNothing()
+    {
+        // Arrange — each board carries "Priority" and the label to rename
+        var restBoardId = await SeedBoardAsync();
+        var mcpBoardId = await SeedBoardAsync();
+        await CreateLabelAsync(restBoardId, "Priority", "#ff0000");
+        await CreateLabelAsync(mcpBoardId, "Priority", "#ff0000");
+        var restLabelId = await CreateLabelAsync(restBoardId, "Renamed", "#111111");
+        var mcpLabelId = await CreateLabelAsync(mcpBoardId, "Renamed", "#111111");
+        var (db, tools, authKey) = CreateMcpTools();
+
+        // Act
+        TestAuthHelper.SetAdminAuth(_client, _factory);
+        var restResponse = await _client.PatchAsJsonAsync($"/api/v1/boards/{restBoardId}/labels/{restLabelId}", new { name = "Priority", color = "#00ff00" });
+        var mcpResult = await tools.UpdateLabelAsync(authKey, mcpLabelId, "Priority", "#00ff00");
+
+        // Assert — the create path's message on both surfaces
+        restResponse.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        var restBody = await restResponse.Content.ReadAsStringAsync();
+        restBody.ShouldContain("A label with that name already exists on this board");
+        restBody.ShouldNotContain("Error:");
+
+        mcpResult.ShouldBe("Error: A label with that name already exists on this board.");
+
+        var labels = await db.Labels
+            .AsNoTracking()
+            .Where(l => l.Id == restLabelId || l.Id == mcpLabelId)
+                .Select(l => new { l.Name, l.Color })
+                    .ToListAsync();
+
+        labels.ShouldAllBe(l => l.Name == "Renamed" && l.Color == "#111111");
+        labels.Count.ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task UpdateLabel_ItsOwnName_IsNotAConflictOnBothSurfaces()
+    {
+        // Arrange — re-sending a label's current name with a new color must not collide with itself
+        var restBoardId = await SeedBoardAsync();
+        var mcpBoardId = await SeedBoardAsync();
+        var restLabelId = await CreateLabelAsync(restBoardId, "Same", "#111111");
+        var mcpLabelId = await CreateLabelAsync(mcpBoardId, "Same", "#111111");
+        var (_, tools, authKey) = CreateMcpTools();
+
+        // Act
+        TestAuthHelper.SetAdminAuth(_client, _factory);
+        var restResponse = await _client.PatchAsJsonAsync($"/api/v1/boards/{restBoardId}/labels/{restLabelId}", new { name = "Same", color = "#222222" });
+        var mcpResult = await tools.UpdateLabelAsync(authKey, mcpLabelId, "Same", "#222222");
+
+        // Assert
+        restResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await restResponse.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("color").GetString().ShouldBe("#222222");
+
+        JsonSerializer.Deserialize<JsonElement>(mcpResult).GetProperty("color").GetString().ShouldBe("#222222");
     }
 
     // ── delete_label: card-label assignments cleaned up on both surfaces ───────

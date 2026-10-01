@@ -35,7 +35,7 @@ internal static class LabelEndpoints
 
             if (await db.Labels.AnyAsync(x => x.BoardId == boardId && x.Name == request.Name, ct))
             {
-                return Results.Conflict("A label with that name already exists on this board.");
+                return Results.Conflict(LabelUpdateHelper.NameTakenMessage);
             }
 
             var label = new Label
@@ -61,22 +61,13 @@ internal static class LabelEndpoints
                 return Results.NotFound();
             }
 
-            if (request.Name is not null)
+            var (error, isConflict) = await LabelUpdateHelper.UpdateAsync(db, label, request.Name, request.Color, ct);
+            if (error is not null)
             {
-                if (string.IsNullOrWhiteSpace(request.Name))
-                {
-                    return Results.BadRequest("Name cannot be empty.");
-                }
-
-                label.Name = request.Name;
+                return isConflict
+                    ? Results.Conflict(error)
+                    : Results.BadRequest(error);
             }
-
-            if (request.Color is not null)
-            {
-                label.Color = request.Color;
-            }
-
-            await db.SaveChangesAsync(ct);
 
             // label.updated — same single board bell, plus one webhook event.
             await WebhookEventFactory.PublishLabelUpdatedAsync(db, broadcaster, label, http.CurrentUser(), ct);
