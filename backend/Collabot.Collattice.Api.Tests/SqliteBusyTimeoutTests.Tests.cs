@@ -1,7 +1,4 @@
 using System.Globalization;
-using Collabot.Collattice.Api.Hosting.UpdateCheck;
-using Collabot.Collattice.Api.Persistence;
-using Collabot.Collattice.Api.Tests.Infrastructure;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;

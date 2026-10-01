@@ -1,4 +1,3 @@
-using Collabot.Collattice.Api.Hosting.Webhooks;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;

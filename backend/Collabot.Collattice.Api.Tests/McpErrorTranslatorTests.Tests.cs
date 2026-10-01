@@ -1,5 +1,4 @@
 using System.Text.Json;
-using Collabot.Collattice.Api.Mcp;
 using ModelContextProtocol;
 using Shouldly;
 

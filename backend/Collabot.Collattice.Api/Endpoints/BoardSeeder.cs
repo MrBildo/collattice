@@ -1,5 +1,3 @@
-using Collabot.Collattice.Api.Models;
-
 namespace Collabot.Collattice.Api.Endpoints;
 
 // Shared board-seed logic for the REST BoardEndpoints (POST /boards), the MCP

@@ -1,8 +1,5 @@
 using System.ComponentModel;
 using System.Text.Json;
-using Collabot.Collattice.Api.Endpoints;
-using Collabot.Collattice.Api.Events;
-using Collabot.Collattice.Api.Models;
 using ModelContextProtocol.Server;
 
 namespace Collabot.Collattice.Api.Mcp;

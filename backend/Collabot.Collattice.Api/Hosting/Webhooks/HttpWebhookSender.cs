@@ -1,7 +1,6 @@
 using System.Globalization;
 using System.Net.Http.Headers;
 using System.Text.Json;
-using Collabot.Collattice.Api.Events;
 
 namespace Collabot.Collattice.Api.Hosting.Webhooks;
 

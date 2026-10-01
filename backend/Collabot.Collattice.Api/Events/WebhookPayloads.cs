@@ -1,5 +1,3 @@
-using Collabot.Collattice.Api.Models;
-
 namespace Collabot.Collattice.Api.Events;
 
 // The per-event `data` payloads. Both embed the existing CardSummary DIRECTLY

@@ -1,5 +1,4 @@
 using System.Text.Json;
-using Collabot.Collattice.Api.Hosting;
 using ModelContextProtocol;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;

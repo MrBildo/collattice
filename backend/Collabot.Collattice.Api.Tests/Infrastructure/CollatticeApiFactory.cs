@@ -1,7 +1,4 @@
 using System.Collections.Concurrent;
-using Collabot.Collattice.Api.Hosting.UpdateCheck;
-using Collabot.Collattice.Api.Hosting.Webhooks;
-using Collabot.Collattice.Api.Models;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;

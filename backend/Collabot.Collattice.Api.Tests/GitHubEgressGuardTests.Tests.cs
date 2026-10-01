@@ -1,5 +1,3 @@
-using Collabot.Collattice.Api.Hosting.UpdateCheck;
-using Collabot.Collattice.Api.Tests.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 

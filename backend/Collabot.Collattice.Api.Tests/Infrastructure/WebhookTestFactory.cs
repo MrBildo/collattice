@@ -1,4 +1,3 @@
-using Collabot.Collattice.Api.Events;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 

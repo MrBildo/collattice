@@ -1,6 +1,5 @@
 using System.Security.Cryptography;
 using System.Text;
-using Collabot.Collattice.Api.Hosting.Webhooks;
 using Shouldly;
 
 namespace Collabot.Collattice.Api.Tests;

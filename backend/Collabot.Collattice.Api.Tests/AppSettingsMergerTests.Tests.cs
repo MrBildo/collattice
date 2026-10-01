@@ -1,7 +1,4 @@
 using System.Text.Json.Nodes;
-
-using Collabot.Collattice.Api.Installation;
-
 using Shouldly;
 
 namespace Collabot.Collattice.Api.Tests;

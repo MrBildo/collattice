@@ -1,6 +1,4 @@
 using System.Globalization;
-using Collabot.Collattice.Api.Endpoints;
-using Collabot.Collattice.Api.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;

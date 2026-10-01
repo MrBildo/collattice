@@ -1,6 +1,5 @@
 using System.Net.Http.Json;
 using System.Text.Json;
-using Collabot.Collattice.Api.Models;
 
 namespace Collabot.Collattice.Api.Tests.Infrastructure;
 

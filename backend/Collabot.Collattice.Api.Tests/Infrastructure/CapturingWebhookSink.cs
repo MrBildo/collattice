@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using Collabot.Collattice.Api.Events;
 
 namespace Collabot.Collattice.Api.Tests.Infrastructure;
 

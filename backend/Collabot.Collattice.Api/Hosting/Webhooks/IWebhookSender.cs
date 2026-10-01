@@ -1,5 +1,3 @@
-using Collabot.Collattice.Api.Events;
-
 namespace Collabot.Collattice.Api.Hosting.Webhooks;
 
 // The HTTP send seam for webhook delivery. Mirrors the UpdateCheck ILatestVersionSource

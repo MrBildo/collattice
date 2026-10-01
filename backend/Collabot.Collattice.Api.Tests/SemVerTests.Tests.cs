@@ -1,4 +1,3 @@
-using Collabot.Collattice.Api.Hosting.UpdateCheck;
 using Shouldly;
 
 namespace Collabot.Collattice.Api.Tests;

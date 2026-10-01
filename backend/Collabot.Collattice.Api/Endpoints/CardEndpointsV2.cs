@@ -1,5 +1,3 @@
-using Collabot.Collattice.Api.Auth;
-
 namespace Collabot.Collattice.Api.Endpoints;
 
 // Sparse versioning: v2 exists ONLY for this one resource — GET /api/v2/cards/{id} — because the card

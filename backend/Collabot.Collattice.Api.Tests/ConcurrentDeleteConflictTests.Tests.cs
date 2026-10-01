@@ -1,4 +1,3 @@
-using Collabot.Collattice.Api.Hosting;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Shouldly;

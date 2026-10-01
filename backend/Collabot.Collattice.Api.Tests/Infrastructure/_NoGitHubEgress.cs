@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using Collabot.Collattice.Api.Hosting.UpdateCheck;
 
 namespace Collabot.Collattice.Api.Tests.Infrastructure;
 
