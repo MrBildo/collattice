@@ -41,9 +41,12 @@ internal sealed class TempCardSweepService
             _settings.SweepInterval
         );
 
-        // Run once on startup, then on each interval tick.
-        await RunSweepSafelyAsync(stoppingToken);
-
+        // No startup sweep: the first sweep runs one interval after boot, like every other
+        // database-touching hosted service here. Read paths already hide temp cards, so after a
+        // restart an orphan lingers at most one interval longer, and the one place it shows is an
+        // apparently empty lane or size refusing deletion until a sweep removes it. A startup
+        // sweep would also be database work racing the rest of startup, which in tests is a test
+        // thread sharing one connection.
         using var timer = new PeriodicTimer(_settings.SweepInterval);
         while (await timer.WaitForNextTickAsync(stoppingToken))
         {
