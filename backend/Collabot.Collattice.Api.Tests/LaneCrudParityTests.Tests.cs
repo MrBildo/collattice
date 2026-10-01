@@ -143,6 +143,118 @@ public class LaneCrudParityTests(CollatticeApiFactory factory) : IClassFixture<C
         mcpResult.ShouldContain("Error: Position value is reserved");
     }
 
+    // create_lane with no position appends after the board's last visible lane. The
+    // gap (0, 5) proves "after the last", not "count of lanes"; the archive lane at
+    // int.MaxValue must not be the lane it appends after.
+
+    [Fact]
+    public async Task CreateLane_NoPosition_AppendsAfterLastLaneOnBothSurfaces()
+    {
+        // Arrange
+        var (restBoardId, _) = await SeedBoardAsync();
+        var (mcpBoardId, _) = await SeedBoardAsync();
+        await CreateLaneAsync(restBoardId, "REST zero", 0);
+        await CreateLaneAsync(restBoardId, "REST five", 5);
+        await CreateLaneAsync(mcpBoardId, "MCP zero", 0);
+        await CreateLaneAsync(mcpBoardId, "MCP five", 5);
+        var (_, tools, authKey) = CreateMcpTools();
+
+        // Act
+        TestAuthHelper.SetAdminAuth(_client, _factory);
+        var restResponse = await _client.PostAsJsonAsync($"/api/v1/boards/{restBoardId}/lanes", new { name = "REST appended" });
+
+        var mcpResult = await tools.CreateLaneAsync(authKey, mcpBoardId, "MCP appended");
+
+        // Assert
+        restResponse.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var restLane = await restResponse.Content.ReadFromJsonAsync<JsonElement>();
+        restLane.GetProperty("position").GetInt32().ShouldBe(6);
+
+        JsonSerializer.Deserialize<JsonElement>(mcpResult).GetProperty("position").GetInt32().ShouldBe(6);
+    }
+
+    [Fact]
+    public async Task CreateLane_NoPositionOnEmptyBoard_StartsAtZeroOnBothSurfaces()
+    {
+        // Arrange — a fresh board holds only its archive lane
+        var (restBoardId, _) = await SeedBoardAsync();
+        var (mcpBoardId, _) = await SeedBoardAsync();
+        var (_, tools, authKey) = CreateMcpTools();
+
+        // Act
+        TestAuthHelper.SetAdminAuth(_client, _factory);
+        var restResponse = await _client.PostAsJsonAsync($"/api/v1/boards/{restBoardId}/lanes", new { name = "REST first" });
+
+        var mcpResult = await tools.CreateLaneAsync(authKey, mcpBoardId, "MCP first");
+
+        // Assert
+        restResponse.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var restLane = await restResponse.Content.ReadFromJsonAsync<JsonElement>();
+        restLane.GetProperty("position").GetInt32().ShouldBe(0);
+
+        JsonSerializer.Deserialize<JsonElement>(mcpResult).GetProperty("position").GetInt32().ShouldBe(0);
+    }
+
+    // create_lane at a taken position is a conflict on both surfaces, the same rule
+    // and message as update_lane, and REST pins 409 to match PATCH /lanes/{id}.
+
+    [Fact]
+    public async Task CreateLane_TakenPosition_RejectedOnBothSurfaces()
+    {
+        // Arrange
+        var (restBoardId, _) = await SeedBoardAsync();
+        var (mcpBoardId, _) = await SeedBoardAsync();
+        await CreateLaneAsync(restBoardId, "REST occupant", 3);
+        await CreateLaneAsync(mcpBoardId, "MCP occupant", 3);
+        var (db, tools, authKey) = CreateMcpTools();
+
+        // Act
+        TestAuthHelper.SetAdminAuth(_client, _factory);
+        var restResponse = await _client.PostAsJsonAsync($"/api/v1/boards/{restBoardId}/lanes", new { name = "REST intruder", position = 3 });
+
+        var mcpResult = await tools.CreateLaneAsync(authKey, mcpBoardId, "MCP intruder", 3);
+
+        // Assert
+        restResponse.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        var restBody = await restResponse.Content.ReadAsStringAsync();
+        restBody.ShouldContain("Position already taken by another lane");
+        restBody.ShouldNotContain("Error:");
+
+        mcpResult.ShouldContain("Error: Position already taken by another lane");
+
+        (await db.Lanes.CountAsync(l => l.BoardId == restBoardId && !l.IsArchiveLane)).ShouldBe(1);
+        (await db.Lanes.CountAsync(l => l.BoardId == mcpBoardId && !l.IsArchiveLane)).ShouldBe(1);
+    }
+
+    // When the last lane already sits just below the archive lane's reserved slot,
+    // there is nowhere to append, so both surfaces refuse with a reason instead of
+    // colliding with the archive lane.
+
+    [Fact]
+    public async Task CreateLane_NoPositionAndNoRoom_RejectedOnBothSurfaces()
+    {
+        // Arrange
+        var (restBoardId, _) = await SeedBoardAsync();
+        var (mcpBoardId, _) = await SeedBoardAsync();
+        await CreateLaneAsync(restBoardId, "REST ceiling", int.MaxValue - 1);
+        await CreateLaneAsync(mcpBoardId, "MCP ceiling", int.MaxValue - 1);
+        var (_, tools, authKey) = CreateMcpTools();
+
+        // Act
+        TestAuthHelper.SetAdminAuth(_client, _factory);
+        var restResponse = await _client.PostAsJsonAsync($"/api/v1/boards/{restBoardId}/lanes", new { name = "REST overflow" });
+
+        var mcpResult = await tools.CreateLaneAsync(authKey, mcpBoardId, "MCP overflow");
+
+        // Assert
+        restResponse.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        var restBody = await restResponse.Content.ReadAsStringAsync();
+        restBody.ShouldContain("No position is free after the board's last lane");
+        restBody.ShouldNotContain("Error:");
+
+        mcpResult.ShouldContain("Error: No position is free after the board's last lane");
+    }
+
     // ── update_lane: reserved int.MaxValue position rejected on both surfaces ──
 
     [Fact]

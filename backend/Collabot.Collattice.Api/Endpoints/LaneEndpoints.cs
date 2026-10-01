@@ -28,12 +28,15 @@ internal static class LaneEndpoints
                 return Results.BadRequest("Name is required.");
             }
 
-            if (request.Position == int.MaxValue)
+            var resolved = await LanePositionHelper.ResolveForCreateAsync(db, boardId, request.Position, ct);
+            if (resolved.Error is not null)
             {
-                return Results.BadRequest("Position value is reserved.");
+                return resolved.IsConflict
+                    ? Results.Conflict(resolved.Error)
+                    : Results.BadRequest(resolved.Error);
             }
 
-            var lane = new Lane { Id = Guid.NewGuid(), BoardId = boardId, Name = request.Name, Position = request.Position };
+            var lane = new Lane { Id = Guid.NewGuid(), BoardId = boardId, Name = request.Name, Position = resolved.Position };
             db.Lanes.Add(lane);
             await db.SaveChangesAsync(ct);
 
