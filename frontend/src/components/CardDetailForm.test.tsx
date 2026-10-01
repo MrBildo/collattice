@@ -15,7 +15,7 @@ import {
 } from '@/lib/api';
 import { queryKeys } from '@/lib/query-keys';
 import { ROLES } from '@/lib/roles';
-import type { BoardData, CardHistoryTrail, CardItem, CardSummary, Label } from '@/types';
+import type { BoardData, CardHistoryTrail, CardItem, CardSummary, Label, Lane } from '@/types';
 
 // This suite covers the concurrent-edit guard: an edit another person makes
 // while you have the card open surfaces as a named, reachable warning without
@@ -75,7 +75,7 @@ function makeCard(overrides: Partial<CardItem> = {}): CardItem {
   };
 }
 
-function setup(initialCard: CardItem) {
+function setup(initialCard: CardItem, lanes?: Lane[]) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const isDirtyRef = { current: false };
   const tree = (card: CardItem) => (
@@ -85,6 +85,7 @@ function setup(initialCard: CardItem) {
           <DialogContent>
             <CardDetailForm
               card={card}
+              lanes={lanes}
               onClose={() => {}}
               currentUserId="me"
               currentUserRole={ROLES.Human}
@@ -99,7 +100,11 @@ function setup(initialCard: CardItem) {
   const utils = render(tree(initialCard));
   // Simulate an SSE-driven refetch handing the form a fresh card prop.
   const sendRemote = (card: CardItem) => utils.rerender(tree(card));
-  return { ...utils, isDirtyRef, sendRemote };
+  return { ...utils, isDirtyRef, sendRemote, queryClient };
+}
+
+function toSummary(card: CardItem): CardSummary {
+  return { ...card, sizeName: 'S', labels: [], commentCount: 0, attachmentCount: 0 };
 }
 
 async function editDescription(user: ReturnType<typeof userEvent.setup>, text: string) {
@@ -446,5 +451,115 @@ describe('CardDetailForm labels', () => {
     expect(vi.mocked(updateCard).mock.calls[0][1]).toEqual({
       labelIds: ['label-bug', 'label-feature', 'label-chore'],
     });
+  });
+});
+
+describe('CardDetailForm lane change', () => {
+  const lanes: Lane[] = [
+    { id: 'lane-1', boardId: 'board-1', name: 'Backlog', position: 0 },
+    { id: 'lane-2', boardId: 'board-1', name: 'Done', position: 1 },
+  ];
+  const boardKey = queryKeys.boards.data('board-1');
+
+  // The order the board renders a lane in: its cards sorted by position.
+  function cachedLaneOrder(queryClient: QueryClient, laneId: string): string[] {
+    const data = queryClient.getQueryData<BoardData>(boardKey);
+    return (data?.cards ?? [])
+      .filter((c) => c.laneId === laneId)
+      .sort((a, b) => a.position - b.position)
+      .map((c) => c.name);
+  }
+
+  // Done holds P at 0 and R at 40 in the cache: cards deleted between them left a gap.
+  function seedBoard(queryClient: QueryClient, moving: CardItem) {
+    queryClient.setQueryData<BoardData>(boardKey, {
+      lanes,
+      sizes: [],
+      cards: [
+        toSummary(makeCard({ id: 'p', number: 5, name: 'P', laneId: 'lane-2', position: 0 })),
+        toSummary(makeCard({ id: 'r', number: 9, name: 'R', laneId: 'lane-2', position: 40 })),
+        toSummary(moving),
+      ],
+    });
+  }
+
+  // Every board fetch is held open until the test releases it, so the cache can be read in the
+  // window between the save and the refetch landing, which is where the wrong order showed.
+  function holdBoardFetches() {
+    const pending: Array<(data: BoardData) => void> = [];
+    vi.mocked(fetchBoardData).mockImplementation(
+      () => new Promise<BoardData>((resolve) => pending.push(resolve)),
+    );
+    return pending;
+  }
+
+  test('a card moved through the form shows at the end of its new lane before and after the refetch', async () => {
+    // Arrange: the server puts the card at the end of Done and renumbers the lane to P 0, R 10,
+    // card 20, but the save response carries only the card's own number.
+    const user = userEvent.setup();
+    const pending = holdBoardFetches();
+    const moving = makeCard({ name: 'Moved' });
+    const { queryClient } = setup(moving, lanes);
+    seedBoard(queryClient, moving);
+    const savedCard = toSummary({ ...moving, laneId: 'lane-2', position: 20 });
+    vi.mocked(updateCard).mockResolvedValue(savedCard);
+
+    // Act
+    const laneSelect = screen
+      .getAllByRole('combobox')
+      .find((el) => el.textContent?.includes('Backlog'));
+    if (!laneSelect) throw new Error('lane select not found');
+    await user.click(laneSelect);
+    await user.click(await screen.findByRole('option', { name: 'Done' }));
+    const fetchesBeforeSave = pending.length;
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    // Assert: before the refetch lands, the card is already last in Done
+    await waitFor(() => expect(updateCard).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(updateCard).mock.calls[0][1]).toEqual({ laneId: 'lane-2' });
+    await waitFor(() =>
+      expect(cachedLaneOrder(queryClient, 'lane-2')).toEqual(['P', 'R', 'Moved']),
+    );
+    expect(pending.length).toBeGreaterThan(fetchesBeforeSave);
+
+    // Act: the refetch lands with the server's renumbered lane
+    await act(async () => {
+      pending[pending.length - 1]({
+        lanes,
+        sizes: [],
+        cards: [
+          toSummary(makeCard({ id: 'p', number: 5, name: 'P', laneId: 'lane-2', position: 0 })),
+          toSummary(makeCard({ id: 'r', number: 9, name: 'R', laneId: 'lane-2', position: 10 })),
+          savedCard,
+        ],
+      });
+    });
+
+    // Assert: same order, now on the server's numbers
+    expect(cachedLaneOrder(queryClient, 'lane-2')).toEqual(['P', 'R', 'Moved']);
+    expect(
+      queryClient.getQueryData<BoardData>(boardKey)?.cards.find((c) => c.id === 'r')?.position,
+    ).toBe(10);
+  });
+
+  test('a save that keeps the lane does not refetch the board', async () => {
+    // Arrange
+    const user = userEvent.setup();
+    const pending = holdBoardFetches();
+    const card = makeCard({ name: 'Original name' });
+    const { queryClient } = setup(card, lanes);
+    seedBoard(queryClient, card);
+    vi.mocked(updateCard).mockResolvedValue(toSummary({ ...card, name: 'Renamed' }));
+
+    // Act
+    const nameInput = screen.getByDisplayValue('Original name');
+    await user.clear(nameInput);
+    await user.type(nameInput, 'Renamed');
+    const fetchesBeforeSave = pending.length;
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    // Assert
+    await waitFor(() => expect(cachedLaneOrder(queryClient, 'lane-1')).toEqual(['Renamed']));
+    expect(pending.length).toBe(fetchesBeforeSave);
   });
 });
