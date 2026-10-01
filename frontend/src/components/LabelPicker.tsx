@@ -41,7 +41,6 @@ export function LabelPicker({
   const [isOpen, setIsOpen] = useState(false);
   const [filter, setFilter] = useState('');
   const [focusedIndex, setFocusedIndex] = useState(-1);
-  const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   // Many pickers can exist on one page (one per board tile), so the listbox and
   // option ids must be unique per instance for aria-controls/activedescendant.
@@ -84,13 +83,18 @@ export function LabelPicker({
     }
   }, [focusedIndex]);
 
+  // Focus on open is left to the popover, which decides by how it was opened:
+  // by mouse or keyboard it focuses the first field (the search box, ready to
+  // type into); by touch it focuses the popup itself, because focusing a text
+  // field raises the on-screen keyboard over the board when the user may only
+  // want to tap a label. Tapping the search box still brings the keyboard up.
+  // Forcing focus onto the search box here would undo the touch case.
   const handleOpenChange = (open: boolean) => {
     setIsOpen(open);
     onOpenChange?.(open);
     if (open) {
       setFilter('');
       setFocusedIndex(-1);
-      setTimeout(() => inputRef.current?.focus(), 0);
     }
   };
 
@@ -162,7 +166,6 @@ export function LabelPicker({
         >
           <div className="p-1">
             <Input
-              ref={inputRef}
               value={filter}
               onChange={(e) => handleFilterChange(e.target.value)}
               placeholder="Search labels..."
