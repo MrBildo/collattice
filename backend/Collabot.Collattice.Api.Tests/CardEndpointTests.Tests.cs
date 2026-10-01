@@ -2521,11 +2521,21 @@ public class CardEndpointTests(CollatticeApiFactory factory) : IClassFixture<Col
             laneId = targetLaneId
         });
 
-        // Assert
+        // Assert — the moved card is last in the target lane. Its stored number is not pinned: a move
+        // to another lane renumbers the target lane from 0.
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         var card = await response.Content.ReadFromJsonAsync<JsonElement>();
         card.GetProperty("laneId").GetGuid().ShouldBe(targetLaneId);
-        card.GetProperty("position").GetInt32().ShouldBeGreaterThan(50);
+
+        var laneResponse = await _client.GetAsync($"/api/v1/boards/{_factory.DefaultBoardId}/cards?laneId={targetLaneId}");
+        laneResponse.EnsureSuccessStatusCode();
+        var lane = await laneResponse.Content.ReadFromJsonAsync<JsonElement>();
+        var lastInLane = lane.GetProperty("items")
+            .EnumerateArray()
+            .OrderBy(c => c.GetProperty("position").GetInt32())
+                .Last();
+
+        lastInLane.GetProperty("id").GetGuid().ShouldBe(cardId);
     }
 
     // ── Create card with labels (atomic label attachment) ────────────────

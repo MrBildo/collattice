@@ -241,6 +241,31 @@ public class ConcurrentDeleteRaceTests(ConcurrentDeleteRaceFactory factory) : IC
     }
 
     [Fact]
+    public async Task MoveCardToAnotherLane_CardDeletedAfterItIsLoaded_ConflictsOnBothSurfaces()
+    {
+        // Arrange — a second lane on each board to move the card into
+        var (restBoardId, _, restCardId) = await SeedCardAsync();
+        var (mcpBoardId, _, mcpCardId) = await SeedCardAsync();
+        var restTargetLaneId = await PostForIdAsync($"/api/v1/boards/{restBoardId}/lanes", new { name = "Target", position = 1 });
+        var mcpTargetLaneId = await PostForIdAsync($"/api/v1/boards/{mcpBoardId}/lanes", new { name = "Target", position = 1 });
+        var tools = CreateMcpTools<CardTools>();
+
+        // Act
+        _factory.Interceptor.Arm("Cards", DeleteCard(restCardId));
+        TestAuthHelper.SetAdminAuth(_client, _factory);
+        var restResponse = await _client.PatchAsJsonAsync($"/api/v1/cards/{restCardId}", new { laneId = restTargetLaneId });
+
+        _factory.Interceptor.Arm("Cards", DeleteCard(mcpCardId));
+        var mcpResult = await ThroughCallToolFilterAsync(() => tools.UpdateCardAsync(_factory.AdminAuthKey, cardId: mcpCardId, laneId: mcpTargetLaneId));
+
+        // Assert
+        restResponse.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        mcpResult.ShouldBe(_lostToDelete);
+
+        (await ReadAsync(db => db.Cards.AnyAsync(c => c.LaneId == restTargetLaneId || c.LaneId == mcpTargetLaneId))).ShouldBeFalse();
+    }
+
+    [Fact]
     public async Task UpdateComment_CardDeletedAfterTheCommentIsLoaded_ConflictsOnBothSurfaces()
     {
         // Arrange — deleting the card takes its comments with it
