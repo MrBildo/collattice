@@ -1,4 +1,5 @@
 using Collabot.Collattice.Api.Models;
+using Collabot.Collattice.Api.Persistence;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
@@ -34,6 +35,8 @@ internal static class LanePositionHelper
         CancellationToken ct = default
     )
     {
+        using var expected = ExpectedSaveFailure.Expect(IsPositionCollision);
+
         for (var attempt = 0; attempt < _maxAttempts; attempt++)
         {
             var (position, error, isConflict) = await ResolveAsync(db, boardId, requestedPosition, ct);

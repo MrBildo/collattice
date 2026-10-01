@@ -291,6 +291,7 @@ The skills carry universal patterns. The sections below name only Collattice-spe
 - **`.editorconfig` is the source of truth** for formatting and analyzer severity. Don't override it; configure your editor to respect it. Don't modify it to work around conflicts either — restructure the code or use `#pragma` instead.
 - **Run `dotnet format` before committing.**
 - **Use `Results.StatusCode(403)` not `Results.Forbid()`** — there's no auth middleware registered, so `Results.Forbid()` throws at runtime.
+- **A save failure the code catches and handles is declared, so it is not logged as an error.** EF Core writes every failed save as two Error entries (`Database.Command` CommandError, then `Update` SaveChangesFailed with the stack trace) before any catch runs. A site that catches one (the retrying allocators, the update helpers that answer a taken value with 409, a duplicate label assignment) wraps the save in `using var expected = ExpectedSaveFailure.Expect(<the catch's own predicate>);`, and EF's two entries for a matching failure are then written at Debug. Every other failure logs exactly as EF writes it. Wired in `Program.cs` through `ExpectedSaveFailureLoggerFactory` (`Persistence/_ExpectedSaveFailure.cs`); a new catch site declares itself the same way (#465).
 
 ### Endpoint structure
 

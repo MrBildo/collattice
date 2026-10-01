@@ -1,4 +1,5 @@
 using Collabot.Collattice.Api.Models;
+using Collabot.Collattice.Api.Persistence;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
@@ -23,6 +24,8 @@ internal static class CardLabelHelper
 
         var cardLabel = new CardLabel { CardId = cardId, LabelId = labelId };
         db.CardLabels.Add(cardLabel);
+
+        using var expected = ExpectedSaveFailure.Expect(IsDuplicateAssignment);
 
         try
         {
