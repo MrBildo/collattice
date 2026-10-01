@@ -53,7 +53,7 @@ public sealed class LaneTools(BoardDbContext db, McpAuthService auth, BoardEvent
     }
 
     [McpServerTool(Name = "update_lane", Destructive = false)]
-    [Description("Update a lane's name and/or position. Requires Administrator or AgentAdministrator role. Archive lanes cannot be modified. Position int.MaxValue is reserved; a position already taken by another lane on the board is a conflict.")]
+    [Description("Update a lane's name and/or position. Requires Administrator or AgentAdministrator role. Archive lanes cannot be modified. Position int.MaxValue is reserved; a position already taken by another lane on the board is a conflict, and nothing in the call is saved.")]
     public async Task<string> UpdateLaneAsync
     (
         [Description("Your auth key")] string authKey,
@@ -75,43 +75,15 @@ public sealed class LaneTools(BoardDbContext db, McpAuthService auth, BoardEvent
             return "Error: Lane not found.";
         }
 
-        if (lane.IsArchiveLane)
-        {
-            return "Error: Archive lanes cannot be modified.";
-        }
-
         // Capture the pre-mutation values for the per-axis no-op guard.
         var oldName = lane.Name;
         var oldPosition = lane.Position;
 
-        if (name is not null)
+        var (updateError, _) = await LaneUpdateHelper.UpdateAsync(db, lane, name, position, ct);
+        if (updateError is not null)
         {
-            if (string.IsNullOrWhiteSpace(name))
-            {
-                return "Error: Name cannot be empty.";
-            }
-
-            lane.Name = name;
+            return $"Error: {updateError}";
         }
-
-        if (position is not null)
-        {
-            var newPos = position.Value;
-
-            if (newPos == int.MaxValue)
-            {
-                return "Error: Position value is reserved.";
-            }
-
-            if (await db.Lanes.AnyAsync(l => l.BoardId == lane.BoardId && l.Position == newPos && l.Id != laneId, ct))
-            {
-                return "Error: Position already taken by another lane.";
-            }
-
-            lane.Position = newPos;
-        }
-
-        await db.SaveChangesAsync(ct);
 
         // Split by axis: name → lane.renamed; position → lane.reordered (board's full new
         // order). Co-fire through PublishCoalesced — one SSE bell, identical to the REST PATCH.

@@ -33,7 +33,7 @@ All endpoints are under `/api/v1/`, with one exception: the card-detail read als
 
 | Resource | Endpoints |
 |----------|-----------|
-| Lanes | `GET /lanes/{id}`, `PATCH /lanes/{id}`, `DELETE /lanes/{id}` |
+| Lanes | `GET /lanes/{id}`, `PATCH /lanes/{id}` (name/position; a position another lane on the board holds → 409, nothing saved), `DELETE /lanes/{id}` |
 | Sizes | `GET /sizes/{id}`, `PATCH /sizes/{id}` (name/ordinal; a name or ordinal another size on the board holds → 409, nothing saved), `DELETE /sizes/{id}` (blocked if in use) |
 | Cards | `GET /cards/{id}` (enriched detail; comments as a plain array — **deprecated** in favour of `GET /api/v2/cards/{id}`; see [Reading a card](#reading-a-card); includes `descriptionHistoryCount`, see [Card History](#card-history)), `GET /api/v2/cards/{id}` (the recommended read — field projection + paged comments; see [Reading a card](#reading-a-card)), `PATCH /cards/{id}` (a description edit can carry a [collision notice](#collision-awareness)), `DELETE /cards/{id}`, `POST /cards/{id}/reorder`, `POST /cards/{id}/archive`, `POST /cards/{id}/restore` |
 | Card history | `GET /cards/{id}/history` — the card's description edit trail; see [Card History](#card-history) |
