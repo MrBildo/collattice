@@ -77,7 +77,11 @@ internal static class CardEndpoints
                 return Results.BadRequest(error);
             }
 
-            await CardNumberHelper.InsertCardWithAutoNumberAsync(db, card!, boardId, ct);
+            if (!await CardNumberHelper.TryInsertCardWithAutoNumberAsync(db, card!, boardId, ct))
+            {
+                return Results.Conflict(CardNumberHelper.ContendedMessage);
+            }
+
             await WebhookEventFactory.PublishCardCreatedAsync(db, broadcaster, card!, http.CurrentUser(), ct);
 
             var summaries = await CardSummaryBuilder.BuildAsync(db, [card!], ct);
@@ -526,7 +530,10 @@ internal static class CardEndpoints
             card.LastUpdatedAtUtc = DateTimeOffset.UtcNow;
             card.LastUpdatedByUserId = http.CurrentUser().Id;
 
-            await CardNumberHelper.FinalizeCardNumberAsync(db, card, card.BoardId, ct);
+            if (!await CardNumberHelper.TryFinalizeCardNumberAsync(db, card, card.BoardId, ct))
+            {
+                return Results.Conflict(CardNumberHelper.ContendedMessage);
+            }
 
             // card.created fires here, on finalize — never at temp-insert (a temp card is
             // invisible pre-creation limbo and may be cancelled). The cancel site emits

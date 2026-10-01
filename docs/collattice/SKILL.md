@@ -351,6 +351,9 @@ lowest-ordinal size if you don't specify one. Returns the enriched card summary.
   `sizeId` **or** `sizeName`, `labelIds` (assign labels at creation — comma-
   separated GUIDs or a JSON-array string; all must belong to the lane's board).
 - Creating into an archive lane is rejected.
+- When many cards are being created on one board at the same moment, a create that
+  cannot get a card number returns an error ending in "try again" and creates
+  nothing. Retry the call. `duplicate_card` answers the same way.
 
 #### `duplicate_card`
 Create a new card that starts from an existing one. The copy carries the source's

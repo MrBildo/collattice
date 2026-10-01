@@ -114,7 +114,10 @@ public class DuplicateCardTools(BoardDbContext db, McpAuthService auth, BoardEve
             return $"Error: {buildError}";
         }
 
-        await CardNumberHelper.InsertCardWithAutoNumberAsync(db, copy!, source.BoardId, ct);
+        if (!await CardNumberHelper.TryInsertCardWithAutoNumberAsync(db, copy!, source.BoardId, ct))
+        {
+            return $"Error: {CardNumberHelper.ContendedMessage}";
+        }
 
         // card.created rings the SSE bell as well (the typed event downsamples to the board-updated
         // signal), so no separate board broadcast — the same emission create_card makes.
