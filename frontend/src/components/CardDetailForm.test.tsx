@@ -542,6 +542,45 @@ describe('CardDetailForm lane change', () => {
     ).toBe(10);
   });
 
+  test('a second save of the moved card before the refetch lands keeps it last in its new lane', async () => {
+    // Arrange: move the card into Done (server: P 0, R 10, card 20) with every board fetch held.
+    const user = userEvent.setup();
+    holdBoardFetches();
+    const moving = makeCard({ name: 'Moved' });
+    const { queryClient } = setup(moving, lanes);
+    seedBoard(queryClient, moving);
+    vi.mocked(updateCard).mockResolvedValueOnce(
+      toSummary({ ...moving, laneId: 'lane-2', position: 20 }),
+    );
+    const laneSelect = screen
+      .getAllByRole('combobox')
+      .find((el) => el.textContent?.includes('Backlog'));
+    if (!laneSelect) throw new Error('lane select not found');
+    await user.click(laneSelect);
+    await user.click(await screen.findByRole('option', { name: 'Done' }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() =>
+      expect(cachedLaneOrder(queryClient, 'lane-2')).toEqual(['P', 'R', 'Moved']),
+    );
+
+    // Act: rename and save again while the refetch is still held; the response carries the
+    // server's 20, which sorts above R's stale cached 40.
+    vi.mocked(updateCard).mockResolvedValueOnce(
+      toSummary({ ...moving, name: 'Renamed', laneId: 'lane-2', position: 20 }),
+    );
+    const nameInput = screen.getByDisplayValue('Moved');
+    await user.clear(nameInput);
+    await user.type(nameInput, 'Renamed');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    // Assert
+    await waitFor(() => expect(updateCard).toHaveBeenCalledTimes(2));
+    expect(vi.mocked(updateCard).mock.calls[1][1]).toEqual({ name: 'Renamed' });
+    await waitFor(() =>
+      expect(cachedLaneOrder(queryClient, 'lane-2')).toEqual(['P', 'R', 'Renamed']),
+    );
+  });
+
   test('a save that keeps the lane does not refetch the board', async () => {
     // Arrange
     const user = userEvent.setup();

@@ -1,4 +1,5 @@
 import { describe, test, expect } from 'vitest';
+
 import type { CardSummary } from '@/types';
 import { mergeSavedCard } from './merge-saved-card';
 
@@ -89,19 +90,40 @@ describe('mergeSavedCard', () => {
     expect(merged[0]).toMatchObject({ laneId: 'lane-b', position: 0 });
   });
 
-  test('a save that does not change the lane takes the response as sent', () => {
-    // Arrange: same lane, a rename; the response's number is merged untouched.
+  test('a save that keeps the lane merges the response but keeps the cached position', () => {
+    // Arrange: a rename; the server's number differs from the cached one, as it does after the
+    // server has renumbered the lane and the cache has not caught up.
     const cards = [
-      makeCard({ id: 'x', name: 'X', laneId: 'lane-a', position: 0 }),
-      makeCard({ id: 'y', name: 'Y', laneId: 'lane-a', position: 10 }),
+      makeCard({ id: 'x', name: 'X', laneId: 'lane-a', position: 41 }),
+      makeCard({ id: 'y', name: 'Y', laneId: 'lane-a', position: 40 }),
     ];
-    const saved = makeCard({ id: 'x', name: 'X renamed', laneId: 'lane-a', position: 0 });
+    const saved = makeCard({ id: 'x', name: 'X renamed', laneId: 'lane-a', position: 20 });
 
     // Act
     const merged = mergeSavedCard(cards, saved, false);
 
     // Assert
     expect(merged).toEqual([{ ...cards[0], name: 'X renamed' }, cards[1]]);
+  });
+
+  test('a second save before the refetch keeps the moved card last in its new lane', () => {
+    // Arrange: C moves into P 0, R 40 (the server says C 20, R 10); then C is renamed before the
+    // board refetch lands, and that response carries the server's 20 again.
+    const cards = [
+      makeCard({ id: 'p', name: 'P', laneId: 'lane-b', position: 0 }),
+      makeCard({ id: 'r', name: 'R', laneId: 'lane-b', position: 40 }),
+      makeCard({ id: 'c', name: 'C', laneId: 'lane-a', position: 10 }),
+    ];
+    const moved = makeCard({ id: 'c', name: 'C', laneId: 'lane-b', position: 20 });
+    const renamed = makeCard({ id: 'c', name: 'C renamed', laneId: 'lane-b', position: 20 });
+
+    // Act
+    const afterMove = mergeSavedCard(cards, moved, true);
+    const afterRename = mergeSavedCard(afterMove, renamed, false);
+
+    // Assert
+    expect(laneOrder(afterMove, 'lane-b')).toEqual(['P', 'R', 'C']);
+    expect(laneOrder(afterRename, 'lane-b')).toEqual(['P', 'R', 'C renamed']);
   });
 
   test('merges every field of the response into the moved card', () => {

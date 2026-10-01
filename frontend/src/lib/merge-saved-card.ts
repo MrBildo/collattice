@@ -9,14 +9,20 @@ import type { CardSummary } from '@/types';
 // renumbered downward. So until the refetch, the moved card keeps the server's number when that
 // already sorts after every other cached card in its new lane, and otherwise takes one past the
 // highest of them. Either way the lane shows the order the server has.
+//
+// A save that keeps the lane cannot move the card, so the card keeps its cached number. The
+// server's number for it is no better: after a lane change it is exactly the number the cache
+// had to replace, and putting it back before the refetch lands brings the wrong order back.
 export function mergeSavedCard(
   cards: CardSummary[],
   saved: CardSummary,
   isLaneChange: boolean,
 ): CardSummary[] {
-  const merged = cards.map((c) => (c.id === saved.id ? { ...c, ...saved } : c));
-  if (!isLaneChange) return merged;
+  if (!isLaneChange) {
+    return cards.map((c) => (c.id === saved.id ? { ...c, ...saved, position: c.position } : c));
+  }
 
+  const merged = cards.map((c) => (c.id === saved.id ? { ...c, ...saved } : c));
   const highestNeighbour = Math.max(
     -Infinity,
     ...cards.filter((c) => c.laneId === saved.laneId && c.id !== saved.id).map((c) => c.position),
