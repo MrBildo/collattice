@@ -440,7 +440,7 @@ The guiding principle: flexibility in how you *use* Collattice, deliberate restr
 
 ### Prerequisites
 
-- .NET 10 SDK
+- .NET 10 SDK, 10.0.400 or later (the floor is pinned in `global.json`)
 - Node.js 22+
 - Docker Desktop (for Aspire orchestration)
 

@@ -46,7 +46,7 @@ These rules are non-negotiable. They apply to every agent, every dispatch, every
 ## Build & Run
 
 ### Prerequisites
-- .NET 10 SDK
+- .NET 10 SDK, 10.0.400 or later (the floor is pinned in `global.json`)
 - Node.js 22+
 - Docker Desktop (for Aspire orchestration)
 - Aspire CLI (optional): `irm https://aspire.dev/install.ps1 | iex`
