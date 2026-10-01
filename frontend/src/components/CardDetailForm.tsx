@@ -59,6 +59,7 @@ import {
   History,
   RefreshCw,
   RotateCcw,
+  Tag,
 } from 'lucide-react';
 import { ROLES } from '@/lib/roles';
 import { buildCardPrefill } from '@/lib/duplicate-card';
@@ -687,9 +688,12 @@ export const CardDetailForm = forwardRef<CardDetailFormHandle, CardDetailFormPro
       onClose();
     };
 
-    // The copy's labels come from this card's label query; until it has loaded
-    // (or if it failed) a duplicate would silently drop them, so wait for it.
-    const canDuplicate = labelsQuery.data !== undefined;
+    // Label edits and the copy's labels both start from this card's label query.
+    // Until it has loaded (or if it failed), an edit would start from no labels and
+    // a save would drop the ones the card has; a duplicate would silently lose
+    // them too. Both wait for it.
+    const hasCardLabels = labelsQuery.data !== undefined;
+    const canDuplicate = hasCardLabels;
 
     const handleDuplicate = () => {
       if (!onDuplicate || !canDuplicate) {
@@ -922,7 +926,19 @@ export const CardDetailForm = forwardRef<CardDetailFormHandle, CardDetailFormPro
                 </Button>
               </div>
             )}
-            {!isArchived && !labelsQuery.isLoadingError && (
+            {!isArchived && !hasCardLabels && !labelsQuery.isLoadingError && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-auto min-h-8 w-fit gap-1.5 px-2.5 py-1"
+                disabled
+                aria-busy="true"
+              >
+                <Tag className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                <span className="text-muted-foreground">Loading labels...</span>
+              </Button>
+            )}
+            {!isArchived && hasCardLabels && (
               <div className="flex items-center gap-1">
                 <LabelPicker
                   allLabels={allLabelsQuery.data ?? []}
