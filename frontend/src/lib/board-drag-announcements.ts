@@ -16,8 +16,7 @@ type BoardDragState = {
 // arrows to move). The board registers no keyboard sensor, so they would tell a
 // screen reader user to press keys that do nothing.
 const BOARD_DRAG_INSTRUCTIONS: ScreenReaderInstructions = {
-  draggable:
-    'Drag with a mouse to move it. A card can also be moved from its details by choosing a lane.',
+  draggable: 'Drag to move it. A card can also be moved from its details by choosing a lane.',
 };
 
 function findCard(cards: CardItem[], id: Active['id']): CardItem | null {
