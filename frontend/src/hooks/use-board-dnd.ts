@@ -212,6 +212,14 @@ export function useBoardDnd(
     setActiveCardId(null);
   };
 
+  // Escape during a drag cancels it. Without this the card would stay where the
+  // drag had moved it, still hidden as the dragged card, until a reload.
+  const onDragCancel = () => {
+    setDragPhase('idle');
+    setDragCards(null);
+    setActiveCardId(null);
+  };
+
   return {
     sensors,
     collisionDetection: kanbanCollision,
@@ -221,5 +229,6 @@ export function useBoardDnd(
     onDragStart,
     onDragOver,
     onDragEnd,
+    onDragCancel,
   };
 }
