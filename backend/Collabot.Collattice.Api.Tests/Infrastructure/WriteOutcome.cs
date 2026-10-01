@@ -29,7 +29,6 @@ public record WriteOutcome(HttpStatusCode? Status, string? Text, DbUpdateExcepti
         }
     }
 
-
     // An exhausted allocator that tells the caller to try again: a 409 over REST and an error result
     // over MCP, each carrying the reason, and never the database's own collision.
     public void ShouldHaveAskedToTryAgain(string reason)

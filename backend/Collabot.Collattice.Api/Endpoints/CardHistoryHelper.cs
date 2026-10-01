@@ -161,8 +161,15 @@ internal static class CardHistoryHelper
                 await db.SaveChangesAsync(ct);
                 return true;
             }
-            catch (DbUpdateException ex) when (IsRevisionCollision(ex) && attempt < _maxRetryAttempts)
+            catch (DbUpdateException ex) when (IsRevisionCollision(ex))
             {
+                // After the last attempt there is nothing to rebuild for; the caller answers with
+                // ContendedMessage.
+                if (attempt == _maxRetryAttempts)
+                {
+                    break;
+                }
+
                 // Rebuild the rows against the trail's new head rather than renumbering the ones
                 // already staged: the winning edit has by now written the seed row holding the
                 // pre-history value, and re-adding a second copy of it at a later revision would
@@ -171,11 +178,6 @@ internal static class CardHistoryHelper
                 // the winner's commit may just have changed the answer to.
                 DetachStagedRows(db, change);
                 await StageRowsAsync(db, change, ct);
-            }
-            catch (DbUpdateException ex) when (IsRevisionCollision(ex))
-            {
-                // The last attempt lost too. There is nothing to rebuild for; the caller answers
-                // with ContendedMessage.
             }
         }
 

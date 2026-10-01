@@ -140,7 +140,7 @@ public class CardHistoryWiringTests(RevisionRaceFactory factory) : IClassFixture
         rows[0].EditedByUserId.ShouldBeNull();
         rows[^1].Value.ShouldBe("my wording");
 
-        var card = await db.Cards.AsNoTracking().FirstAsync(c => c.Id == cardId);
+        var card = await db.Cards.AsNoTracking().SingleAsync(c => c.Id == cardId);
         card.DescriptionMarkdown.ShouldBe("my wording");
     }
 
@@ -180,7 +180,7 @@ public class CardHistoryWiringTests(RevisionRaceFactory factory) : IClassFixture
         // trail holds the seed plus one revision per injected rival.
         await using var scope = _factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<BoardDbContext>();
-        var card = await db.Cards.AsNoTracking().FirstAsync(c => c.Id == cardId);
+        var card = await db.Cards.AsNoTracking().SingleAsync(c => c.Id == cardId);
         var revisions = await db.CardFieldHistories.CountAsync(h => h.CardId == cardId);
 
         card.DescriptionMarkdown.ShouldBe($"rival edit {AllocatorRetryBudget.Attempts}");
@@ -224,7 +224,7 @@ public class CardHistoryWiringTests(RevisionRaceFactory factory) : IClassFixture
         rows.Select(r => r.Value).ShouldBe(["start", rivalValue, ownValue]);
         rows[0].EditedByUserId.ShouldBeNull();
 
-        var card = await db.Cards.AsNoTracking().FirstAsync(c => c.Id == cardId);
+        var card = await db.Cards.AsNoTracking().SingleAsync(c => c.Id == cardId);
         card.DescriptionMarkdown.ShouldBe(ownValue);
     }
 
