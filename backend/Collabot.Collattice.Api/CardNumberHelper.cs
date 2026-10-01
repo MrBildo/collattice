@@ -13,10 +13,13 @@ internal static class CardNumberHelper
     // A random pause between attempts was measured to make this dramatically worse. Measured on the
     // running allocator with writers released together on one board: three immediate retries lost
     // roughly a tenth of creations through thirty-two-way, a five-with-pause shape lost up to two in
-    // five, and eight immediate retries lost none through thirty-two-way. The likely reason is that
-    // while every loser sleeps the max stops advancing, and the narrow pause window wakes them in
-    // re-colliding clusters. That is an explanation, not a rule: the size-create allocator has the
-    // same max+1 shape and measured a pause as helping, so each allocator's shape follows its own
+    // five, and eight immediate retries lost none through thirty-two-way. Through the full create
+    // endpoint, with the rest of a request around each attempt, a few still run out: 5 of 320 at
+    // thirty-two at once with SQLite's busy timeout set on every connection. The likely reason a
+    // pause hurts is that while every loser sleeps the max stops advancing, and the narrow pause
+    // window wakes them in re-colliding clusters. That is an explanation, not a rule: the
+    // size-create allocator has the same max+1 shape and measured a pause helping or hurting
+    // depending on how a held lock is waited on, so each allocator's shape follows its own
     // measurement. The description-history allocator was measured the same way and also retries
     // immediately.
     private const int _maxRetries = 8;
