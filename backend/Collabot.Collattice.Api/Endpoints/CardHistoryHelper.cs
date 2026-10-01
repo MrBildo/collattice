@@ -134,17 +134,16 @@ internal static class CardHistoryHelper
         }
 
         // Eight attempts, retried at once with no pause between them: the card-number allocator's
-        // shape, for the same reason. Both allocate max+1 against a unique index through SQLite's
-        // single writer, and the wait that matters is already below this loop: a save that finds
-        // the write lock held is retried by the SQLite provider itself after a fixed 150 ms sleep,
-        // still holding the head it read before sleeping. A loser that retries at once re-reads the
-        // head while the lock is free and the sleepers are still asleep, so it usually lands next.
-        // A loser that pauses first hands the lock to someone else, then sleeps those 150 ms on a
-        // head that goes stale meanwhile, and collides again. Measured on this helper with writers
-        // released together on one card, 8- to 128-way, a fresh card per round, 9,600 edits per
-        // shape: five attempts with a random 2 to 14 ms pause lost about one edit in forty, five
-        // immediate attempts about one in six hundred, and eight immediate attempts none. Only at
-        // 128-way did an edit ever need all eight; at eight-way none needed more than four.
+        // shape. Measured on this helper with writers released together on one card, 8- to
+        // 128-way, a fresh card per round, 9,600 edits per shape: five attempts with a random 2 to
+        // 14 ms pause lost about one edit in forty, five immediate attempts about one in six
+        // hundred, and eight immediate attempts none. Only at 128-way did an edit ever need all
+        // eight; at eight-way none needed more than four. The likely reason a pause hurts here: a
+        // save that finds the write lock held is retried by the SQLite provider itself after a fixed
+        // 150 ms sleep, still holding the head it read before sleeping, so a loser that pauses gives
+        // the lock away and then sleeps on a stale head. That is an explanation, not a rule: the
+        // size-create retry measured a pause as helping, so each allocator's shape follows its own
+        // measurement.
         for (var attempt = 1; attempt < MaxRevisionRetryAttempts; attempt++)
         {
             try
