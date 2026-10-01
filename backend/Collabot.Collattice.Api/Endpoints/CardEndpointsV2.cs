@@ -31,7 +31,7 @@ internal static class CardEndpointsV2
 
             var detail = await CardDetailBuilder.BuildAsync(db, card, includeDescription ?? true, effectiveCommentsOffset, effectiveCommentsLimit, ct);
             return Results.Ok(detail);
-        }).RequireAuth();
+        }).RequireAuth().HidesOthersDrafts();
 
         return group;
     }

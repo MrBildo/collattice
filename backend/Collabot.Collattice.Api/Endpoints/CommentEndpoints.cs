@@ -19,7 +19,7 @@ internal static class CommentEndpoints
                 .OrderBy(x => x.LastUpdatedAtUtc)
                     .ToList();
             return Results.Ok(comments);
-        }).RequireAuth();
+        }).RequireAuth().HidesOthersDrafts();
 
         group.MapPost("/cards/{id:guid}/comments", async (BoardDbContext db, HttpContext http, Guid id, CreateCommentRequest request, BoardEventBroadcaster broadcaster, CancellationToken ct) =>
         {
@@ -49,7 +49,7 @@ internal static class CommentEndpoints
             // comment.created — same single board bell, plus one webhook event.
             await WebhookEventFactory.PublishCommentCreatedAsync(db, broadcaster, comment, http.CurrentUser(), ct);
             return Results.Created($"/api/v1/cards/{id}/comments/{comment.Id}", comment);
-        }).RequireAuth();
+        }).RequireAuth().HidesOthersDrafts();
 
         group.MapDelete("/comments/{id:guid}", async (BoardDbContext db, HttpContext http, Guid id, BoardEventBroadcaster broadcaster, CancellationToken ct) =>
         {
@@ -80,7 +80,7 @@ internal static class CommentEndpoints
             // card it belonged to still exists, so the card ref resolves.
             await WebhookEventFactory.PublishCommentDeletedAsync(db, broadcaster, comment, user, ct);
             return Results.NoContent();
-        }).RequireAuth();
+        }).RequireAuth().HidesOthersDrafts(RouteIdentifies.Comment);
 
         group.MapPatch("/comments/{id:guid}", async (BoardDbContext db, HttpContext http, Guid id, UpdateCommentRequest request, BoardEventBroadcaster broadcaster, CancellationToken ct) =>
         {
@@ -120,7 +120,7 @@ internal static class CommentEndpoints
             // comment.updated — same single board bell, plus one webhook event.
             await WebhookEventFactory.PublishCommentUpdatedAsync(db, broadcaster, comment, user, ct);
             return Results.Ok(comment);
-        }).RequireAuth();
+        }).RequireAuth().HidesOthersDrafts(RouteIdentifies.Comment);
 
         return group;
     }

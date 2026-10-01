@@ -26,7 +26,7 @@ public class ArchiveTools(BoardDbContext db, McpAuthService auth, BoardEventBroa
             return authError!;
         }
 
-        var (resolvedCardId, resolveError) = await McpCardResolver.ResolveCardIdAsync(db, cardId, cardNumber, boardId, boardSlug, ct);
+        var (resolvedCardId, resolveError) = await McpCardResolver.ResolveCardIdAsync(db, user!, cardId, cardNumber, boardId, boardSlug, ct);
         if (resolvedCardId is null)
         {
             return resolveError!;
@@ -81,7 +81,7 @@ public class ArchiveTools(BoardDbContext db, McpAuthService auth, BoardEventBroa
             return authError!;
         }
 
-        var (resolvedCardId, resolveError) = await McpCardResolver.ResolveCardIdAsync(db, cardId, cardNumber, boardId, boardSlug, ct);
+        var (resolvedCardId, resolveError) = await McpCardResolver.ResolveCardIdAsync(db, user!, cardId, cardNumber, boardId, boardSlug, ct);
         if (resolvedCardId is null)
         {
             return resolveError!;

@@ -167,7 +167,7 @@ public class LabelTools(BoardDbContext db, McpAuthService auth, BoardEventBroadc
             return error;
         }
 
-        var (resolvedCardId, cardResolveError) = await McpCardResolver.ResolveCardIdAsync(db, cardId, cardNumber, boardId, boardSlug, ct);
+        var (resolvedCardId, cardResolveError) = await McpCardResolver.ResolveCardIdAsync(db, user!, cardId, cardNumber, boardId, boardSlug, ct);
         if (cardResolveError is not null)
         {
             return cardResolveError;
@@ -233,7 +233,7 @@ public class LabelTools(BoardDbContext db, McpAuthService auth, BoardEventBroadc
             return error;
         }
 
-        var (resolvedCardId, cardResolveError) = await McpCardResolver.ResolveCardIdAsync(db, cardId, cardNumber, boardId, boardSlug, ct);
+        var (resolvedCardId, cardResolveError) = await McpCardResolver.ResolveCardIdAsync(db, user!, cardId, cardNumber, boardId, boardSlug, ct);
         if (cardResolveError is not null)
         {
             return cardResolveError;

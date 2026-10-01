@@ -31,7 +31,7 @@ public class CommentTools(BoardDbContext db, McpAuthService auth, BoardEventBroa
             return "Error: contentMarkdown is required.";
         }
 
-        var (resolvedCardId, resolveError) = await McpCardResolver.ResolveCardIdAsync(db, cardId, cardNumber, boardId, boardSlug, ct);
+        var (resolvedCardId, resolveError) = await McpCardResolver.ResolveCardIdAsync(db, user!, cardId, cardNumber, boardId, boardSlug, ct);
         if (resolveError is not null)
         {
             return resolveError;
@@ -87,7 +87,7 @@ public class CommentTools(BoardDbContext db, McpAuthService auth, BoardEventBroa
             return "Error: contentMarkdown is required.";
         }
 
-        var comment = await db.Comments.FindAsync([commentId], ct);
+        var comment = await McpCardResolver.FindVisibleCommentAsync(db, user!, commentId, ct);
         if (comment is null)
         {
             return "Error: Comment not found.";
@@ -129,7 +129,7 @@ public class CommentTools(BoardDbContext db, McpAuthService auth, BoardEventBroa
             return error;
         }
 
-        var comment = await db.Comments.FindAsync([commentId], ct);
+        var comment = await McpCardResolver.FindVisibleCommentAsync(db, user!, commentId, ct);
         if (comment is null)
         {
             return "Error: Comment not found.";

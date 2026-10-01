@@ -135,8 +135,9 @@ public class ConcurrentDeleteRaceTests(ConcurrentDeleteRaceFactory factory) : IC
         var (_, _, mcpCardId) = await SeedCardAsync();
         var tools = CreateMcpTools<CommentTools>();
 
-        // Act — the card exists when checked and is deleted before the comment is saved
-        _factory.Interceptor.Arm("Cards", DeleteCard(restCardId));
+        // Act — the card exists when checked and is deleted before the comment is saved. Over REST the
+        // route's draft check reads the card first, so the rival waits for the handler's own check.
+        _factory.Interceptor.Arm("Cards", DeleteCard(restCardId), onRead: 2);
         TestAuthHelper.SetAdminAuth(_client, _factory);
         var restResponse = await _client.PostAsJsonAsync($"/api/v1/cards/{restCardId}/comments", new { contentMarkdown = "Late" });
         var restFired = _factory.Interceptor.FiredCount;
@@ -168,8 +169,9 @@ public class ConcurrentDeleteRaceTests(ConcurrentDeleteRaceFactory factory) : IC
         file.Headers.ContentType = new("application/octet-stream");
         using var form = new MultipartFormDataContent { { file, "file", "late.bin" } };
 
-        // Act
-        _factory.Interceptor.Arm("Cards", DeleteCard(restCardId));
+        // Act — over REST the route's draft check reads the card first, so the rival waits for the
+        // handler's own check
+        _factory.Interceptor.Arm("Cards", DeleteCard(restCardId), onRead: 2);
         TestAuthHelper.SetAdminAuth(_client, _factory);
         var restResponse = await _client.PostAsync($"/api/v1/cards/{restCardId}/attachments", form);
 
@@ -272,8 +274,9 @@ public class ConcurrentDeleteRaceTests(ConcurrentDeleteRaceFactory factory) : IC
         var mcpCommentId = await PostForIdAsync($"/api/v1/cards/{mcpCardId}/comments", new { contentMarkdown = "First" });
         var tools = CreateMcpTools<CommentTools>();
 
-        // Act
-        _factory.Interceptor.Arm("Comments", DeleteCard(restCardId));
+        // Act — over REST the route's draft check reads the comment first, so the rival waits for the
+        // handler's own read of it
+        _factory.Interceptor.Arm("Comments", DeleteCard(restCardId), onRead: 2);
         TestAuthHelper.SetAdminAuth(_client, _factory);
         var restResponse = await _client.PatchAsJsonAsync($"/api/v1/comments/{restCommentId}", new { contentMarkdown = "Edited" });
 
