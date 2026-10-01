@@ -18,7 +18,8 @@ internal static class DraftVisibility
     }
 
     // Applied after the auth filter, so the caller is known. The card is loaded into the request's own
-    // context, which the handler shares, so the handler's own lookup of it costs nothing more.
+    // context, which the handler shares: a handler that then looks it up with FindAsync gets the loaded
+    // card without another query, while one that checks with a fresh query still runs that query.
     public static RouteHandlerBuilder HidesOthersDrafts(this RouteHandlerBuilder builder, RouteIdentifies identifies = RouteIdentifies.Card)
         => builder.AddEndpointFilter(new HideOthersDraftsFilter(identifies));
 }

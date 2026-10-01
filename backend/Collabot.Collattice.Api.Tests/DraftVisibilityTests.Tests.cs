@@ -404,7 +404,7 @@ public partial class DraftVisibilityTests(CollatticeApiFactory factory) : IClass
         var headers = response.Headers
             .Concat(response.Content.Headers)
                 .Select(header => string.Equals(header.Key, "Link", StringComparison.OrdinalIgnoreCase) ? $"Link={sentFor.Anonymize(string.Join(',', header.Value))}" : header.Key)
-                    .Order(StringComparer.Ordinal);
+                .Order(StringComparer.Ordinal);
 
         return $"{response.StatusCode} [{string.Join(' ', headers)}] {sentFor.Anonymize(await response.Content.ReadAsStringAsync())}";
     }

@@ -130,7 +130,8 @@ internal static class McpCardResolver
     }
 
     // Where each single-card MCP tool turns its card reference into a card. The card is loaded
-    // into the tool's context here, so the tool's own lookup of it afterwards costs nothing more.
+    // into the tool's context here: a tool that then looks it up with FindAsync gets it without another
+    // query, while one that checks with a fresh query still runs that query.
     // Another user's draft resolves as not found. Every draft carries number 0, so a card number
     // below 1 names no card at all, for anyone, the draft's creator included.
     public static async Task<(Guid? CardId, string? Error)> ResolveCardIdAsync
