@@ -322,6 +322,35 @@ public class ConcurrentDeleteRaceTests(ConcurrentDeleteRaceFactory factory) : IC
     }
 
     [Fact]
+    public async Task DeleteLane_AnotherDeleteOfItLandsAfterTheEmptinessCheck_AnswersNotFoundOnBothSurfaces()
+    {
+        // Arrange
+        var (restBoardId, _, _) = await SeedCardAsync();
+        var (mcpBoardId, _, _) = await SeedCardAsync();
+        var restLaneId = await PostForIdAsync($"/api/v1/boards/{restBoardId}/lanes", new { name = "Target", position = 1 });
+        var mcpLaneId = await PostForIdAsync($"/api/v1/boards/{mcpBoardId}/lanes", new { name = "Target", position = 1 });
+        var tools = CreateMcpTools<LaneTools>();
+
+        // Act — the lane is empty when checked, then a simultaneous delete of it commits first, so this
+        // delete removes nothing and must not claim the lane is still in use
+        _factory.Interceptor.Arm("Cards", db => db.Lanes.Where(l => l.Id == restLaneId).ExecuteDeleteAsync());
+        TestAuthHelper.SetAdminAuth(_client, _factory);
+        var restResponse = await _client.DeleteAsync($"/api/v1/lanes/{restLaneId}");
+        var restFired = _factory.Interceptor.FiredCount;
+
+        _factory.Interceptor.Arm("Cards", db => db.Lanes.Where(l => l.Id == mcpLaneId).ExecuteDeleteAsync());
+        var mcpResult = await tools.DeleteLaneAsync(_factory.AdminAuthKey, mcpLaneId);
+        var mcpFired = _factory.Interceptor.FiredCount;
+
+        // Assert — the answer a delete arriving after the other one gets
+        restFired.ShouldBe(1);
+        restResponse.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+
+        mcpFired.ShouldBe(1);
+        mcpResult.ShouldBe("Error: Lane not found.");
+    }
+
+    [Fact]
     public async Task DeleteSize_CardStartsUsingItAfterTheCheck_RefusesOnBothSurfaces()
     {
         // Arrange
