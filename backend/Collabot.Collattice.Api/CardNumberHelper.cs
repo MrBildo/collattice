@@ -28,11 +28,9 @@ internal static class CardNumberHelper
         CancellationToken ct = default
     )
     {
-        for (var attempt = 0; attempt < _maxRetries; attempt++)
+        for (var attempt = 1; attempt < _maxRetries; attempt++)
         {
-            card.Number = (await db.Cards
-                .Where(c => c.BoardId == boardId && c.Number > 0)
-                    .MaxAsync(c => (long?)c.Number, ct) ?? 0) + 1;
+            card.Number = await NextNumberAsync(db, boardId, ct);
 
             db.Cards.Add(card);
             try
@@ -40,15 +38,18 @@ internal static class CardNumberHelper
                 await db.SaveChangesAsync(ct);
                 return;
             }
-            catch (DbUpdateException ex)
-                when (attempt < _maxRetries - 1
-                      && ex.InnerException is SqliteException { SqliteErrorCode: 19 })
+            catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
             {
                 db.Entry(card).State = EntityState.Detached;
             }
         }
 
-        throw new InvalidOperationException("Failed to allocate card number after retries.");
+        // The last attempt runs outside the catch, so exhausted retries surface the collision
+        // itself to the caller: the database's own error, naming the index that was contended.
+        card.Number = await NextNumberAsync(db, boardId, ct);
+
+        db.Cards.Add(card);
+        await db.SaveChangesAsync(ct);
     }
 
     // Assigns a board-scoped card number to an existing temp card and clears the IsTemp
@@ -63,25 +64,33 @@ internal static class CardNumberHelper
         CancellationToken ct = default
     )
     {
-        for (var attempt = 0; attempt < _maxRetries; attempt++)
+        for (var attempt = 1; attempt < _maxRetries; attempt++)
         {
-            card.Number = (await db.Cards
-                .Where(c => c.BoardId == boardId && c.Number > 0)
-                    .MaxAsync(c => (long?)c.Number, ct) ?? 0) + 1;
+            card.Number = await NextNumberAsync(db, boardId, ct);
             card.IsTemp = false;
             try
             {
                 await db.SaveChangesAsync(ct);
                 return;
             }
-            catch (DbUpdateException ex)
-                when (attempt < _maxRetries - 1
-                      && ex.InnerException is SqliteException { SqliteErrorCode: 19 })
+            catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
             {
                 await db.Entry(card).ReloadAsync(ct);
             }
         }
 
-        throw new InvalidOperationException("Failed to allocate card number after retries.");
+        // The last attempt runs outside the catch, as in InsertCardWithAutoNumberAsync.
+        card.Number = await NextNumberAsync(db, boardId, ct);
+        card.IsTemp = false;
+
+        await db.SaveChangesAsync(ct);
     }
+
+    private static async Task<long> NextNumberAsync(BoardDbContext db, Guid boardId, CancellationToken ct) =>
+        (await db.Cards
+            .Where(c => c.BoardId == boardId && c.Number > 0)
+                .MaxAsync(c => (long?)c.Number, ct) ?? 0) + 1;
+
+    private static bool IsUniqueConstraintViolation(DbUpdateException ex) =>
+        ex.InnerException is SqliteException { SqliteErrorCode: 19 };
 }
