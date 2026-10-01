@@ -150,6 +150,14 @@ type CardBaseline = {
   labelIds: string[];
 };
 
+// What one click of Save sends: the patch, the form's values at that moment
+// (the baseline once the save lands), and which save it was.
+type SaveRequest = {
+  patch: UpdateCardPatch;
+  sent: CardBaseline;
+  saveId: number;
+};
+
 // Per-field collision indicator. The remote value and the "accept" action are
 // load-bearing UI, so they live in a click/keyboard-openable Popover with an
 // accessible name — not a hover-only tooltip, which keyboard and screen-reader
@@ -272,6 +280,23 @@ export const CardDetailForm = forwardRef<CardDetailFormHandle, CardDetailFormPro
 
     // Touch tracking: fields the user has edited since mount/last save
     const touchedFields = useRef(new Set<FieldName>());
+    // Fields edited since the most recent save was sent. Typing goes on while a
+    // save is in flight, and what is typed then never reaches the server, so
+    // these fields stay touched when that save lands instead of counting as
+    // saved.
+    const editedSinceSend = useRef(new Set<FieldName>());
+    // Numbers each save, so that only the most recent one resets the form. An
+    // earlier save landing after a later one was sent would otherwise reset the
+    // baseline to its own, older values.
+    const latestSaveId = useRef(0);
+    // The most recent save whose result has landed, so that an earlier save
+    // landing after a later one can't move the baseline back.
+    const latestLandedSaveId = useRef(0);
+
+    function markTouched(field: FieldName) {
+      touchedFields.current.add(field);
+      editedSinceSend.current.add(field);
+    }
 
     // Baseline: the card prop values we compare dirty state against (frozen for touched fields)
     const [baselineState, setBaselineState] = useState<CardBaseline>({
@@ -538,8 +563,8 @@ export const CardDetailForm = forwardRef<CardDetailFormHandle, CardDetailFormPro
       // <InlineError> at the form footer. This is the app's biggest current
       // silent-loss gap.
       meta: { skipToast: true },
-      mutationFn: (patch: UpdateCardPatch) => updateCard(card.id, patch),
-      onSuccess: (updatedCard, patch) => {
+      mutationFn: ({ patch }: SaveRequest) => updateCard(card.id, patch),
+      onSuccess: (updatedCard, { patch, sent, saveId }) => {
         if (boardId) {
           // PATCH /cards/{id} returns the enriched CardSummary, so the response
           // carries everything the board cache needs for this card — labels,
@@ -562,17 +587,30 @@ export const CardDetailForm = forwardRef<CardDetailFormHandle, CardDetailFormPro
           queryClient.invalidateQueries({ queryKey: queryKeys.cards.history(card.id) });
         }
 
-        // Reset touch tracking and baseline after successful save
-        touchedFields.current.clear();
-        setBaselineState({
-          name,
-          description,
-          sizeId,
-          laneId: currentLaneId,
-          labelIds: effectiveLabelIds,
-        });
+        // A later save is already on its way and carries everything this one
+        // did; that one settles the form. The server now holds what this save
+        // sent, though, so the baseline moves to it: left behind, this save's
+        // own values would come back through the board cache and read as
+        // someone else's change, and if the later save failed, accepting
+        // "their version" would throw the typing away.
+        if (saveId !== latestSaveId.current) {
+          if (saveId > latestLandedSaveId.current) {
+            latestLandedSaveId.current = saveId;
+            setBaselineState(sent);
+          }
+          return;
+        }
+
+        latestLandedSaveId.current = saveId;
+
+        // The baseline is what this save sent, not what is on screen now: this
+        // callback runs with the latest render's values, which include anything
+        // typed while the save was in flight. Fields edited since the send stay
+        // touched, so they stay dirty and a refetch can't overwrite them.
+        touchedFields.current = new Set(editedSinceSend.current);
+        setBaselineState(sent);
         setExternalUpdates({});
-        isDirtyRef.current = false;
+        isDirtyRef.current = editedSinceSend.current.size > 0;
         setSaveError(null);
 
         // Show transient "Saved" indicator
@@ -582,7 +620,12 @@ export const CardDetailForm = forwardRef<CardDetailFormHandle, CardDetailFormPro
         // Signal completion so the sheet can execute any pending action
         onSaveComplete?.();
       },
-      onError: (error: unknown) => {
+      onError: (error: unknown, { saveId }) => {
+        // The later save still in flight carries this one's changes too.
+        if (saveId !== latestSaveId.current) {
+          return;
+        }
+
         // Inline surface: render the message in the form (skipToast above).
         setSaveError(toMessage(error));
         // Signal the failure so the sheet can drop any action that was waiting
@@ -640,8 +683,18 @@ export const CardDetailForm = forwardRef<CardDetailFormHandle, CardDetailFormPro
       if (!arraysEqual(effectiveLabelIds, baselineState.labelIds))
         patch.labelIds = effectiveLabelIds;
 
+      const sent: CardBaseline = {
+        name,
+        description,
+        sizeId,
+        laneId: currentLaneId,
+        labelIds: effectiveLabelIds,
+      };
+      editedSinceSend.current.clear();
+      latestSaveId.current += 1;
+
       setSaveError(null);
-      updateMutation.mutate(patch);
+      updateMutation.mutate({ patch, sent, saveId: latestSaveId.current });
     }, [
       isDirty,
       name,
@@ -806,7 +859,7 @@ export const CardDetailForm = forwardRef<CardDetailFormHandle, CardDetailFormPro
               <Input
                 value={name}
                 onChange={(e) => {
-                  touchedFields.current.add('name');
+                  markTouched('name');
                   setName(e.target.value);
                 }}
                 maxLength={120}
@@ -837,7 +890,7 @@ export const CardDetailForm = forwardRef<CardDetailFormHandle, CardDetailFormPro
                       value={sizeId}
                       onValueChange={(v) => {
                         if (v) {
-                          touchedFields.current.add('sizeId');
+                          markTouched('sizeId');
                           setSizeId(v);
                         }
                       }}
@@ -878,7 +931,7 @@ export const CardDetailForm = forwardRef<CardDetailFormHandle, CardDetailFormPro
                       value={currentLaneId}
                       onValueChange={(v) => {
                         if (v && v !== currentLaneId) {
-                          touchedFields.current.add('laneId');
+                          markTouched('laneId');
                           setCurrentLaneId(v);
                         }
                       }}
@@ -950,11 +1003,11 @@ export const CardDetailForm = forwardRef<CardDetailFormHandle, CardDetailFormPro
                   allLabels={allLabelsQuery.data ?? []}
                   assignedLabels={assignedLabels}
                   onAdd={(id) => {
-                    touchedFields.current.add('labelIds');
+                    markTouched('labelIds');
                     setSelectedLabelIds((prev) => [...(prev ?? originalLabelIds), id]);
                   }}
                   onRemove={(id) => {
-                    touchedFields.current.add('labelIds');
+                    markTouched('labelIds');
                     setSelectedLabelIds((prev) =>
                       (prev ?? originalLabelIds).filter((x) => x !== id),
                     );
@@ -1044,7 +1097,7 @@ export const CardDetailForm = forwardRef<CardDetailFormHandle, CardDetailFormPro
                 <Textarea
                   value={description}
                   onChange={(e) => {
-                    touchedFields.current.add('description');
+                    markTouched('description');
                     setDescription(e.target.value);
                   }}
                   rows={16}

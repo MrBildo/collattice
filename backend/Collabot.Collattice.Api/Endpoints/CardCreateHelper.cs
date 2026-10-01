@@ -53,18 +53,7 @@ internal static class CardCreateHelper
             return (null, sizeError);
         }
 
-        int position;
-        if (request.Position.HasValue)
-        {
-            position = request.Position.Value;
-        }
-        else
-        {
-            var maxPosition = await db.Cards
-                .Where(c => c.LaneId == request.LaneId)
-                    .MaxAsync(c => (int?)c.Position, ct) ?? -10;
-            position = maxPosition + 10;
-        }
+        var position = request.Position ?? await CardReorderHelper.EndOfLanePositionAsync(db, request.LaneId, ct: ct);
 
         var now = DateTimeOffset.UtcNow;
         var card = new CardItem

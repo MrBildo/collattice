@@ -1,9 +1,11 @@
+import { createRef } from 'react';
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { CardDetailForm } from './CardDetailForm';
+import type { CardDetailFormHandle } from './CardDetailForm';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import {
   fetchBoardData,
@@ -631,6 +633,43 @@ describe('CardDetailForm lane change', () => {
     );
   });
 
+  test('a name typed while a lane change is saving survives the save and the refetch', async () => {
+    // Arrange: the save is held open until the test releases it.
+    const user = userEvent.setup();
+    holdBoardFetches();
+    const moving = makeCard({ name: 'Moved' });
+    const { queryClient, sendRemote } = setup(moving, lanes);
+    seedBoard(queryClient, moving);
+    const savedCard = toSummary({ ...moving, laneId: 'lane-2', position: 20 });
+    let releaseSave: (card: CardSummary) => void = () => {};
+    vi.mocked(updateCard).mockReturnValueOnce(
+      new Promise<CardSummary>((resolve) => {
+        releaseSave = resolve;
+      }),
+    );
+    const laneSelect = screen
+      .getAllByRole('combobox')
+      .find((el) => el.textContent?.includes('Backlog'));
+    if (!laneSelect) throw new Error('lane select not found');
+    await user.click(laneSelect);
+    await user.click(await screen.findByRole('option', { name: 'Done' }));
+
+    // Act: save, type while it is in flight, then the save lands and the refetch hands the
+    // form the card as the server has it.
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(updateCard).toHaveBeenCalledTimes(1));
+    await user.type(screen.getByDisplayValue('Moved'), ' and typed');
+    await act(async () => {
+      releaseSave(savedCard);
+    });
+    sendRemote(savedCard);
+
+    // Assert
+    expect(screen.queryByDisplayValue('Moved and typed')).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Save' })).toBeEnabled();
+    expect(screen.queryByText(/changed the/)).not.toBeInTheDocument();
+  });
+
   test('a save that keeps the lane does not refetch the board', async () => {
     // Arrange
     const user = userEvent.setup();
@@ -650,5 +689,208 @@ describe('CardDetailForm lane change', () => {
     // Assert
     await waitFor(() => expect(cachedLaneOrder(queryClient, 'lane-1')).toEqual(['Renamed']));
     expect(pending.length).toBe(fetchesBeforeSave);
+  });
+});
+
+describe('CardDetailForm typing during a save', () => {
+  // Each call to updateCard is held open until the test releases it.
+  function holdSaves() {
+    const releases: Array<(card: CardSummary) => void> = [];
+    vi.mocked(updateCard).mockImplementation(
+      () => new Promise<CardSummary>((resolve) => releases.push(resolve)),
+    );
+    return releases;
+  }
+
+  test('text typed while a save is in flight stays, keeps Save enabled, and the next save sends it', async () => {
+    // Arrange
+    const user = userEvent.setup();
+    const releases = holdSaves();
+    const { isDirtyRef, sendRemote } = setup(makeCard({ name: 'Original name' }));
+    const nameInput = await screen.findByDisplayValue('Original name');
+    await user.type(nameInput, ' edited');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(releases).toHaveLength(1));
+
+    // Act: type while the save is held, then let it land and the refetch deliver the card
+    await user.type(nameInput, ' plus typed');
+    const savedCard = makeCard({ name: 'Original name edited' });
+    await act(async () => {
+      releases[0](toSummary(savedCard));
+    });
+    sendRemote(savedCard);
+
+    // Assert: the typing is still there and still counts as unsaved
+    expect(nameInput).toHaveValue('Original name edited plus typed');
+    const saveButton = await screen.findByRole('button', { name: 'Save' });
+    expect(saveButton).toBeEnabled();
+    expect(isDirtyRef.current).toBe(true);
+    expect(screen.queryByText(/changed the/)).not.toBeInTheDocument();
+
+    // Act: save again
+    await user.click(saveButton);
+
+    // Assert: the second save sends what was typed during the first
+    await waitFor(() => expect(updateCard).toHaveBeenCalledTimes(2));
+    expect(vi.mocked(updateCard).mock.calls[1][1]).toEqual({
+      name: 'Original name edited plus typed',
+    });
+  });
+
+  test('a field typed in during a save is still guarded against someone else changing it', async () => {
+    // Arrange
+    const user = userEvent.setup();
+    const releases = holdSaves();
+    const { sendRemote } = setup(makeCard({ name: 'Original name' }));
+    const nameInput = await screen.findByDisplayValue('Original name');
+    await user.type(nameInput, ' edited');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(releases).toHaveLength(1));
+    await user.type(nameInput, ' plus typed');
+
+    // Act: the save lands, then Marcus renames the card before the typing is saved
+    await act(async () => {
+      releases[0](toSummary(makeCard({ name: 'Original name edited' })));
+    });
+    sendRemote(makeCard({ name: 'Marcus name', lastUpdatedByUserId: 'marcus' }));
+
+    // Assert: the typing is kept and the rename shows as Marcus's change, not adopted silently
+    expect(nameInput).toHaveValue('Original name edited plus typed');
+    expect(await screen.findByText('Marcus changed the name')).toBeInTheDocument();
+  });
+
+  test('a save with nothing typed during it leaves the form clean', async () => {
+    // Arrange
+    const user = userEvent.setup();
+    const releases = holdSaves();
+    const { isDirtyRef, sendRemote } = setup(makeCard({ name: 'Original name' }));
+    const nameInput = await screen.findByDisplayValue('Original name');
+    await user.type(nameInput, ' edited');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(releases).toHaveLength(1));
+
+    // Act
+    const savedCard = makeCard({ name: 'Original name edited' });
+    await act(async () => {
+      releases[0](toSummary(savedCard));
+    });
+    sendRemote(savedCard);
+
+    // Assert
+    expect(nameInput).toHaveValue('Original name edited');
+    expect(await screen.findByRole('button', { name: 'Save' })).toBeDisabled();
+    expect(isDirtyRef.current).toBe(false);
+  });
+
+  test('an earlier save that lands before a later one fails is not shown as a change by someone else', async () => {
+    // Arrange: two saves in flight (the second through the form's handle, as the
+    // unsaved-changes prompt does).
+    const user = userEvent.setup();
+    const releases: Array<(card: CardSummary) => void> = [];
+    const failures: Array<(error: Error) => void> = [];
+    vi.mocked(updateCard).mockImplementation(
+      () =>
+        new Promise<CardSummary>((resolve, reject) => {
+          releases.push(resolve);
+          failures.push(reject);
+        }),
+    );
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const formRef = createRef<CardDetailFormHandle>();
+    const tree = (card: CardItem) => (
+      <MemoryRouter>
+        <QueryClientProvider client={queryClient}>
+          <Dialog open onOpenChange={() => {}}>
+            <DialogContent>
+              <CardDetailForm
+                ref={formRef}
+                card={card}
+                onClose={() => {}}
+                currentUserId="me"
+                currentUserRole={ROLES.Human}
+                boardId="board-1"
+                isDirtyRef={{ current: false }}
+              />
+            </DialogContent>
+          </Dialog>
+        </QueryClientProvider>
+      </MemoryRouter>
+    );
+    const { rerender } = render(tree(makeCard({ name: 'Original name' })));
+    const nameInput = await screen.findByDisplayValue('Original name');
+    await user.type(nameInput, ' A');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(releases).toHaveLength(1));
+    await user.type(nameInput, ' B');
+    act(() => formRef.current?.save());
+    await waitFor(() => expect(releases).toHaveLength(2));
+
+    // Act: the first save lands and the board hands the form the card it saved,
+    // then the second save fails
+    const firstSaved = makeCard({ name: 'Original name A' });
+    await act(async () => {
+      releases[0](toSummary(firstSaved));
+    });
+    rerender(tree(firstSaved));
+    await act(async () => {
+      failures[1](new Error('Server error'));
+    });
+
+    // Assert: the typing is still there and unsaved, with no collision warning
+    expect(await screen.findByText('Server error')).toBeInTheDocument();
+    expect(nameInput).toHaveValue('Original name A B');
+    expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+    expect(screen.queryByText(/changed the/)).not.toBeInTheDocument();
+  });
+
+  test('an earlier save landing after a later one does not reset the form to its older values', async () => {
+    // Arrange: a second save can start while the first is in flight (the unsaved-changes
+    // prompt saves through the form's handle). Render with that handle.
+    const user = userEvent.setup();
+    const releases = holdSaves();
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const formRef = createRef<CardDetailFormHandle>();
+    const onSaveComplete = vi.fn();
+    render(
+      <MemoryRouter>
+        <QueryClientProvider client={queryClient}>
+          <Dialog open onOpenChange={() => {}}>
+            <DialogContent>
+              <CardDetailForm
+                ref={formRef}
+                card={makeCard({ name: 'Original name' })}
+                onClose={() => {}}
+                onSaveComplete={onSaveComplete}
+                currentUserId="me"
+                currentUserRole={ROLES.Human}
+                boardId="board-1"
+                isDirtyRef={{ current: false }}
+              />
+            </DialogContent>
+          </Dialog>
+        </QueryClientProvider>
+      </MemoryRouter>,
+    );
+    const nameInput = await screen.findByDisplayValue('Original name');
+    await user.type(nameInput, ' A');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(releases).toHaveLength(1));
+    await user.type(nameInput, ' B');
+    act(() => formRef.current?.save());
+    await waitFor(() => expect(releases).toHaveLength(2));
+
+    // Act: the second save lands first, then the first
+    await act(async () => {
+      releases[1](toSummary(makeCard({ name: 'Original name A B' })));
+    });
+    await act(async () => {
+      releases[0](toSummary(makeCard({ name: 'Original name A' })));
+    });
+
+    // Assert: the form matches the second save, and only that save completed it
+    expect(vi.mocked(updateCard).mock.calls[1][1]).toEqual({ name: 'Original name A B' });
+    expect(nameInput).toHaveValue('Original name A B');
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+    expect(onSaveComplete).toHaveBeenCalledTimes(1);
   });
 });

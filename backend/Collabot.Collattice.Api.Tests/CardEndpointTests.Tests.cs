@@ -28,6 +28,27 @@ public class CardEndpointTests(CollatticeApiFactory factory) : IClassFixture<Col
     private async Task<Guid> GetSizeIdByNameAsync(string sizeName)
         => await TestDataHelper.GetSizeIdByNameAsync(_client, _factory.DefaultBoardId, sizeName);
 
+    private async Task<Guid> CreateCardInLaneAsync(Guid laneId, string name, bool draft)
+    {
+        var path = draft
+            ? $"/api/v1/boards/{_factory.DefaultBoardId}/cards/temp"
+            : $"/api/v1/boards/{_factory.DefaultBoardId}/cards";
+
+        var response = await _client.PostAsJsonAsync(path, new { name, laneId });
+        response.EnsureSuccessStatusCode();
+
+        var created = await response.Content.ReadFromJsonAsync<JsonElement>();
+        return created.GetProperty("id").GetGuid();
+    }
+
+    private static async Task<List<Guid>> ReadReorderCardIdsAsync(HttpResponseMessage response)
+    {
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var board = await response.Content.ReadFromJsonAsync<JsonElement>();
+        return [.. board.GetProperty("cards").EnumerateArray().Select(card => card.GetProperty("id").GetGuid())];
+    }
+
     [Fact]
     public async Task GetCards_BoardWithCards_ReturnsAllCards()
     {
@@ -939,6 +960,42 @@ public class CardEndpointTests(CollatticeApiFactory factory) : IClassFixture<Col
         board.TryGetProperty("cards", out var cards).ShouldBeTrue();
         lanes.GetArrayLength().ShouldBeGreaterThan(0);
         cards.GetArrayLength().ShouldBeGreaterThan(0);
+    }
+
+    [Fact]
+    public async Task ReorderCard_DraftOnBoard_ResponseOmitsDraft()
+    {
+        // Arrange
+        TestAuthHelper.SetAdminAuth(_client, _factory);
+        var laneId = await GetFirstLaneIdAsync();
+        var cardId = await CreateCardInLaneAsync(laneId, "Reorder Beside A Draft", draft: false);
+        var draftId = await CreateCardInLaneAsync(laneId, "Half-Written Draft", draft: true);
+
+        // Act
+        var response = await _client.PostAsJsonAsync($"/api/v1/cards/{cardId}/reorder", new { laneId, index = 0 });
+
+        // Assert
+        var ids = await ReadReorderCardIdsAsync(response);
+        ids.ShouldContain(cardId);
+        ids.ShouldNotContain(draftId);
+    }
+
+    [Fact]
+    public async Task ReorderCard_ArchivedCardOnBoard_ResponseKeepsArchivedCard()
+    {
+        // Arrange
+        TestAuthHelper.SetAdminAuth(_client, _factory);
+        var laneId = await GetFirstLaneIdAsync();
+        var archivedId = await CreateCardInLaneAsync(laneId, "Archived Before The Reorder", draft: false);
+        (await _client.PostAsync($"/api/v1/cards/{archivedId}/archive", null)).EnsureSuccessStatusCode();
+        var cardId = await CreateCardInLaneAsync(laneId, "Reorder Beside An Archived Card", draft: false);
+
+        // Act
+        var response = await _client.PostAsJsonAsync($"/api/v1/cards/{cardId}/reorder", new { laneId, index = 0 });
+
+        // Assert
+        var ids = await ReadReorderCardIdsAsync(response);
+        ids.ShouldContain(archivedId);
     }
 
     [Fact]
