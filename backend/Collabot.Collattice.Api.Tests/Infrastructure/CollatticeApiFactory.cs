@@ -48,6 +48,8 @@ public class CollatticeApiFactory : WebApplicationFactory<Program>, IAsyncLifeti
             builder.UseEnvironment(EnvironmentName);
         }
 
+        builder.ConfigureLogging(TestHostLogging.RemoveEventLog);
+
         // ConnectionStrings:Board is required configuration with no fallback;
         // Program.cs hard-fails at host-build time if it is unset.
         // That eager read happens before ConfigureServices swaps in the shared

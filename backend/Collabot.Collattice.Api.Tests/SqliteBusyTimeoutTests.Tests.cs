@@ -70,6 +70,8 @@ file sealed class FileDatabaseFactory : WebApplicationFactory<Program>
         builder.UseSetting("ConnectionStrings:Board", $"Data Source={_databasePath}");
         builder.UseSetting("Admin:AuthKey", CollatticeApiFactory.TestAdminAuthKey);
 
+        builder.ConfigureLogging(TestHostLogging.RemoveEventLog);
+
         // Keep the host off the real GitHub API, as the standard harness does.
         builder.ConfigureServices(services =>
         {

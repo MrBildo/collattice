@@ -6,7 +6,6 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using Shouldly;
 
 namespace Collabot.Collattice.Api.Tests;
@@ -274,6 +273,8 @@ public class ExpectedSaveFailureLoggingTests
 
             builder.ConfigureLogging(logging =>
             {
+                TestHostLogging.RemoveEventLog(logging);
+
                 logging.AddProvider(_provider);
                 logging.AddFilter<CapturingLoggerProvider>(null, LogLevel.Trace);
             });
