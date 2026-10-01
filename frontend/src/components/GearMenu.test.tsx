@@ -73,7 +73,6 @@ describe('GearMenu update indicator', () => {
     const user = userEvent.setup();
     render(<GearMenu {...baseProps} versionStatus={statusWithUpdate()} />);
 
-    // The trigger is the only button before the menu opens.
     await openMenu(user);
     // The dropdown content is rendered once the trigger is opened.
     const link = await screen.findByRole('link', { name: /v1.16.0.*v1.17.0 available/i });
