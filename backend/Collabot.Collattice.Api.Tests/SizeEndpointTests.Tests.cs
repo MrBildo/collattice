@@ -11,7 +11,7 @@ public class SizeEndpointTests(CollatticeApiFactory factory) : IClassFixture<Col
     private readonly HttpClient _client = factory.CreateClient();
 
     [Fact]
-    public async Task GetSizes_ReturnsOrderedList()
+    public async Task GetSizes_DefaultBoard_ReturnsOrderedList()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -55,7 +55,7 @@ public class SizeEndpointTests(CollatticeApiFactory factory) : IClassFixture<Col
     }
 
     [Fact]
-    public async Task GetSizeById_Returns200()
+    public async Task GetSize_ById_Returns200()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);

@@ -11,6 +11,7 @@ namespace Collabot.Collattice.Api.Tests;
 // delivery yet — the CapturingWebhookSink IS the observable. These assert on the typed
 // BoardEvent the seam enqueues (and its JSON-serialized wire shape), plus the SSE
 // byte-for-byte-unchanged safety property.
+// Sealed so the plain IDisposable shape below is complete; no derived class can add state to dispose.
 public sealed class WebhookSeamTests(WebhookTestFactory factory) : IClassFixture<WebhookTestFactory>, IDisposable
 {
     private readonly WebhookTestFactory _factory = factory;
@@ -129,7 +130,7 @@ public sealed class WebhookSeamTests(WebhookTestFactory factory) : IClassFixture
     // ── Scenario 2: REST and MCP create produce identical event shape ────────────
 
     [Fact]
-    public async Task RestAndMcpCreate_ProduceIdenticalEnvelopeAndDataFieldSet()
+    public async Task CreateCard_OverRestAndMcp_ProduceIdenticalEnvelopeAndDataFieldSet()
     {
         // Arrange
         var sink = Sink;
@@ -284,7 +285,7 @@ public sealed class WebhookSeamTests(WebhookTestFactory factory) : IClassFixture
     }
 
     [Fact]
-    public async Task McpBulkUpdateWithLaneId_FiresOneCardMovedPerMovedCard()
+    public async Task BulkUpdate_WithLaneId_FiresOneCardMovedPerMovedCard()
     {
         var sink = Sink;
         var (laneA, laneB) = await GetTwoLanesAsync();
@@ -315,7 +316,7 @@ public sealed class WebhookSeamTests(WebhookTestFactory factory) : IClassFixture
     // ── Scenario 4b: no-lane-change emits no card.moved; archive/restore emit none ─
 
     [Fact]
-    public async Task UpdateWithoutLaneChange_FiresNoCardMoved()
+    public async Task UpdateCard_WithoutLaneChange_FiresNoCardMoved()
     {
         var sink = Sink;
         var (laneId, _) = await GetTwoLanesAsync();
@@ -451,7 +452,7 @@ public sealed class WebhookSeamTests(WebhookTestFactory factory) : IClassFixture
     }
 
     [Fact]
-    public async Task RestPatchPositionUnchanged_FiresNoCardMoved()
+    public async Task PatchCard_OverRestPositionUnchanged_FiresNoCardMoved()
     {
         var sink = Sink;
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -583,7 +584,7 @@ public sealed class WebhookSeamTests(WebhookTestFactory factory) : IClassFixture
     }
 
     [Fact]
-    public async Task McpBulkUpdateCrossLane_FromIsEachCardsPositionBeforeTheBatch()
+    public async Task BulkUpdate_CrossLane_FromIsEachCardsPositionBeforeTheBatch()
     {
         // Arrange — [A, B, C] in the source lane, an empty target lane
         var sink = Sink;

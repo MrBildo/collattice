@@ -226,7 +226,7 @@ public class PruneEndpointTests(CollatticeApiFactory factory) : IClassFixture<Co
     }
 
     [Fact]
-    public async Task Prune_DeletesMatchingCards()
+    public async Task Prune_OldAndRecentCards_DeletesMatchingCards()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -258,7 +258,7 @@ public class PruneEndpointTests(CollatticeApiFactory factory) : IClassFixture<Co
     }
 
     [Fact]
-    public async Task Prune_CascadesDeleteToComments()
+    public async Task Prune_CardWithComment_CascadesDeleteToComments()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -295,7 +295,7 @@ public class PruneEndpointTests(CollatticeApiFactory factory) : IClassFixture<Co
 
         // Verify the comment row cascade-deleted with its card. There is no
         // GET /comments/{id} endpoint, so assert the row is gone via the DbContext —
-        // same pattern as DeleteLane_CascadesToCardsAndTheirChildren. (An earlier
+        // same pattern as DeleteLane_WithCardAndChildren_CascadesToCardsAndTheirChildren. (An earlier
         // GET /api/v1/comments/{id} assertion silently fell through to the SPA
         // fallback, which 404s in CI's frontend-less checkout but 200s locally once
         // wwwroot/index.html exists — masking the real cascade signal either way.)

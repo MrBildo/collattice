@@ -182,7 +182,7 @@ public class ArchivePruneSearchTests(CollatticeApiFactory factory) : IClassFixtu
     }
 
     [Fact]
-    public async Task PrunePreview_RespectsIncludeArchived()
+    public async Task PrunePreview_ArchivedCardMatchingFilter_RespectsIncludeArchived()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);

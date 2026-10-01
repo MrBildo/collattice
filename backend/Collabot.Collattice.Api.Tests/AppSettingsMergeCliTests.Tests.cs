@@ -315,7 +315,7 @@ public class AppSettingsMergeCliTests : IDisposable
     }
 
     [Fact]
-    public void ProgramCs_DoesNotGateMergeOnVersionOutput()
+    public void ProgramCs_MergeAppsettingsBranch_DoesNotGateOnVersionOutput()
     {
         // Structural guarantee that Collattice never reintroduces a version-coupled gate around
         // the merge subcommand (the root cause was such a gate in Collabhost's bash). Read

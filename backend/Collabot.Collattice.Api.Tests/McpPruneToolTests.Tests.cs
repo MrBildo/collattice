@@ -160,7 +160,7 @@ public class McpPruneToolTests(CollatticeApiFactory factory) : IClassFixture<Col
     }
 
     [Fact]
-    public async Task PrunePreview_NoChangesPersisted()
+    public async Task PrunePreview_MatchingCard_PersistsNoChanges()
     {
         var (db, prune) = CreateTools();
         var (boardId, laneId, sizeId, _) = await CreateBoardAsync(db);
@@ -212,7 +212,7 @@ public class McpPruneToolTests(CollatticeApiFactory factory) : IClassFixture<Col
     }
 
     [Fact]
-    public async Task Prune_OnlyMovesMatchingCards()
+    public async Task Prune_MatchingAndNonMatchingCards_OnlyMovesMatchingCards()
     {
         var (db, prune) = CreateTools();
         var (boardId, laneId, sizeId, archiveLaneId) = await CreateBoardAsync(db);
@@ -289,7 +289,7 @@ public class McpPruneToolTests(CollatticeApiFactory factory) : IClassFixture<Col
     }
 
     [Fact]
-    public async Task PrunePreview_ExcludesArchivedByDefault()
+    public async Task PrunePreview_DefaultOptions_ExcludesArchivedCards()
     {
         var (db, prune) = CreateTools();
         var (boardId, laneId, sizeId, archiveLaneId) = await CreateBoardAsync(db);

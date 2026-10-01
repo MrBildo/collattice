@@ -16,7 +16,7 @@ public class ArchiveLaneTests(CollatticeApiFactory factory) : IClassFixture<Coll
     private static JsonSerializerOptions JsonOptions => TestAuthHelper.JsonOptions;
 
     [Fact]
-    public async Task GetLanes_ExcludesArchiveLane()
+    public async Task GetLanes_DefaultBoard_ExcludesArchiveLane()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -36,7 +36,7 @@ public class ArchiveLaneTests(CollatticeApiFactory factory) : IClassFixture<Coll
     }
 
     [Fact]
-    public async Task GetBoardComposite_ExcludesArchiveLane()
+    public async Task GetBoardComposite_DefaultBoard_ExcludesArchiveLane()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -59,7 +59,7 @@ public class ArchiveLaneTests(CollatticeApiFactory factory) : IClassFixture<Coll
     }
 
     [Fact]
-    public async Task GetBoardComposite_ExcludesArchivedCards()
+    public async Task GetBoardComposite_BoardWithArchivedCard_ExcludesArchivedCards()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -114,7 +114,7 @@ public class ArchiveLaneTests(CollatticeApiFactory factory) : IClassFixture<Coll
     }
 
     [Fact]
-    public async Task CreateBoard_AutoCreatesArchiveLane()
+    public async Task CreateBoard_ByAdmin_AutoCreatesArchiveLane()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -140,7 +140,7 @@ public class ArchiveLaneTests(CollatticeApiFactory factory) : IClassFixture<Coll
     }
 
     [Fact]
-    public async Task CreateLane_RejectsMaxValuePosition()
+    public async Task CreateLane_MaxValuePosition_Returns400()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -157,10 +157,10 @@ public class ArchiveLaneTests(CollatticeApiFactory factory) : IClassFixture<Coll
     }
 
     [Fact]
-    public async Task PatchLane_RejectsMaxValuePosition()
+    public async Task PatchLane_MaxValuePosition_IsRejected()
     {
         // Arrange — create the lane on a dedicated board, not the shared seed board.
-        // GetLanes_ExcludesArchiveLane / GetBoardComposite_ExcludesArchiveLane assert an
+        // GetLanes_DefaultBoard_ExcludesArchiveLane / GetBoardComposite_DefaultBoard_ExcludesArchiveLane assert an
         // exact lane count on DefaultBoardId, so adding a persistent lane there makes those
         // reads depend on test-method ordering within the class.
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -191,7 +191,7 @@ public class ArchiveLaneTests(CollatticeApiFactory factory) : IClassFixture<Coll
     }
 
     [Fact]
-    public async Task DeleteArchiveLane_Returns400()
+    public async Task DeleteLane_ArchiveLane_Returns400()
     {
         // Arrange — create a board so we have a known archive lane
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -212,7 +212,7 @@ public class ArchiveLaneTests(CollatticeApiFactory factory) : IClassFixture<Coll
     }
 
     [Fact]
-    public async Task PatchArchiveLane_Returns400()
+    public async Task PatchLane_ArchiveLane_Returns400()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);

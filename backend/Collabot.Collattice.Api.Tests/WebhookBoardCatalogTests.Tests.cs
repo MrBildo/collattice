@@ -10,6 +10,7 @@ namespace Collabot.Collattice.Api.Tests;
 // board CRUD has no SSE broadcast today, so the family is WEBHOOK-ONLY — it enqueues straight to the
 // sink and rings NO board bell, keeping the SSE wire byte-for-byte unchanged. The "no SSE bell" tests
 // are the load-bearing new-path invariant. The CapturingWebhookSink IS the observable.
+// Sealed so the plain IDisposable shape below is complete; no derived class can add state to dispose.
 public sealed class WebhookBoardCatalogTests : IClassFixture<WebhookTestFactory>, IDisposable
 {
     private readonly WebhookTestFactory _factory;
@@ -65,7 +66,7 @@ public sealed class WebhookBoardCatalogTests : IClassFixture<WebhookTestFactory>
     }
 
     [Fact]
-    public async Task McpCreateBoard_FiresBoardCreated()
+    public async Task CreateBoard_OverMcp_FiresBoardCreated()
     {
         var sink = Sink;
         var tools = CreateBoardTools();
@@ -101,7 +102,7 @@ public sealed class WebhookBoardCatalogTests : IClassFixture<WebhookTestFactory>
     }
 
     [Fact]
-    public async Task McpUpdateBoard_FiresBoardRenamed()
+    public async Task UpdateBoard_OverMcp_FiresBoardRenamed()
     {
         var sink = Sink;
         var tools = CreateBoardTools();

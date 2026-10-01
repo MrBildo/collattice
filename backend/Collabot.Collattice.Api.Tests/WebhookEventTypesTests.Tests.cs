@@ -5,7 +5,7 @@ namespace Collabot.Collattice.Api.Tests;
 
 // WebhookEventTypes — the catalog source of truth and selection semantics. The reflection test is
 // the drift guard: it keeps `selectable ≡ deliverable` honest as the catalog grows.
-public sealed class WebhookEventTypesTests
+public class WebhookEventTypesTests
 {
     // Every event-type const must appear in All, so a new const can't be silently unselectable.
     // The wildcard sentinel and a deliverable-only Ping are the only non-selectable consts and

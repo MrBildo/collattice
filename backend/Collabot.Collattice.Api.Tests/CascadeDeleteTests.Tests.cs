@@ -78,7 +78,7 @@ public class CascadeDeleteTests(CollatticeApiFactory factory) : IClassFixture<Co
     }
 
     [Fact]
-    public async Task DeleteCard_CascadesToCommentsLabelsAttachments()
+    public async Task DeleteCard_WithChildren_CascadesToCommentsLabelsAttachments()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -132,7 +132,7 @@ public class CascadeDeleteTests(CollatticeApiFactory factory) : IClassFixture<Co
     }
 
     [Fact]
-    public async Task DeleteLane_CascadesToCardsAndTheirChildren()
+    public async Task DeleteLane_WithCardAndChildren_CascadesToCardsAndTheirChildren()
     {
         // Arrange — create a new lane with a card that has comments and attachments
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -235,7 +235,7 @@ public class CascadeDeleteTests(CollatticeApiFactory factory) : IClassFixture<Co
     }
 
     [Fact]
-    public async Task DeleteLabel_CascadesToCardLabelAssignments()
+    public async Task DeleteLabel_AssignedToCard_CascadesToCardLabelAssignments()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);

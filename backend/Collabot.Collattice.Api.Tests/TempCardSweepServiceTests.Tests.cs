@@ -101,7 +101,7 @@ public class TempCardSweepServiceTests(CollatticeApiFactory factory) : IClassFix
     }
 
     [Fact]
-    public async Task Sweep_DoesNotDeleteAgedCardOnceFinalized()
+    public async Task Sweep_AgedCardAlreadyFinalized_DoesNotDeleteIt()
     {
         // Arrange — a card created in the past but finalized (IsTemp = false). The sweep's
         // WHERE predicate filters on IsTemp, so an old-but-real card must survive. This is the

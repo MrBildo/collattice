@@ -7,7 +7,7 @@ namespace Collabot.Collattice.Api.Tests.Infrastructure;
 // dispatcher. Swapped in for the production WebhookQueue via WebhookTestFactory. The
 // broadcaster's Publish path (single-card sites) and BulkCardTools' direct enqueue (the
 // bulk site) both resolve IWebhookSink, so both capture into this one instance.
-public sealed class CapturingWebhookSink : IWebhookSink
+public class CapturingWebhookSink : IWebhookSink
 {
     private readonly ConcurrentQueue<BoardEvent> _events = new();
 

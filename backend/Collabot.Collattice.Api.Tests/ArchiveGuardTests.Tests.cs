@@ -33,7 +33,7 @@ public class ArchiveGuardTests(CollatticeApiFactory factory) : IClassFixture<Col
     }
 
     [Fact]
-    public async Task ReorderArchivedCard_Returns400()
+    public async Task ReorderCard_ArchivedCard_Returns400()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -51,7 +51,7 @@ public class ArchiveGuardTests(CollatticeApiFactory factory) : IClassFixture<Col
     }
 
     [Fact]
-    public async Task ReorderToArchiveLane_Returns400()
+    public async Task ReorderCard_ToArchiveLane_Returns400()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);

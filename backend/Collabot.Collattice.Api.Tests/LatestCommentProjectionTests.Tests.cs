@@ -171,7 +171,7 @@ public class LatestCommentProjectionTests(CollatticeApiFactory factory) : IClass
     }
 
     [Fact]
-    public async Task McpGetCards_CarriesLatestCommentProjection()
+    public async Task McpGetCards_CardWithComment_CarriesLatestCommentProjection()
     {
         // Arrange — exercise the MCP surface directly to prove parity with REST.
         TestAuthHelper.SetAdminAuth(_client, _factory);

@@ -73,7 +73,7 @@ public class BoardEndpointTests(CollatticeApiFactory factory) : IClassFixture<Co
     }
 
     [Fact]
-    public async Task GetBoard_LanesAreOrderedByPosition()
+    public async Task GetBoard_DefaultBoard_LanesAreOrderedByPosition()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -165,7 +165,7 @@ public class BoardEndpointTests(CollatticeApiFactory factory) : IClassFixture<Co
     }
 
     [Fact]
-    public async Task GetBoardById_Returns200()
+    public async Task GetBoard_ById_Returns200()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -182,7 +182,7 @@ public class BoardEndpointTests(CollatticeApiFactory factory) : IClassFixture<Co
     }
 
     [Fact]
-    public async Task GetBoardBySlug_Returns200()
+    public async Task GetBoard_BySlug_Returns200()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);

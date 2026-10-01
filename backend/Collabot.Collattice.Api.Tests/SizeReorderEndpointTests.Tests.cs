@@ -85,7 +85,7 @@ public class SizeReorderEndpointTests(CollatticeApiFactory factory) : IClassFixt
     }
 
     [Fact]
-    public async Task Reorder_NormalizesExistingGap()
+    public async Task Reorder_SizesWithGappedOrdinals_NormalizesExistingGap()
     {
         // Arrange — a board whose ordinals have a gap. The default set is dense
         // 0..3; deleting the middle two and adding fresh ones via the auto-ordinal

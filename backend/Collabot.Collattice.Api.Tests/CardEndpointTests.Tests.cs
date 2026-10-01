@@ -29,7 +29,7 @@ public class CardEndpointTests(CollatticeApiFactory factory) : IClassFixture<Col
         => await TestDataHelper.GetSizeIdByNameAsync(_client, _factory.DefaultBoardId, sizeName);
 
     [Fact]
-    public async Task GetCards_ReturnsAllCards()
+    public async Task GetCards_BoardWithCards_ReturnsAllCards()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -201,7 +201,7 @@ public class CardEndpointTests(CollatticeApiFactory factory) : IClassFixture<Col
     }
 
     [Fact]
-    public async Task GetCardById_ReturnsEnrichedResponse()
+    public async Task GetCard_ById_ReturnsEnrichedResponse()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -304,7 +304,7 @@ public class CardEndpointTests(CollatticeApiFactory factory) : IClassFixture<Col
     }
 
     [Fact]
-    public async Task PostCard_AutoNumbersSequentially()
+    public async Task PostCard_ThreeCreates_AutoNumbersSequentially()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -390,7 +390,7 @@ public class CardEndpointTests(CollatticeApiFactory factory) : IClassFixture<Col
     }
 
     [Fact]
-    public async Task PatchCard_MovesToAnotherLane()
+    public async Task PatchCard_WithTargetLaneId_MovesToAnotherLane()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -470,7 +470,7 @@ public class CardEndpointTests(CollatticeApiFactory factory) : IClassFixture<Col
     }
 
     [Fact]
-    public async Task PatchCard_ReturnsEnrichedCardSummary()
+    public async Task PatchCard_ExistingCard_ReturnsEnrichedCardSummary()
     {
         // Arrange — parity with POST /cards: PATCH returns sizeName, labels, commentCount, attachmentCount, isArchived
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -906,7 +906,7 @@ public class CardEndpointTests(CollatticeApiFactory factory) : IClassFixture<Col
     }
 
     [Fact]
-    public async Task ReorderCard_ReturnsFullBoard()
+    public async Task ReorderCard_ExistingCard_ReturnsFullBoard()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -1039,7 +1039,7 @@ public class CardEndpointTests(CollatticeApiFactory factory) : IClassFixture<Col
     }
 
     [Fact]
-    public async Task GetCards_IncludesLabelsAndCounts()
+    public async Task GetCards_LabeledCard_IncludesLabelsAndCounts()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -1179,7 +1179,7 @@ public class CardEndpointTests(CollatticeApiFactory factory) : IClassFixture<Col
     }
 
     [Fact]
-    public async Task GetCardById_ReturnsAttachmentsWithoutPayload()
+    public async Task GetCard_WithAttachment_ReturnsAttachmentsWithoutPayload()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -1222,7 +1222,7 @@ public class CardEndpointTests(CollatticeApiFactory factory) : IClassFixture<Col
     }
 
     [Fact]
-    public async Task GetCardById_ReturnsUserDisplayNames()
+    public async Task GetCard_CreatedByHumanUser_ReturnsUserDisplayNames()
     {
         // Arrange
         var human = await TestAuthHelper.CreateUserAsync(_client, _factory, "DisplayNameUser", UserRole.HumanUser);
@@ -1330,7 +1330,7 @@ public class CardEndpointTests(CollatticeApiFactory factory) : IClassFixture<Col
     }
 
     [Fact]
-    public async Task McpGetCard_IncludesAttachmentsAndUserNames()
+    public async Task McpGetCard_EnrichedCard_IncludesAttachmentsAndUserNames()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -1703,7 +1703,7 @@ public class CardEndpointTests(CollatticeApiFactory factory) : IClassFixture<Col
     // ── Comments compat pivot: v1 legacy array + deprecation, v2 paged, MCP dual-path ────────
 
     [Fact]
-    public async Task GetCardV1_CarriesDeprecationHeaders()
+    public async Task GetCard_V1_CarriesDeprecationHeaders()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -1753,7 +1753,7 @@ public class CardEndpointTests(CollatticeApiFactory factory) : IClassFixture<Col
     }
 
     [Fact]
-    public async Task GetCardV1_LegacyArrayCarriesAdditiveFields()
+    public async Task GetCard_V1_LegacyArrayCarriesAdditiveFields()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -1787,7 +1787,7 @@ public class CardEndpointTests(CollatticeApiFactory factory) : IClassFixture<Col
     }
 
     [Fact]
-    public async Task GetCardV2_DoesNotCarryDeprecationHeaders()
+    public async Task GetCard_V2_DoesNotCarryDeprecationHeaders()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -1960,7 +1960,7 @@ public class CardEndpointTests(CollatticeApiFactory factory) : IClassFixture<Col
     // ── Hardened enrichment tests (query optimization) ───────────────────────
 
     [Fact]
-    public async Task GetCards_ReturnsCorrectSizeName()
+    public async Task GetCards_CardWithSizeL_ReturnsCorrectSizeName()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -1992,7 +1992,7 @@ public class CardEndpointTests(CollatticeApiFactory factory) : IClassFixture<Col
     }
 
     [Fact]
-    public async Task GetCards_ReturnsCorrectLabelSummaries()
+    public async Task GetCards_LabeledCard_ReturnsCorrectLabelSummaries()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -2051,7 +2051,7 @@ public class CardEndpointTests(CollatticeApiFactory factory) : IClassFixture<Col
     }
 
     [Fact]
-    public async Task GetCards_ReturnsCorrectCommentCount()
+    public async Task GetCards_CardWithComments_ReturnsCorrectCommentCount()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -2083,7 +2083,7 @@ public class CardEndpointTests(CollatticeApiFactory factory) : IClassFixture<Col
     }
 
     [Fact]
-    public async Task GetCards_ReturnsCorrectAttachmentCount()
+    public async Task GetCards_CardWithAttachments_ReturnsCorrectAttachmentCount()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -2116,7 +2116,7 @@ public class CardEndpointTests(CollatticeApiFactory factory) : IClassFixture<Col
     }
 
     [Fact]
-    public async Task GetCardV1_CommentsAreOldestFirstPlainArray()
+    public async Task GetCard_V1_CommentsAreOldestFirstPlainArray()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -2174,7 +2174,7 @@ public class CardEndpointTests(CollatticeApiFactory factory) : IClassFixture<Col
     }
 
     [Fact]
-    public async Task GetComments_ReturnsOrderedByDate()
+    public async Task GetComments_SeveralComments_ReturnsOrderedByDate()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -2693,7 +2693,7 @@ public class CardEndpointTests(CollatticeApiFactory factory) : IClassFixture<Col
     }
 
     [Fact]
-    public async Task PostCard_ReturnsEnrichedSummary()
+    public async Task PostCard_WithSizeId_ReturnsEnrichedSummary()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);

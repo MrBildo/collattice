@@ -110,7 +110,7 @@ public class McpArchiveToolTests(CollatticeApiFactory factory) : IClassFixture<C
     // ── get_lanes excludes archive lane ──────────────────────────────────────
 
     [Fact]
-    public async Task GetLanes_ExcludesArchiveLane()
+    public async Task GetLanes_DefaultBoard_ExcludesArchiveLane()
     {
         // Arrange
         var (db, _, _, boardTools, _, _, _, authKey) = CreateAllTools();

@@ -44,7 +44,7 @@ public class McpErrorTranslatorTests
     }
 
     [Fact]
-    public void Format_IncludesTypeNameAndMessage()
+    public void Format_ArgumentException_IncludesTypeNameAndMessage()
     {
         var ex = new ArgumentException("The arguments dictionary is missing a value for the required parameter 'content'.", "arguments");
 
@@ -67,7 +67,7 @@ public class McpErrorTranslatorTests
     }
 
     [Fact]
-    public void Format_NeverIncludesStackTrace()
+    public void Format_ThrownException_NeverIncludesStackTrace()
     {
         // Guard against accidental ToString() reach for internal detail.
         Exception caught;
@@ -87,7 +87,7 @@ public class McpErrorTranslatorTests
     }
 
     [Fact]
-    public void ToMcpException_WrapsOriginalAsInner()
+    public void ToMcpException_ArgumentException_WrapsOriginalAsInner()
     {
         var original = new ArgumentException("bad input");
 

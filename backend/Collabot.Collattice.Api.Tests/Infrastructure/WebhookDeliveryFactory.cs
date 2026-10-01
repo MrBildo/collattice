@@ -24,7 +24,7 @@ namespace Collabot.Collattice.Api.Tests.Infrastructure;
 // Webhooks config (Endpoint / Secret / MaxAttempts / a near-zero RetryBackoffBase) flows through
 // the base ConfigOverrides path — both UseSetting (early) and ConfigureAppConfiguration (late),
 // per the WAF eager-read seam.
-public sealed class WebhookDeliveryFactory : CollatticeApiFactory
+public class WebhookDeliveryFactory : CollatticeApiFactory
 {
     // A database file per host, opened fresh by every context. The running dispatcher queries the
     // subscription registry while the request that enqueued the event is still reading from its own

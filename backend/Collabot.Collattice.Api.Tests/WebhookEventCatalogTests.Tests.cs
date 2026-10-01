@@ -9,7 +9,7 @@ namespace Collabot.Collattice.Api.Tests;
 // truth for the subscription picker. Two layers: the pure drift guard (the catalog presents exactly
 // the deliver/select SoT, so the in-backend catalog can never desync from what actually fires) and
 // the endpoint (full catalog grouped by family, admin-gated like the rest of the webhook surface).
-public sealed class WebhookEventCatalogTests
+public class WebhookEventCatalogTests
 {
     // The crux: the catalog must present EXACTLY WebhookEventTypes.All. Adding an event to the
     // deliver/select SoT without display metadata here — or vice versa — fails this test, which is the

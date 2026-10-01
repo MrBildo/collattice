@@ -12,6 +12,7 @@ namespace Collabot.Collattice.Api.Tests;
 // raises exactly ONE size.reordered carrying the board's FULL new order (the one-bell reorder coalesce
 // contract). Each site rings the same single SSE bell it always did, so the SSE wire stays
 // byte-for-byte unchanged. The CapturingWebhookSink IS the observable (no HTTP delivery here).
+// Sealed so the plain IDisposable shape below is complete; no derived class can add state to dispose.
 public sealed class WebhookSizeCatalogTests : IClassFixture<WebhookTestFactory>, IDisposable
 {
     private readonly WebhookTestFactory _factory;
@@ -66,7 +67,7 @@ public sealed class WebhookSizeCatalogTests : IClassFixture<WebhookTestFactory>,
     }
 
     [Fact]
-    public async Task McpCreateSize_FiresSizeCreated()
+    public async Task CreateSize_OverMcp_FiresSizeCreated()
     {
         var sink = Sink;
         var tools = CreateSizeTools();
@@ -82,7 +83,7 @@ public sealed class WebhookSizeCatalogTests : IClassFixture<WebhookTestFactory>,
     // ── size.renamed (name axis) ──────────────────────────────────────────────────
 
     [Fact]
-    public async Task RestUpdateSizeName_FiresSizeRenamed()
+    public async Task UpdateSizeName_OverRest_FiresSizeRenamed()
     {
         var sink = Sink;
         var sizeId = await CreateSizeAsync("rename-me");
@@ -96,7 +97,7 @@ public sealed class WebhookSizeCatalogTests : IClassFixture<WebhookTestFactory>,
     }
 
     [Fact]
-    public async Task McpUpdateSizeName_FiresSizeRenamed()
+    public async Task UpdateSizeName_OverMcp_FiresSizeRenamed()
     {
         var sink = Sink;
         var tools = CreateSizeTools();
@@ -182,7 +183,7 @@ public sealed class WebhookSizeCatalogTests : IClassFixture<WebhookTestFactory>,
     }
 
     [Fact]
-    public async Task McpUpdateSizeNameAndOrdinal_CoFiresRenamedAndReordered()
+    public async Task UpdateSizeNameAndOrdinal_OverMcp_CoFiresRenamedAndReordered()
     {
         var sink = Sink;
         var tools = CreateSizeTools();
@@ -314,7 +315,7 @@ public sealed class WebhookSizeCatalogTests : IClassFixture<WebhookTestFactory>,
     }
 
     [Fact]
-    public async Task McpDeleteSize_FiresSizeDeleted()
+    public async Task DeleteSize_OverMcp_FiresSizeDeleted()
     {
         var sink = Sink;
         var tools = CreateSizeTools();
@@ -328,7 +329,7 @@ public sealed class WebhookSizeCatalogTests : IClassFixture<WebhookTestFactory>,
     }
 
     [Fact]
-    public async Task CreateSize_RingsExactlyOneSseBell()
+    public async Task CreateSize_SubscribedToBoardStream_RingsExactlyOneSseBell()
     {
         var sink = Sink;
         var broadcaster = _factory.Services.GetRequiredService<BoardEventBroadcaster>();

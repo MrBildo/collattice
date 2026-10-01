@@ -11,6 +11,7 @@ namespace Collabot.Collattice.Api.Tests;
 // whatever the shared cache holds.
 public class VersionStatusEndpointTests
 {
+    // sealed: a leaf test double for this class only; no subtype hierarchy is intended.
     private sealed class FakeVersionSource(LatestVersionResult? result) : ILatestVersionSource
     {
         public Task<LatestVersionResult?> GetLatestAsync(CancellationToken cancellationToken) =>
@@ -28,6 +29,7 @@ public class VersionStatusEndpointTests
             SourceFactory = () => new FakeVersionSource(sourceResult),
         };
 
+    // sealed: a leaf test host for this class only; no subtype hierarchy is intended.
     private sealed class UpdateCheckTestFactory : CollatticeApiFactory
     {
         public Func<ILatestVersionSource>? SourceFactory { get; init; }
@@ -72,7 +74,7 @@ public class VersionStatusEndpointTests
     }
 
     [Fact]
-    public async Task GetVersionStatus_IsUnauthenticated()
+    public async Task GetVersionStatus_NoAuthHeader_Returns200()
     {
         await using var factory = NewFactory(sourceResult: null);
         var client = factory.CreateClient();
@@ -84,7 +86,7 @@ public class VersionStatusEndpointTests
     }
 
     [Fact]
-    public async Task GetVersionStatus_ServesCachedLatest()
+    public async Task GetVersionStatus_SourceReportsHigherVersion_ServesCachedLatest()
     {
         await using var factory = NewFactory
         (
@@ -106,7 +108,7 @@ public class VersionStatusEndpointTests
     }
 
     [Fact]
-    public async Task UpdateCheckDisabled_NoUpdateReported()
+    public async Task GetVersionStatus_UpdateCheckDisabled_ReportsNoUpdate()
     {
         // Kill switch on: the hosted service must not run, so the cache is never populated and
         // the endpoint reports current-only with no update — even though a (fake) source that

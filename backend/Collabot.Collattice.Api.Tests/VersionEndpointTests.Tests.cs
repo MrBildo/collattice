@@ -27,7 +27,7 @@ public class VersionEndpointTests(CollatticeApiFactory factory) : IClassFixture<
     }
 
     [Fact]
-    public async Task GetVersion_ResponseHasNoCacheHeaders()
+    public async Task GetVersion_AsAdmin_ResponseHasNoCacheHeaders()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, factory);

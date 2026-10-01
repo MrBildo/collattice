@@ -11,7 +11,7 @@ namespace Collabot.Collattice.Api.Tests;
 // through an HTTP surface (the store has no HTTP surface of its own). The load-bearing security assertions live
 // here: the write-only secret never appears in any read projection, and the SSRF registration check
 // is un-bypassable.
-public sealed class WebhookSubscriptionStoreTests
+public class WebhookSubscriptionStoreTests
 {
     private const string _publicUrl = "https://8.8.8.8/hook";
 
@@ -25,7 +25,7 @@ public sealed class WebhookSubscriptionStoreTests
     // ── Create + validation ──────────────────────────────────────────────────────
 
     [Fact]
-    public async Task Create_PersistsAndReturnsSecretFreeView()
+    public async Task Create_WithSecret_PersistsAndReturnsSecretFreeView()
     {
         await using var factory = await NewFactoryAsync();
         await using var scope = factory.Services.CreateAsyncScope();
@@ -129,7 +129,7 @@ public sealed class WebhookSubscriptionStoreTests
     // ── The load-bearing security assertion: the secret never leaks ──────────────
 
     [Fact]
-    public async Task Secret_NeverAppearsInAnyReadProjection()
+    public async Task Secret_OnASignedSubscription_NeverAppearsInAnyReadProjection()
     {
         const string secret = "top-secret-signing-key-value";
 
@@ -289,7 +289,7 @@ public sealed class WebhookSubscriptionStoreTests
     }
 
     [Fact]
-    public async Task Delete_RemovesTheRow()
+    public async Task Delete_ExistingSubscription_RemovesTheRow()
     {
         await using var factory = await NewFactoryAsync();
         await using var scope = factory.Services.CreateAsyncScope();
@@ -308,7 +308,7 @@ public sealed class WebhookSubscriptionStoreTests
     // ── On-read metrics ──────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task List_EnrichesWithOnReadMetrics()
+    public async Task List_SubscriptionWithDeliveryAttempts_EnrichesWithOnReadMetrics()
     {
         await using var factory = await NewFactoryAsync();
         await using var scope = factory.Services.CreateAsyncScope();

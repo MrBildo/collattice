@@ -30,7 +30,7 @@ public class McpTransportSmokeTests(CollatticeApiFactory factory) : IClassFixtur
     private readonly CollatticeApiFactory _factory = factory;
 
     [Fact]
-    public async Task McpTransport_BootsListsToolsAndRoundTripsOneCall()
+    public async Task McpTransport_RealClientOverHttp_BootsListsToolsAndRoundTripsOneCall()
     {
         // Arrange — drive the real MCP client over the in-memory test server's HttpClient.
         // CreateAsync performs the initialize handshake; if the transport is broken it throws here.

@@ -10,7 +10,7 @@ namespace Collabot.Collattice.Api.Tests.Infrastructure;
 // headers sent — no real socket, no flake. The raw body is captured ONCE per request so the
 // HMAC-signature round-trip can run both the signature-check and the body-assert against the
 // SAME captured array (the footgun hides in re-serializing the parsed body).
-public sealed class CapturingHttpMessageHandler : HttpMessageHandler
+public class CapturingHttpMessageHandler : HttpMessageHandler
 {
     private readonly ConcurrentQueue<CapturedRequest> _requests = new();
 

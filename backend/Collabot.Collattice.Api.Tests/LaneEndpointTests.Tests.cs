@@ -11,7 +11,7 @@ public class LaneEndpointTests(CollatticeApiFactory factory) : IClassFixture<Col
     private readonly HttpClient _client = factory.CreateClient();
 
     [Fact]
-    public async Task GetLanes_ReturnsOrderedList()
+    public async Task GetLanes_DefaultBoard_ReturnsOrderedList()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -35,7 +35,7 @@ public class LaneEndpointTests(CollatticeApiFactory factory) : IClassFixture<Col
     }
 
     [Fact]
-    public async Task GetLaneById_Returns200()
+    public async Task GetLane_ById_Returns200()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);

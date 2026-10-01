@@ -90,7 +90,7 @@ public class LaneReorderEndpointTests(CollatticeApiFactory factory) : IClassFixt
     }
 
     [Fact]
-    public async Task Reorder_NormalizesExistingGap()
+    public async Task Reorder_LanesWithGappedPositions_NormalizesExistingGap()
     {
         // Arrange — lanes with a gap (0, 2, 5); the reorder should densify to 0..2
         var boardId = await CreateBoardAsync($"reorder-gap-{Guid.NewGuid():N}");

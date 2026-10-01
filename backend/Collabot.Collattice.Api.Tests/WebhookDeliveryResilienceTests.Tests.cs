@@ -22,7 +22,7 @@ namespace Collabot.Collattice.Api.Tests;
 // Mutation-revert check: drop .RemoveAllResilienceHandlers() in Program.cs and this test
 // reds — the resilience handler retries the connect-throw to a 5s timeout and the authentic phrasing
 // no longer appears in the recorded error.
-public sealed class WebhookDeliveryResilienceTests
+public class WebhookDeliveryResilienceTests
 {
     [Fact]
     public async Task BlockedConnect_RecordsAuthenticSsrfError_ThroughProductionClientConfiguration()

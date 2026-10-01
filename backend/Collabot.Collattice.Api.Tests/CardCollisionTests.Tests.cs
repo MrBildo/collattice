@@ -336,7 +336,7 @@ public class CardCollisionTests(CollatticeApiFactory factory) : IClassFixture<Co
     // ── The structural safeguard ────────────────────────────────────────────
 
     [Fact]
-    public async Task Collision_NeverAppearsInListOrSearchPayloads()
+    public async Task Collision_JustReported_NeverAppearsInListOrSearchPayloads()
     {
         // Collision lives on CardUpdateResult, which only the two write responses build. The shared
         // CardSummary that feeds card lists and cross-board search has no member for it, so it cannot

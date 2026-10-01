@@ -8,10 +8,10 @@ namespace Collabot.Collattice.Api.Tests;
 // DB) — the project's pure-function carve-out lets it be tested directly. These prove the wire
 // contract: the sha256= prefix, lowercase hex, and that a consumer recomputing HMAC-SHA256 over
 // the SAME bytes with the SAME secret matches byte-for-byte.
-public sealed class WebhookSignerTests
+public class WebhookSignerTests
 {
     [Fact]
-    public void Sign_ProducesSha256PrefixedLowercaseHexDigest()
+    public void Sign_BodyAndSecret_ProducesSha256PrefixedLowercaseHexDigest()
     {
         var body = "{\"event\":\"card.created\"}"u8.ToArray();
 
@@ -24,7 +24,7 @@ public sealed class WebhookSignerTests
     }
 
     [Fact]
-    public void Sign_MatchesIndependentConsumerRecomputation()
+    public void Sign_SameBytesAndSecret_MatchesIndependentConsumerRecomputation()
     {
         var body = "the exact bytes we sent"u8.ToArray();
         const string secret = "shared-secret";
