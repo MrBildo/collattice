@@ -79,7 +79,7 @@ To read comments on their own — untouched by this deprecation — use `GET /ca
 
 | Resource | Endpoints |
 |----------|-----------|
-| Card Labels | `GET /cards/{id}/labels`, `POST /cards/{id}/labels` (validates same board), `DELETE /cards/{id}/labels/{labelId}` |
+| Card Labels | `GET /cards/{id}/labels`, `POST /cards/{id}/labels` (validates same board; 409 if the label is already on the card, also when another caller added it at the same moment), `DELETE /cards/{id}/labels/{labelId}` (404 if the label is not on the card, also when another caller removed it at the same moment) |
 | Comments | `GET /cards/{id}/comments`, `POST /cards/{id}/comments`, `PATCH /comments/{id}`, `DELETE /comments/{id}` |
 | Attachments | `GET /cards/{id}/attachments`, `POST /cards/{id}/attachments` (5 MB via MCP / 50 MB via REST), `GET /attachments/{id}`, `DELETE /attachments/{id}` |
 
