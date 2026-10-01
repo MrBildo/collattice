@@ -17,7 +17,15 @@ import {
 } from '@/lib/api';
 import { queryKeys } from '@/lib/query-keys';
 import { ROLES } from '@/lib/roles';
-import type { BoardData, CardHistoryTrail, CardItem, CardSummary, Label, Lane } from '@/types';
+import type {
+  BoardData,
+  CardHistoryTrail,
+  CardItem,
+  CardSize,
+  CardSummary,
+  Label,
+  Lane,
+} from '@/types';
 
 // This suite covers the concurrent-edit guard: an edit another person makes
 // while you have the card open surfaces as a named, reachable warning without
@@ -77,7 +85,7 @@ function makeCard(overrides: Partial<CardItem> = {}): CardItem {
   };
 }
 
-function setup(initialCard: CardItem, lanes?: Lane[]) {
+function setup(initialCard: CardItem, lanes?: Lane[], sizes?: CardSize[]) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const isDirtyRef = { current: false };
   const tree = (card: CardItem) => (
@@ -88,6 +96,7 @@ function setup(initialCard: CardItem, lanes?: Lane[]) {
             <CardDetailForm
               card={card}
               lanes={lanes}
+              sizes={sizes}
               onClose={() => {}}
               currentUserId="me"
               currentUserRole={ROLES.Human}
@@ -453,6 +462,47 @@ describe('CardDetailForm labels', () => {
     expect(vi.mocked(updateCard).mock.calls[0][1]).toEqual({
       labelIds: ['label-bug', 'label-feature', 'label-chore'],
     });
+  });
+});
+
+describe('CardDetailForm accessible names', () => {
+  const lanes: Lane[] = [
+    { id: 'lane-1', boardId: 'board-1', name: 'Backlog', position: 0 },
+    { id: 'lane-2', boardId: 'board-1', name: 'Done', position: 1 },
+  ];
+  const sizes: CardSize[] = [
+    { id: 'size-1', boardId: 'board-1', name: 'S', ordinal: 0 },
+    { id: 'size-2', boardId: 'board-1', name: 'M', ordinal: 1 },
+  ];
+
+  test('the name field, the Size and Lane selects and their open lists are named', async () => {
+    // Arrange
+    const user = userEvent.setup();
+    setup(makeCard(), lanes, sizes);
+    await screen.findByDisplayValue('Original name');
+
+    // Assert
+    expect(screen.getByRole('textbox', { name: 'Card name' })).toHaveValue('Original name');
+    expect(screen.getByRole('combobox', { name: 'Size' })).toBeInTheDocument();
+
+    // Act
+    await user.click(screen.getByRole('combobox', { name: 'Lane' }));
+
+    // Assert
+    expect(await screen.findByRole('listbox', { name: 'Lane' })).toBeInTheDocument();
+  });
+
+  test('the restore-lane select on an archived card is named', async () => {
+    // Arrange
+    const user = userEvent.setup();
+    setup(makeCard({ isArchived: true }), lanes, sizes);
+    await screen.findByDisplayValue('Original name');
+
+    // Act
+    await user.click(screen.getByRole('button', { name: 'Restore' }));
+
+    // Assert
+    expect(screen.getByRole('combobox', { name: 'Restore to lane' })).toBeInTheDocument();
   });
 });
 

@@ -404,8 +404,9 @@ export function CreateCardDialog({
                 the Size field went. */}
             {sizes.length > 0 ? (
               <div className="flex flex-col gap-1.5">
-                <Label>Size</Label>
+                <Label id="new-card-size-label">Size</Label>
                 <Select
+                  aria-labelledby="new-card-size-label"
                   value={sizeId}
                   onValueChange={(v) => v && setSizeId(v)}
                   disabled={isFormDisabled}
@@ -437,8 +438,11 @@ export function CreateCardDialog({
 
             {/* Lane */}
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="new-card-lane">Lane</Label>
+              <Label id="new-card-lane-label" htmlFor="new-card-lane">
+                Lane
+              </Label>
               <Select
+                aria-labelledby="new-card-lane-label"
                 value={laneId}
                 onValueChange={(v) => v && setLaneId(v)}
                 disabled={isFormDisabled}

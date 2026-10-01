@@ -18,7 +18,11 @@ export function BoardSwitcher({ boards, currentSlug }: BoardSwitcherProps) {
   const currentBoard = boards.find((b) => b.slug === currentSlug);
 
   return (
-    <Select value={currentSlug ?? ''} onValueChange={(v) => navigate(`/boards/${v}`)}>
+    <Select
+      aria-label="Board"
+      value={currentSlug ?? ''}
+      onValueChange={(v) => navigate(`/boards/${v}`)}
+    >
       {/* Named for what it does, so it is announced as a board picker and not only by the
           board it currently shows. A name cut off here is shown in full in the open list.
           From lg up the header has room to spare, so the cap rises: 12rem fits a name like
@@ -27,7 +31,6 @@ export function BoardSwitcher({ boards, currentSlug }: BoardSwitcherProps) {
           as narrower screens already show), and from xl 16rem shows about 25 characters. */}
       <SelectTrigger
         size="sm"
-        aria-label="Board"
         className="min-w-[7rem] max-w-[10rem] flex-1 lg:max-w-[12rem] xl:max-w-[16rem]"
       >
         <SelectValue>{currentBoard?.name ?? 'Select board'}</SelectValue>

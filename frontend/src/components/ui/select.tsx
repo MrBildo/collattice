@@ -6,7 +6,34 @@ import { Select as SelectPrimitive } from '@base-ui/react/select';
 import { cn } from '@/lib/utils';
 import { ChevronDownIcon, CheckIcon, ChevronUpIcon } from 'lucide-react';
 
-const Select = SelectPrimitive.Root;
+// A select's name is given once, on the Select, and both the trigger and the
+// open list take it. Base UI names neither, and the list can't borrow the
+// trigger's name by pointing aria-labelledby at it: a combobox reached that way
+// contributes its selected value, not its name, so the list would be called
+// "Backlog" rather than "Lane". The name is required, so a select can't be
+// added without one.
+type SelectName =
+  | { 'aria-label': string; 'aria-labelledby'?: never }
+  | { 'aria-labelledby': string; 'aria-label'?: never };
+
+const SelectNameContext = React.createContext<{
+  'aria-label'?: string;
+  'aria-labelledby'?: string;
+}>({});
+
+function Select<Value, Multiple extends boolean | undefined = false>({
+  'aria-label': ariaLabel,
+  'aria-labelledby': ariaLabelledBy,
+  ...props
+}: SelectPrimitive.Root.Props<Value, Multiple> & SelectName) {
+  return (
+    <SelectNameContext.Provider
+      value={{ 'aria-label': ariaLabel, 'aria-labelledby': ariaLabelledBy }}
+    >
+      <SelectPrimitive.Root {...props} />
+    </SelectNameContext.Provider>
+  );
+}
 
 function SelectGroup({ className, ...props }: SelectPrimitive.Group.Props) {
   return (
@@ -36,6 +63,12 @@ function SelectTrigger({
 }: SelectPrimitive.Trigger.Props & {
   size?: 'sm' | 'default';
 }) {
+  const name = React.useContext(SelectNameContext);
+
+  // The Select's name goes on after the spread, so a name given to the trigger
+  // can't replace it and leave the trigger and its list named differently.
+  // (TypeScript doesn't check hyphenated attributes, so this order is the
+  // guard, not the props type.)
   return (
     <SelectPrimitive.Trigger
       data-slot="select-trigger"
@@ -45,6 +78,8 @@ function SelectTrigger({
         className,
       )}
       {...props}
+      aria-label={name['aria-label']}
+      aria-labelledby={name['aria-labelledby']}
     >
       {children}
       <SelectPrimitive.Icon
@@ -68,6 +103,8 @@ function SelectContent({
     SelectPrimitive.Positioner.Props,
     'align' | 'alignOffset' | 'side' | 'sideOffset' | 'alignItemWithTrigger'
   >) {
+  const name = React.useContext(SelectNameContext);
+
   return (
     <SelectPrimitive.Portal>
       <SelectPrimitive.Positioner
@@ -88,7 +125,12 @@ function SelectContent({
           {...props}
         >
           <SelectScrollUpButton />
-          <SelectPrimitive.List>{children}</SelectPrimitive.List>
+          <SelectPrimitive.List
+            aria-label={name['aria-label']}
+            aria-labelledby={name['aria-labelledby']}
+          >
+            {children}
+          </SelectPrimitive.List>
           <SelectScrollDownButton />
         </SelectPrimitive.Popup>
       </SelectPrimitive.Positioner>

@@ -204,3 +204,29 @@ describe('CreateCardDialog prefilled from a duplicate', () => {
     expect(screen.queryByText(/choose a lane/i)).not.toBeInTheDocument();
   });
 });
+
+describe('CreateCardDialog accessible names', () => {
+  test('the Size select and its open list are named by the Size label', async () => {
+    // Arrange
+    const user = userEvent.setup();
+    setup();
+
+    // Act
+    await user.click(screen.getByRole('combobox', { name: 'Size' }));
+
+    // Assert
+    expect(await screen.findByRole('listbox', { name: 'Size' })).toBeInTheDocument();
+  });
+
+  test('the Lane select and its open list are named by the Lane label', async () => {
+    // Arrange
+    const user = userEvent.setup();
+    setup();
+
+    // Act
+    await user.click(screen.getByRole('combobox', { name: 'Lane' }));
+
+    // Assert
+    expect(await screen.findByRole('listbox', { name: 'Lane' })).toBeInTheDocument();
+  });
+});

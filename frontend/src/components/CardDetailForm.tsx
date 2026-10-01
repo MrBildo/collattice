@@ -863,6 +863,7 @@ export const CardDetailForm = forwardRef<CardDetailFormHandle, CardDetailFormPro
                   setName(e.target.value);
                 }}
                 maxLength={120}
+                aria-label="Card name"
                 disabled={isArchived}
                 className={cn(
                   'border-none bg-transparent px-0 text-xl font-semibold shadow-none focus-visible:ring-0',
@@ -885,6 +886,7 @@ export const CardDetailForm = forwardRef<CardDetailFormHandle, CardDetailFormPro
                 <Tooltip>
                   <TooltipTrigger render={<span />}>
                     <Select
+                      aria-label="Size"
                       value={sizeId}
                       onValueChange={(v) => {
                         if (v) {
@@ -925,6 +927,7 @@ export const CardDetailForm = forwardRef<CardDetailFormHandle, CardDetailFormPro
                 <Tooltip>
                   <TooltipTrigger render={<span />}>
                     <Select
+                      aria-label="Lane"
                       value={currentLaneId}
                       onValueChange={(v) => {
                         if (v && v !== currentLaneId) {
@@ -1202,6 +1205,7 @@ export const CardDetailForm = forwardRef<CardDetailFormHandle, CardDetailFormPro
               {showRestorePicker && lanes && lanes.length > 0 ? (
                 <div className="contents">
                   <Select
+                    aria-label="Restore to lane"
                     value={restoreLaneId ?? ''}
                     onValueChange={(v) => v && setRestoreLaneId(v)}
                   >
