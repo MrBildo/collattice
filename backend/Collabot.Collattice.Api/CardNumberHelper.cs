@@ -58,7 +58,7 @@ internal static class CardNumberHelper
     }
 
     // Assigns a board-scoped card number to an existing temp card and clears the IsTemp
-    // flag, retrying on unique-constraint collisions (SQLite error 19). The caller sets
+    // flag, retrying on unique-constraint collisions. The caller sets
     // LastUpdatedAtUtc / LastUpdatedByUserId before calling, and every attempt saves them
     // along with the number. Returns false, with nothing saved and the draft still a draft, when
     // every attempt lost the race for a number.
@@ -97,6 +97,10 @@ internal static class CardNumberHelper
             .Where(c => c.BoardId == boardId && c.Number > 0)
                 .MaxAsync(c => (long?)c.Number, ct) ?? 0) + 1;
 
+    // SQLITE_CONSTRAINT_UNIQUE only. A foreign-key failure shares SQLite's primary code 19, but it
+    // means the lane or size the card refers to was deleted under the save: retrying cannot fix that,
+    // and answering it as contention would tell the caller the wrong thing. It reaches the caller as
+    // itself, where the shared concurrent-delete answer handles it.
     private static bool IsUniqueConstraintViolation(DbUpdateException ex) =>
-        ex.InnerException is SqliteException { SqliteErrorCode: 19 };
+        ex.InnerException is SqliteException { SqliteExtendedErrorCode: 2067 };
 }
