@@ -4,7 +4,7 @@ namespace Collabot.Collattice.Api.Endpoints;
 
 // A draft is a card started in the create dialog and not yet saved. Until it is saved it belongs to
 // the person creating it: anyone else, an administrator included, is answered exactly as if the card
-// did not exist, on every surface and for everything hanging off it (its comments and attachments).
+// did not exist, by every REST route and MCP tool that names it, or a comment or attachment on it, by id.
 // A draft is not a card yet, so there is nothing for anyone else to read or change, and answering
 // "not found" rather than "forbidden" keeps one person's unsaved work from being discoverable at all.
 internal static class DraftVisibility

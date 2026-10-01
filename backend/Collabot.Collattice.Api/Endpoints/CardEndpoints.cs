@@ -110,7 +110,10 @@ internal static class CardEndpoints
             // Deprecation is a property of the resource, not of a particular card, so it is advertised on
             // every response from this route — the 404 as much as the 200, including the 404 another
             // user's draft gets before the handler runs.
-            StampV1CardDetailDeprecation(context.HttpContext.Response, Guid.Parse(context.HttpContext.GetRouteValue("id")!.ToString()!, CultureInfo.InvariantCulture));
+            var id = Guid.Parse(context.HttpContext.GetRouteValue("id")!.ToString()!, CultureInfo.InvariantCulture);
+
+            StampV1CardDetailDeprecation(context.HttpContext.Response, id);
+
             return await next(context);
         }).HidesOthersDrafts();
 

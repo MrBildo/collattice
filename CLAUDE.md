@@ -131,6 +131,7 @@ Header-based authentication — no ASP.NET auth middleware:
 - **Use `Results.StatusCode(403)` not `Results.Forbid()`** (no auth middleware registered)
 - `AgentUser` cannot delete cards; can delete own comments and attachments
 - All users see all boards — no board-level membership
+- **A draft (temp card) is visible only to its creator** (#503). It is left out of every list, and every REST route that names a card, comment or attachment by id answers 404 to anyone else, an administrator included, through the `HidesOthersDrafts` endpoint filter; MCP does the same through `McpCardResolver`. `DraftVisibilityTests` fails when a new id route or tool is not covered.
 - **SSE endpoint (`/boards/{boardId}/events`) is intentionally unauthenticated** (decided 2026-05-29, card #217). The board GUID is the read-only stream's capability; the production-split added no exposure (it was reachable by anyone who could hit the URL before); browser-native `EventSource` can't carry `X-User-Key`. **Revisit before** the board model changes — multi-tenant, public/shared boards, or board-level membership replacing "all users see all boards."
 
 ## Configuration Precedence
@@ -256,7 +257,7 @@ Delivery: per-subscription fan-out; uniform SSRF guard (4-control floor incl. co
 
 **Admin-level tools** require the `Administrator` or `AgentAdministrator` role (gated via `McpAuthService.RequireAdminLevelAsync`). Strict-admin-only operations (delete board, prune-delete, user CRUD) are deliberately absent from the MCP surface entirely.
 
-**Cross-cutting:** Card numbers are **board-scoped** (unique per board, not globally). All card-scoped tools accept `cardNumber` (long) as alternative to `cardId` (Guid), but **`cardNumber` requires `boardId` or `boardSlug`** — no fallback to global lookup. Label assignment tools accept `labelName` as alternative to `labelId`. Size tools accept `sizeName` as alternative to `sizeId`. Shared resolution via `McpCardResolver`.
+**Cross-cutting:** Card numbers are **board-scoped** (unique per board, not globally). All card-scoped tools accept `cardNumber` (long) as alternative to `cardId` (Guid), but **`cardNumber` requires `boardId` or `boardSlug`** — no fallback to global lookup. Label assignment tools accept `labelName` as alternative to `labelId`. Size tools accept `sizeName` as alternative to `sizeId`. Shared resolution via `McpCardResolver`, which takes the caller: another user's draft resolves as "Card not found", and card number 0 (every draft's number) names no card for anyone (#503).
 
 ## `.agents/` Workspace (gitignored)
 

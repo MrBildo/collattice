@@ -129,7 +129,7 @@ internal static class McpCardResolver
         return (ordered, null);
     }
 
-    // The one place a single-card MCP tool turns its card reference into a card. The card is loaded
+    // Where each single-card MCP tool turns its card reference into a card. The card is loaded
     // into the tool's context here, so the tool's own lookup of it afterwards costs nothing more.
     // Another user's draft resolves as not found. Every draft carries number 0, so a card number
     // below 1 names no card at all, for anyone, the draft's creator included.
