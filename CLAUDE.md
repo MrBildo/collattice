@@ -67,9 +67,9 @@ dotnet run --project backend/Collabot.Collattice.AppHost
 
 The API gets a dynamic port (no more hardcoded 58343). The frontend gets a dynamic port. Aspire handles service discovery between them.
 
-Optionally configure `Admin:AuthKey` in `appsettings.Development.json` in `backend/Collabot.Collattice.Api/` — otherwise a random key is generated and logged on first run.
+Optionally pin `Admin:AuthKey` in `appsettings.Development.json` in `backend/Collabot.Collattice.Api/` (gitignored, so create it) before the first run — it is read only while the database has no users. Otherwise a random key is generated and logged on first run.
 
-Aspire does NOT run workloads natively on Linux. Use standalone `dotnet run` for Linux testing.
+Aspire does NOT run workloads natively on Linux. Use standalone `dotnet run` for Linux testing — the API start under [Frontend Only](#frontend-only-no-aspire) below sets what it needs.
 
 ### Tests
 ```powershell
@@ -86,12 +86,40 @@ Use the Aspire skill and MCP tools to manage the Aspire lifecycle (start, stop, 
 **File lock gotcha:** If Aspire is running and you need to build or test, kill the Aspire process first. The running API locks DLLs (e.g., `Collabot.Collattice.ServiceDefaults.dll`) and causes MSB3027 file copy errors. Before `dotnet test` or `dotnet build`, check for and kill any running Aspire/Collabot.Collattice.Api processes if the build fails with file lock errors.
 
 ### Frontend Only (no Aspire)
+
+The Vite dev server (port 5173) proxies `/api` to `http://localhost:58343`, so run the API yourself on that address first. A fresh clone gives it nothing to start from: the API's launch profile is a per-developer file git ignores, and the API refuses to start without a database path. Set these first — environment variables, the override channel in [Configuration Precedence](#configuration-precedence):
+
 ```powershell
+# Terminal 1, from the repo root: the API, on the address the dev server proxies to
+$env:ASPNETCORE_ENVIRONMENT = "Development"
+$env:ASPNETCORE_URLS = "http://localhost:58343"
+$env:ConnectionStrings__Board = "Data Source=$PWD\data\collattice.db"
+dotnet run --project backend/Collabot.Collattice.Api --no-launch-profile
+
+# Terminal 2, from the repo root: the dev server
 cd frontend
 npm install
 npm run dev
 ```
-Vite dev server on port 5173 with proxy to localhost:58343 (requires API running separately).
+
+The same API start in bash (Linux, macOS, WSL), from the repo root:
+
+```bash
+ASPNETCORE_ENVIRONMENT=Development \
+ASPNETCORE_URLS=http://localhost:58343 \
+ConnectionStrings__Board="Data Source=$PWD/data/collattice.db" \
+dotnet run --project backend/Collabot.Collattice.Api --no-launch-profile
+```
+
+Open `http://localhost:5173`. The admin auth key is logged at API startup (`Admin auth key: …`). To choose the key yourself, set it before the **first** start, alongside the variables above: `$env:Admin__AuthKey = "<your key>"` (bash: `Admin__AuthKey=<your key>`). It is read only while the database has no users, so setting it later does nothing; to change it, stop the API and delete `data/`, which also deletes your local boards.
+
+What each setting is for:
+- `ConnectionStrings__Board` — required, absolute path, no fallback by design. `data/` is gitignored, so the dev database stays out of the tree.
+- `ASPNETCORE_URLS` — without it the API binds `Hosting:ListenPort` (8080, all interfaces: the production default). Use `localhost`, not `127.0.0.1`: Node resolves `localhost` to `::1` first, and Kestrel's `localhost` binds both loopbacks.
+- `ASPNETCORE_ENVIRONMENT=Development` — OpenAPI, open dev CORS, and `appsettings.Development.json`.
+- `--no-launch-profile` — a local `Properties/launchSettings.json`, if you have one, would otherwise replace the values above.
+
+To proxy to an API somewhere else, set `services__api__http__0` (the variable Aspire sets) to its base URL before `npm run dev`.
 
 ## Auth Model
 
@@ -160,7 +188,7 @@ All endpoints under `/api/v1/` — with one exception: the card-detail read also
 | POST | /boards/{boardId}/cards | All | Create card in a board (accepts `sizeId` or `sizeName`, defaults to lowest-ordinal size). Card numbers are board-scoped (each board starts at 1 independently) |
 | GET | /boards/{boardId}/labels | All | List labels for a board |
 | POST | /boards/{boardId}/labels | Admin | Create label in a board |
-| PATCH | /boards/{boardId}/labels/{id} | Admin | Update label name/color |
+| PATCH | /boards/{boardId}/labels/{id} | Admin | Update label name/color. A name another label on the board holds → 409 (also when a concurrent create or rename takes it between the check and the save), nothing saved. Shared with MCP `update_label` via `LabelUpdateHelper` |
 | DELETE | /boards/{boardId}/labels/{id} | Admin | Delete label + cleanup card assignments |
 
 ### By-ID operations (flat, resource knows its board)
@@ -168,7 +196,7 @@ All endpoints under `/api/v1/` — with one exception: the card-detail read also
 | Resource | Endpoints |
 |----------|-----------|
 | Lanes | `GET /lanes/{id}`, `PATCH /lanes/{id}` (400 if archive lane; rejects `int.MaxValue` position), `DELETE /lanes/{id}` (400 if archive lane) |
-| Sizes | `GET /sizes/{id}`, `PATCH /sizes/{id}` (name/ordinal), `DELETE /sizes/{id}` (blocked if in use by cards) |
+| Sizes | `GET /sizes/{id}`, `PATCH /sizes/{id}` (name/ordinal; a name or ordinal another size on the board holds → 409, also when a concurrent write takes it between the check and the save, nothing saved; shared with MCP `update_size` via `SizeUpdateHelper`), `DELETE /sizes/{id}` (blocked if in use by cards) |
 | Cards | `GET /cards/{id}` (enriched: card, sizeName, user names, comments, labels, attachments, isArchived, `descriptionHistoryCount`. **Comments compat pivot (#389)**: v1 returns comments as a **plain array** — the whole thread, **oldest-activity-first** — restoring the v2.0.2 shape, plus the additive `includeDescription` projection (default true; `false` omits the description body — the card body is a dedicated response DTO, never the tracked entity, so a projected read cannot persist a blank), per-comment `createdAtUtc` (stamped once at posting, #384), and `descriptionHistoryCount`. `commentsOffset`/`commentsLimit` are **not** on v1 — they live only on v2. **v1 card detail is deprecated as a resource**: every response (incl. 404) carries a `Deprecation: @<epoch>` header + a `Link` `rel="successor-version"` → `/api/v2/cards/{id}`; no `Sunset` yet (removal at a future major, no date set). `descriptionHistoryCount` — recorded description revisions, equal to the history trail's `totalCount`; 0 or ≥2, never 1, since a first edit records both the pre-existing value and its replacement; present in every projection. Field-qualified on purpose: the store lights up further fields later and a bare `historyCount` would have to change meaning. #364), `GET /api/v2/cards/{id}` (the recommended read; **sparse versioning — v2 exists only for card detail, every other endpoint stays v1**. Field projection + comments as a `PagedResult` sub-envelope `{ items, totalCount, offset, limit }`, **newest-activity-first** by `LastUpdatedAtUtc`: omit `commentsLimit` → whole thread enveloped, clamp a given value `[1,200]`, `commentsLimit=0` = count-only; `includeDescription` + `descriptionHistoryCount` behave identically to v1. Shares `CardDetailBuilder` with v1 so the two cannot drift. No deprecation headers. #382, #389), `PATCH /cards/{id}` (accepts `sizeId`; returns the enriched `CardSummary` fields plus, on a description edit that overlapped another user's, an optional `collision` object `{ kind, field, actor: { userId, name } }`; 400 if archived. **Collision awareness (#369)** — additive and non-breaking: the response is the same flat summary with `collision` beside it when present, attached only here and at MCP `update_card`, never through the shared `CardSummaryBuilder`, so it is structurally incapable of appearing in list / search / webhook payloads. Pass `expectedDescriptionRevision` in the request body — the `descriptionHistoryCount` read before editing — for an **exact** answer (`kind: "exact"`, `field: "description"`): `collision` is present iff the description moved past that revision meanwhile, `actor` naming who was overwritten. Omit it and a best-effort **approximate** signal (`kind: "approximate"`, `field: null`) fires when someone else edited the card within a short window (`CardCollisionDetector.ApproximateWindow`, 10s) before the write. Field-general by construction — the detector is handed the field and reads that field's trail; description is the only field lit today. **Awareness, never blocking**: the save always succeeds, last-write-wins is unchanged, there is no conflict status), `DELETE /cards/{id}`, `POST /cards/{id}/reorder` (400 if archived or target is archive lane), `POST /cards/{id}/archive` (all roles; 400 if already archived), `POST /cards/{id}/restore` (accepts `{ laneId }`; all roles; 400 if not archived) |
 | Card history | `GET /cards/{id}/history` — the card's description edit trail, newest-first, each revision attributed + timestamped. Query: `field` (default `description`, unknown → 400), `format` (`diff`\|`full`\|`both`, **REST default `both`**), `from`+`to` (both or neither; returns the single-object pair shape instead of the trail), `offset` (default 0) + `limit` (1–200, **omit for the whole trail** — REST's card-list convention). Response `{ cardId, field, entries, totalCount, offset, limit }`; `totalCount` is the whole trail regardless of paging. Pages come off the newest end and the entry at a page's oldest edge is still diffed against its real predecessor (the query fetches one row past the page for exactly this). `offset`/`limit` alongside `from`/`to` → 400. Any authenticated user — visibility follows the card's. History accrues from a card's first description edit after #357 shipped (no back-fill); the trail's oldest revision carries the pre-existing value with **null** author/timestamp, because nobody observed it being written — and, on that revision alone, an additive `inferredEditor` `{ userId, name, basis }` (`basis: "creator"` = the card's creator), resolved on read in `CardHistoryBuilder` and never written to the stored row, so an inferred author and an observed one stay distinguishable by shape (#397; no inferred timestamp — creation time is not necessarily when that text was written). Whole values are stored, diffs rendered on read (`UnifiedDiff`, git-style hunks, `\n` endings). Capture is staged by `CardHistoryHelper` from both the REST PATCH and MCP `update_card` paths so the two cannot drift; that helper's `SaveWithRevisionRetryAsync` **replaces the caller's `SaveChangesAsync`** on both paths and rebuilds-and-retries when a concurrent edit wins the revision ordinal — a rebuild, not a renumber, so the seed row is never duplicated, and the rebuild **re-decides whether there is anything to record**: if the winner set the description to the same text, the retry records nothing rather than appending a duplicate revision with an empty diff (an empty diff means "oldest revision", so a duplicate would forge that). 8 immediate attempts with no pause between them — the same shape as `CardNumberHelper`. Re-measured with writers released together on one card, 8–128-way, a fresh card per round, arms interleaved (9,600 edits per shape): no retry loses ~3 of every 4 edits (~7 of 8 at 8-way), 3 immediate retries ~5%, the earlier 5-with-a-2–14 ms-pause shape ~2.5%, 5 immediate ~0.2%, 8 immediate 0 (only at 128-way did an edit ever need all 8 attempts). The likely reason a pause hurts here: the SQLite provider already retries a held write lock after a fixed 150 ms sleep, on a head read before it slept, so a pausing loser gives the lock away and sleeps on a stale head. That explanation is not settled (the size-create retry measured a pause as helping), so each allocator's retry shape follows its own measurement (#406). The retry fires only on a revision collision — a unique-constraint failure elsewhere in the same save reaches the caller as itself. `EditedAtUtc` is stamped where the ordinal is derived, so revision order and timestamp order cannot disagree; **revision order is the authority** (stamps can tie at clock resolution). Two concurrent description edits both land as attributed revisions; there is no conflict response, and last-one-wins on the card's text is unchanged from before history existed. (#357, #364, #365) |
 
@@ -177,7 +205,7 @@ All endpoints under `/api/v1/` — with one exception: the card-detail read also
 | Resource | Endpoints |
 |----------|-----------|
 | Users | `GET /users`, `GET /users/{id}`, `POST /users`, `PATCH /users/{id}`, `PATCH /users/{id}/deactivate`, `GET /auth/me` |
-| Card Labels | `GET /cards/{id}/labels`, `POST /cards/{id}/labels` (validates label belongs to same board as card), `DELETE /cards/{id}/labels/{labelId}` |
+| Card Labels | `GET /cards/{id}/labels`, `POST /cards/{id}/labels` (validates label belongs to same board as card; 409 if already assigned, including a concurrent duplicate add), `DELETE /cards/{id}/labels/{labelId}` (404 if not assigned, including a concurrent duplicate remove). The assign/unassign write is shared with MCP `add_label_to_card` / `remove_label_from_card` via `CardLabelHelper` |
 | Comments | `GET /cards/{id}/comments`, `POST /cards/{id}/comments` (400 if archived), `PATCH /comments/{id}` (400 if archived), `DELETE /comments/{id}` (400 if archived) |
 | Attachments | `GET /cards/{id}/attachments`, `POST /cards/{id}/attachments` (400 if archived), `GET /attachments/{id}` (auth required — downloads attachment content via `X-User-Key`; no browser-native `<img>` consumer), `DELETE /attachments/{id}` (400 if archived) |
 
@@ -217,9 +245,9 @@ Delivery: per-subscription fan-out; uniform SSRF guard (4-control floor incl. co
 - **ArchiveTools:** `archive_card` (all roles; moves card to archive lane), `restore_card` (all roles; requires laneId; moves card from archive to target lane)
 - **CommentTools:** `add_comment` (comment text via `contentMarkdown` — required, sole param; blocks archived cards), `update_comment` (edit comment text; own-or-admin-level; blocks archived cards; `contentMarkdown` required, sole body param), `delete_comment` (blocks archived cards; own-or-admin-level)
 - **AttachmentTools:** `upload_attachment` (5MB base64 cap — larger files up to 50MB go via the REST endpoint `POST /api/v1/cards/{cardId}/attachments`; blocks archived cards), `download_attachment` (returns base64 content), `delete_attachment` (blocks archived cards; own-or-admin-level)
-- **LabelTools:** `get_labels`, `add_label_to_card` (supports labelName; blocks archived cards), `remove_label_from_card` (supports labelName; blocks archived cards), `create_label` (admin-level), `update_label` (admin-level; name/color), `delete_label` (admin-level; cleans up CardLabel rows)
+- **LabelTools:** `get_labels`, `add_label_to_card` (supports labelName; blocks archived cards), `remove_label_from_card` (supports labelName; blocks archived cards), `create_label` (admin-level), `update_label` (admin-level; name/color; rejects a taken name), `delete_label` (admin-level; cleans up CardLabel rows)
 - **LaneTools:** `create_lane` (admin-level; `position` optional — omitted appends after the board's last lane; rejects a taken position and the reserved int.MaxValue position), `update_lane` (admin-level; name/position; rejects archive lane, position collision), `delete_lane` (admin-level; rejects archive lane or non-empty lane), `reorder_lanes` (admin-level; `orderedLaneIds` CSV = complete desired order of the board's non-archive lanes; server assigns dense 0..n-1 via a two-phase renumber under the unique (BoardId, Position) index; all-or-nothing set-equality pre-validation, archive lane rejected) (#277)
-- **SizeTools:** `create_size` (admin-level; auto-ordinal if omitted; rejects a taken ordinal or name), `update_size` (admin-level; name/ordinal; ordinal collision rejected), `delete_size` (admin-level; rejects size in use by cards), `reorder_sizes` (admin-level; `orderedSizeIds` CSV = complete desired order of the board's sizes; server assigns dense 0..n-1 via a two-phase renumber under the unique (BoardId, Ordinal) index; all-or-nothing set-equality pre-validation) (#308)
+- **SizeTools:** `create_size` (admin-level; auto-ordinal if omitted; rejects a taken ordinal or name), `update_size` (admin-level; name/ordinal; a taken name or ordinal rejected), `delete_size` (admin-level; rejects size in use by cards), `reorder_sizes` (admin-level; `orderedSizeIds` CSV = complete desired order of the board's sizes; server assigns dense 0..n-1 via a two-phase renumber under the unique (BoardId, Ordinal) index; all-or-nothing set-equality pre-validation) (#308)
 - **PruneTools:** `prune_preview` (admin-level; read-only; `{ matchCount, cards }`; filters: olderThan, laneIds, labelIds, includeArchived; excludes archived by default), `prune` (admin-level; **archive only** — no delete action and no prune_delete tool, by design per #243's exclusion list; `{ archivedCount }`)
 - **BulkCardTools:** `bulk_archive_cards`, `bulk_restore_cards` (requires targetLaneId; all cards must share the target lane's board), `bulk_update_cards` (uniform laneId/index move, sizeId/sizeName, labelIds replace — folds in bulk-move; per-card name/description not offered). All three are **all-roles** (gate via `RequireUserAsync`, matching the per-card analogs they batch) and accept `cardIds` (CSV of GUIDs) XOR `cardNumbers` (CSV) + `boardId`/`boardSlug`. **Two-phase semantics:** Phase 1 pre-validation fails loud with a single `"Error: ..."` string and performs no mutations (ref-shape/parse, card existence, board-match and target premises); Phase 2 per-card execution is best-effort with a per-item envelope `{ totalRequested, succeeded, failed, results: [{ cardId, number, status, error? }] }` (results align 1:1 with input order), one `SaveChangesAsync` at the end, one broadcast per affected board (deduplicated). No `bulk_delete_cards` — delete is irreversible, excluded by design. (#196)
 - **SearchTools:** `search_cards` (cross-board free-text search; query `q` — prefix `#` for exact card-number lookup; results grouped by board, each card carries enriched `CardSummary` shape; default limit 20, max 50; optional `boardId` ranks one board first without scoping; optional `archiveBoardId` includes archived cards from that board only; mirrors REST `GET /search/cards`)
