@@ -329,7 +329,9 @@ public class CardHistoryWiringTests(RevisionRaceFactory factory) : IClassFixture
     {
         var response = await _client.PostAsJsonAsync(path, body);
         response.EnsureSuccessStatusCode();
+
         var json = await response.Content.ReadFromJsonAsync<JsonElement>(TestAuthHelper.JsonOptions);
+
         return json.GetProperty("id").GetGuid();
     }
 

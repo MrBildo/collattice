@@ -158,9 +158,11 @@ public class CardLaneMoveParityTests(WebhookTestFactory factory) : IClassFixture
     {
         var scope = _factory.Services.CreateScope();
         _scopes.Add(scope);
+
         var db = scope.ServiceProvider.GetRequiredService<BoardDbContext>();
         var broadcaster = scope.ServiceProvider.GetRequiredService<BoardEventBroadcaster>();
         var auth = new McpAuthService(new UserResolver(db));
+
         return new CardTools(db, auth, broadcaster);
     }
 
@@ -207,7 +209,9 @@ public class CardLaneMoveParityTests(WebhookTestFactory factory) : IClassFixture
     {
         var response = await _client.PostAsJsonAsync(path, body);
         response.EnsureSuccessStatusCode();
+
         var json = await response.Content.ReadFromJsonAsync<JsonElement>(TestAuthHelper.JsonOptions);
+
         return json.GetProperty("id").GetGuid();
     }
 
