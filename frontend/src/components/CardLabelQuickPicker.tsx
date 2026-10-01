@@ -78,10 +78,11 @@ export function CardLabelQuickPicker({
               size="icon-xs"
               aria-label={`Edit labels on card #${cardNumber}`}
               aria-haspopup="listbox"
-              // Revealed on tile hover or keyboard focus where a pointer can
-              // hover; always shown on touch screens, which have no hover to
-              // reveal it with. Stays shown while its popover is open.
-              className="size-5 text-muted-foreground opacity-0 group-hover/tile:opacity-100 group-focus-visible/tile:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100 [@media(hover:none)]:opacity-100"
+              // Revealed on tile hover, or while keyboard focus is anywhere in
+              // the tile, where a pointer can hover; always shown on touch
+              // screens, which have no hover to reveal it with. Stays shown
+              // while its popover is open.
+              className="size-5 text-muted-foreground opacity-0 group-hover/tile:opacity-100 group-has-[:focus-visible]/tile:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100 [@media(hover:none)]:opacity-100"
             />
           ),
           content: <Tag className="size-3.5" />,

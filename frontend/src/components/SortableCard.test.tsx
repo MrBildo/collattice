@@ -135,9 +135,7 @@ function setup({
 // and its trigger shows only an icon, so label text found in here is the tile's
 // label badges.
 function getTile(): HTMLElement {
-  const tile = screen
-    .getByText('Tile under test')
-    .closest<HTMLElement>('[aria-roledescription="sortable"]');
+  const tile = screen.getByText('Tile under test').closest<HTMLElement>('[data-card-tile]');
   if (!tile) throw new Error('The tile element was not found');
   return tile;
 }
@@ -228,11 +226,105 @@ describe('SortableCard label picker', () => {
     expect(onParentMouseDown).toHaveBeenCalled();
   });
 
+  test('a press on the card title reaches the drag listeners', () => {
+    // Arrange
+    const { onParentMouseDown, onParentPointerDown, onParentTouchStart } = setup();
+    const title = screen.getByRole('button', { name: 'Tile under test' });
+
+    // Act
+    fireEvent.mouseDown(title);
+    fireEvent.pointerDown(title);
+    fireEvent.touchStart(title);
+
+    // Assert
+    expect(onParentMouseDown).toHaveBeenCalled();
+    expect(onParentPointerDown).toHaveBeenCalled();
+    expect(onParentTouchStart).toHaveBeenCalled();
+  });
+
   test('an archived card has no label picker', () => {
     setup({ labels: [BOARD_LABELS[0]], isArchived: true });
 
     expect(
       screen.queryByRole('button', { name: 'Edit labels on card #7' }),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe('SortableCard open-card control', () => {
+  test('the title is a button named for the card, and the tile itself is not a button', () => {
+    setup();
+
+    const title = screen.getByRole('button', { name: 'Tile under test' });
+    expect(getTile()).not.toHaveAttribute('role');
+    expect(getTile()).not.toHaveAttribute('tabindex');
+    expect(title.closest('h3')).not.toBeNull();
+  });
+
+  test('the open-card button and the label picker button are separate, neither inside the other', () => {
+    setup();
+
+    const title = screen.getByRole('button', { name: 'Tile under test' });
+    const picker = screen.getByRole('button', { name: 'Edit labels on card #7' });
+    expect(title.contains(picker)).toBe(false);
+    expect(picker.contains(title)).toBe(false);
+  });
+
+  test('Tab reaches the open-card button and then the label picker button', async () => {
+    // Arrange
+    const user = userEvent.setup();
+    setup();
+
+    // Act
+    await user.tab();
+    const first = document.activeElement;
+    await user.tab();
+    const second = document.activeElement;
+
+    // Assert
+    expect(first).toBe(screen.getByRole('button', { name: 'Tile under test' }));
+    expect(second).toBe(screen.getByRole('button', { name: 'Edit labels on card #7' }));
+  });
+
+  test.each([
+    ['Enter', '{Enter}'],
+    ['Space', ' '],
+  ])('pressing %s on the title opens the card once', async (_keyName, key) => {
+    // Arrange
+    const user = userEvent.setup();
+    const { onCardClick } = setup();
+    screen.getByRole('button', { name: 'Tile under test' }).focus();
+
+    // Act
+    await user.keyboard(key);
+
+    // Assert
+    expect(onCardClick).toHaveBeenCalledTimes(1);
+  });
+
+  test('clicking the title opens the card once', async () => {
+    // Arrange
+    const user = userEvent.setup();
+    const { onCardClick } = setup();
+
+    // Act
+    await user.click(screen.getByRole('button', { name: 'Tile under test' }));
+
+    // Assert
+    expect(onCardClick).toHaveBeenCalledTimes(1);
+  });
+
+  test('Enter on the label picker button opens the picker, not the card', async () => {
+    // Arrange
+    const user = userEvent.setup();
+    const { onCardClick } = setup();
+    screen.getByRole('button', { name: 'Edit labels on card #7' }).focus();
+
+    // Act
+    await user.keyboard('{Enter}');
+
+    // Assert
+    expect(await screen.findByRole('option', { name: 'Bug' })).toBeInTheDocument();
+    expect(onCardClick).not.toHaveBeenCalled();
   });
 });
