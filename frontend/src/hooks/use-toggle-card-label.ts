@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import axios from 'axios';
 import { addCardLabel, removeCardLabel } from '@/lib/api';
 import { queryKeys } from '@/lib/query-keys';
 import type { BoardData, CardLabelSummary } from '@/types';
@@ -38,6 +39,28 @@ function buildToggleMutationKey(cardId: string) {
   return ['cards', cardId, 'labels', 'toggle'] as const;
 }
 
+// The server already holds the state this toggle asked for: an add that finds
+// the label assigned (409), or a remove that finds it gone (404). An add's 404
+// means the card or the label no longer exists, so that one stays an error.
+function isAlreadyApplied(error: unknown, isAssigned: boolean): boolean {
+  if (!axios.isAxiosError(error)) {
+    return false;
+  }
+
+  const status = error.response?.status;
+  return isAssigned ? status === 404 : status === 409;
+}
+
+async function sendToggle(cardId: string, { label, isAssigned }: ToggleCardLabelVariables) {
+  try {
+    await (isAssigned ? removeCardLabel(cardId, label.id) : addCardLabel(cardId, label.id));
+  } catch (error) {
+    if (!isAlreadyApplied(error, isAssigned)) {
+      throw error;
+    }
+  }
+}
+
 // Toggles one label on a card straight from the board, saving immediately. The
 // tile updates optimistically so a run of quick toggles reads instantly; the
 // board and the card's own label list are refetched once the last toggle settles.
@@ -47,11 +70,15 @@ export function useToggleCardLabel({ cardId, boardId }: UseToggleCardLabelOption
 
   return useMutation({
     mutationKey: buildToggleMutationKey(cardId),
+    // One card's toggles reach the server one at a time, in the order they were
+    // made. Sent together, a quick double click's two requests race on the
+    // server and the loser fails; queued, the second one finds the first done.
+    // The tile still updates on every click, because onMutate runs at once.
+    scope: { id: `card-labels-${cardId}` },
     // Board action with an optimistic update: a failure reverts the label on the
     // tile, and the global error floor toasts the reason.
     meta: { errorMessage: "Couldn't update labels" },
-    mutationFn: ({ label, isAssigned }: ToggleCardLabelVariables) =>
-      isAssigned ? removeCardLabel(cardId, label.id) : addCardLabel(cardId, label.id),
+    mutationFn: (variables: ToggleCardLabelVariables) => sendToggle(cardId, variables),
     onMutate: async ({ label, isAssigned }: ToggleCardLabelVariables) => {
       await queryClient.cancelQueries({ queryKey: boardKey });
       queryClient.setQueryData<BoardData>(boardKey, (old) =>

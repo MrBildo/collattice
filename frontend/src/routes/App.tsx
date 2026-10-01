@@ -1,6 +1,7 @@
 import {
   DndContext,
   DragOverlay,
+  useDndContext,
   type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent,
@@ -8,7 +9,7 @@ import {
 import { SortableContext, horizontalListSortingStrategy } from '@dnd-kit/sortable';
 import { useQuery } from '@tanstack/react-query';
 import { Columns3 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AdminPanel } from '@/components/AdminPanel';
 import { BoardHeader } from '@/components/BoardHeader';
@@ -35,6 +36,37 @@ import { isLaneDragEvent } from '@/lib/dnd-active-type';
 import { useLaneResize } from '@/hooks/use-lane-resize';
 import type { CardPrefill } from '@/lib/duplicate-card';
 import type { CardItem } from '@/types';
+
+type CardTileFinder = (cardId: string) => HTMLElement | null;
+
+// Every card tile registers with the drag-and-drop context under its card's id,
+// and that registry can only be read from inside the context. This hands App a
+// way to find a tile's element from outside it.
+function CardTileFinderBridge({
+  finderRef,
+}: {
+  finderRef: React.MutableRefObject<CardTileFinder | null>;
+}) {
+  const { draggableNodes } = useDndContext();
+
+  useEffect(() => {
+    finderRef.current = (cardId) => {
+      const tile = draggableNodes.get(cardId)?.node.current;
+      if (!tile) {
+        return null;
+      }
+
+      // The tile itself when it can take focus, otherwise the first control in it.
+      if (tile.tabIndex >= 0) {
+        return tile;
+      }
+
+      return tile.querySelector<HTMLElement>('button:not([disabled]), [tabindex="0"]');
+    };
+  }, [draggableNodes, finderRef]);
+
+  return null;
+}
 
 export function App() {
   const { slug, cardNumber } = useParams<{ slug: string; cardNumber: string }>();
@@ -86,6 +118,7 @@ export function App() {
   const [createLaneId, setCreateLaneId] = useState<string | undefined>(undefined);
   const [createDialogKey, setCreateDialogKey] = useState(0);
   const [createPrefill, setCreatePrefill] = useState<CardPrefill | undefined>(undefined);
+  const findCardTileRef = useRef<CardTileFinder | null>(null);
   const [adminOpen, setAdminOpen] = useState(false);
   const [globalAdminOpen, setGlobalAdminOpen] = useState(false);
 
@@ -225,6 +258,18 @@ export function App() {
     [slug, navigate],
   );
 
+  // A duplicate's dialog opens from a card dialog that has already closed, so by
+  // default focus would fall back to the page. Put it on the new card instead, or
+  // back on the card it was copied from if nothing was created.
+  const findDuplicateReturnFocus = (createdCardId: string | null) => {
+    const findTile = findCardTileRef.current;
+    if (!findTile || !createPrefill) {
+      return null;
+    }
+
+    return (createdCardId ? findTile(createdCardId) : null) ?? findTile(createPrefill.source.id);
+  };
+
   if (!loggedIn) {
     return <LoginScreen onLogin={handleLogin} />;
   }
@@ -262,6 +307,7 @@ export function App() {
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
+        <CardTileFinderBridge finderRef={findCardTileRef} />
         <section
           ref={sectionRef}
           // When lanes exist, justify-start packs the fixed-width lane
@@ -382,6 +428,7 @@ export function App() {
           onOpenChange={setCreateOpen}
           defaultLaneId={createLaneId}
           prefill={createPrefill}
+          findReturnFocus={createPrefill ? findDuplicateReturnFocus : undefined}
         />
       )}
 

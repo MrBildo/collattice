@@ -2,6 +2,7 @@ import { describe, test, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, createElement } from 'react';
+import { AxiosError, type AxiosResponse } from 'axios';
 import { useToggleCardLabel } from './use-toggle-card-label';
 import { queryKeys } from '@/lib/query-keys';
 import type { BoardData, CardLabelSummary, CardSummary } from '@/types';
@@ -75,6 +76,18 @@ function createDeferred() {
     reject = rej;
   });
   return { promise, resolve, reject };
+}
+
+function buildHttpError(status: number) {
+  return new AxiosError(
+    `Request failed with status code ${status}`,
+    'ERR_BAD_REQUEST',
+    undefined,
+    undefined,
+    {
+      status,
+    } as AxiosResponse,
+  );
 }
 
 beforeEach(() => {
@@ -158,8 +171,9 @@ describe('useToggleCardLabel', () => {
     // Act
     act(() => hook.result.current.mutate({ label: FEATURE, isAssigned: false }));
     act(() => hook.result.current.mutate({ label: DOCS, isAssigned: false }));
-    await waitFor(() => expect(mockAddCardLabel).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(mockAddCardLabel).toHaveBeenCalledTimes(1));
     await act(async () => first.resolve());
+    await waitFor(() => expect(mockAddCardLabel).toHaveBeenCalledTimes(2));
 
     // Assert — one toggle is still in flight, so nothing refetches yet
     expect(invalidateSpy).not.toHaveBeenCalled();
@@ -170,5 +184,64 @@ describe('useToggleCardLabel', () => {
     );
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: queryKeys.cards.labels(CARD_ID) });
     expect(invalidateSpy).toHaveBeenCalledTimes(2);
+  });
+
+  test('toggles on one card are sent one at a time, in the order they were made', async () => {
+    // Arrange
+    const add = createDeferred();
+    mockAddCardLabel.mockReturnValue(add.promise);
+    mockRemoveCardLabel.mockResolvedValue(undefined);
+    const { queryClient, hook } = setup([BUG]);
+
+    // Act
+    act(() => hook.result.current.mutate({ label: FEATURE, isAssigned: false }));
+    act(() => hook.result.current.mutate({ label: FEATURE, isAssigned: true }));
+    await waitFor(() => expect(mockAddCardLabel).toHaveBeenCalledTimes(1));
+
+    // Assert — the remove waits for the add, but the tile already shows both
+    expect(mockRemoveCardLabel).not.toHaveBeenCalled();
+    expect(readLabelIds(queryClient, CARD_ID)).toEqual(['label-bug']);
+
+    await act(async () => add.resolve());
+    await waitFor(() => expect(mockRemoveCardLabel).toHaveBeenCalledWith(CARD_ID, 'label-feature'));
+  });
+
+  test('an add that finds the label already on the card counts as done, with no error', async () => {
+    // Arrange
+    mockAddCardLabel.mockRejectedValue(buildHttpError(409));
+    const { queryClient, hook } = setup([BUG]);
+
+    // Act
+    act(() => hook.result.current.mutate({ label: FEATURE, isAssigned: false }));
+
+    // Assert
+    await waitFor(() => expect(hook.result.current.isSuccess).toBe(true));
+    expect(readLabelIds(queryClient, CARD_ID)).toEqual(['label-bug', 'label-feature']);
+  });
+
+  test('a remove that finds the label already gone counts as done, with no error', async () => {
+    // Arrange
+    mockRemoveCardLabel.mockRejectedValue(buildHttpError(404));
+    const { queryClient, hook } = setup([BUG, FEATURE]);
+
+    // Act
+    act(() => hook.result.current.mutate({ label: FEATURE, isAssigned: true }));
+
+    // Assert
+    await waitFor(() => expect(hook.result.current.isSuccess).toBe(true));
+    expect(readLabelIds(queryClient, CARD_ID)).toEqual(['label-bug']);
+  });
+
+  test('an add that finds no such card or label is still an error and reverts the tile', async () => {
+    // Arrange
+    mockAddCardLabel.mockRejectedValue(buildHttpError(404));
+    const { queryClient, hook } = setup([BUG]);
+
+    // Act
+    act(() => hook.result.current.mutate({ label: FEATURE, isAssigned: false }));
+
+    // Assert
+    await waitFor(() => expect(hook.result.current.isError).toBe(true));
+    expect(readLabelIds(queryClient, CARD_ID)).toEqual(['label-bug']);
   });
 });

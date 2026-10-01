@@ -297,7 +297,7 @@ describe('CardDetailForm duplicate', () => {
       sizeId: 'size-1',
       labelIds: ['label-bug'],
       laneId: 'lane-2',
-      source: { number: 7, isArchived: false },
+      source: { id: 'card-1', number: 7, isArchived: false },
     };
     expect(onDuplicate).toHaveBeenCalledWith({ draft: expected, saved: expected });
   });
@@ -330,7 +330,7 @@ describe('CardDetailForm duplicate', () => {
     const request = onDuplicate.mock.calls[0][0];
     expect(request.draft.laneId).toBe('');
     expect(request.saved.laneId).toBe('');
-    expect(request.saved.source).toEqual({ number: 7, isArchived: true });
+    expect(request.saved.source).toEqual({ id: 'card-1', number: 7, isArchived: true });
   });
 
   test('Duplicate waits for the card labels so a copy never silently drops them', async () => {
@@ -338,5 +338,35 @@ describe('CardDetailForm duplicate', () => {
     setupDuplicate(makeCard());
 
     expect(await screen.findByRole('button', { name: 'Duplicate' })).toBeDisabled();
+  });
+
+  test('when the card labels fail to load, the dialog says why Duplicate is off and can retry', async () => {
+    // Arrange
+    const user = userEvent.setup();
+    // Twice: the labels query retries once on its own before it reports an error.
+    vi.mocked(fetchCardLabels)
+      .mockRejectedValueOnce(new Error('network down'))
+      .mockRejectedValueOnce(new Error('network down'))
+      .mockResolvedValue([bug]);
+    const { onDuplicate } = setupDuplicate(makeCard());
+
+    // Act
+    const alert = await screen.findByRole('alert', undefined, { timeout: 3000 });
+
+    // Assert — the reason is visible, tied to the button, and the picker that
+    // would start from no labels is not offered
+    expect(alert).toHaveTextContent("Couldn't load this card's labels, so it can't be duplicated.");
+    const button = screen.getByRole('button', { name: 'Duplicate' });
+    expect(button).toBeDisabled();
+    expect(button).toHaveAccessibleDescription(
+      "Couldn't load this card's labels, so it can't be duplicated.",
+    );
+    expect(screen.queryByRole('button', { name: 'Labels' })).not.toBeInTheDocument();
+
+    await user.click(within(alert).getByRole('button', { name: 'Retry' }));
+    await waitFor(() => expect(button).toBeEnabled());
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    await user.click(button);
+    expect(onDuplicate.mock.calls[0][0].saved.labelIds).toEqual(['label-bug']);
   });
 });
