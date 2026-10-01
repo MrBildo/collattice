@@ -395,7 +395,10 @@ follow-up `get_card` needed.
   can keep it current rather than hoarding detail in comments.
 - Two editors changing one description at the same moment both land, each as its
   own attributed revision, in the order they committed. There is no conflict
-  response to handle. Note what that does and does not promise: the trail records
+  response to handle, with one exception: when many edits hit one description at
+  the same instant, an edit that loses the race on every attempt returns an error
+  ending in "try again" and saves nothing. Retry the call. Note what that does and
+  does not promise: the trail records
   both edits, and the card keeps whichever text was written last — the same
   last-one-wins the card has always had. If you need the value you read to still
   be current when you write, read it back and check.
@@ -456,7 +459,8 @@ get it. Pass `full` for the whole text at each revision, or `both`.
   of the one below it.
 - **Your edit and someone else's landing at the same instant both record**, as two
   attributed revisions in commit order; `update_card` does not fail on a collision
-  and there is no conflict response to handle. If you both set the same text, the
+  and there is no conflict response to handle (short of the "try again" error under
+  heavy contention, described under `update_card`). If you both set the same text, the
   second records nothing, exactly as it would have arriving a minute later. Not
   lost-update protection: the card's text is still last-one-wins.
   `editedAtUtc` never decreases as `revision` increases, but stamps can tie —

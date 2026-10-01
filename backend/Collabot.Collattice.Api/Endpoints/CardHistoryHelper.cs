@@ -10,14 +10,20 @@ namespace Collabot.Collattice.Api.Endpoints;
 // can drift from the other on what gets recorded (the parallel-surface drift this codebase's
 // REST-and-MCP shape is most prone to).
 //
-// Staging only: rows are added to the change tracker and committed by SaveWithRevisionRetryAsync,
+// Staging only: rows are added to the change tracker and committed by TrySaveWithRevisionRetryAsync,
 // which replaces the caller's SaveChangesAsync so the card mutation and its history entry land in
 // one transaction. A card can never be left holding a new description with no record of the old one.
 internal static class CardHistoryHelper
 {
     public const string DescriptionField = "description";
 
-    // The number of attempts SaveWithRevisionRetryAsync makes before giving up on a revision-ordinal
+    // Both description write paths answer a false return from TrySaveWithRevisionRetryAsync with
+    // this, as a 409 on REST and an error on MCP: the same "try again" the card-number, lane and size
+    // allocators give. Losing every attempt is an expected outcome of many edits to one description
+    // at once, not a fault, and the caller's retry starts from the trail as it then stands.
+    public const string ContendedMessage = "Other edits to this card's description were being saved at the same time; try again.";
+
+    // The number of attempts TrySaveWithRevisionRetryAsync makes before giving up on a revision-ordinal
     // collision. The tests that drive the loop to its last attempt hold this number as their own
     // literal rather than reading it from here, so that lowering it reds them instead of quietly
     // moving them with it.
@@ -78,7 +84,7 @@ internal static class CardHistoryHelper
                 .Select(h => new HeadRevision(h.Revision, h.EditedByUserId))
                     .FirstOrDefaultAsync(ct);
 
-    // Returns the staged change so the caller can hand it to SaveWithRevisionRetryAsync, which
+    // Returns the staged change so the caller can hand it to TrySaveWithRevisionRetryAsync, which
     // needs it to rebuild the rows if another editor wins the race for the revision number. Null
     // means nothing was staged and there is no revision to race for.
     public static async Task<StagedDescriptionChange?> StageDescriptionChangeAsync
@@ -122,7 +128,9 @@ internal static class CardHistoryHelper
     // resulting trail records both edits in the order they committed. Reporting a conflict instead
     // would be lost-update protection this product has never had, fired only when two edits land
     // within microseconds of each other while two edits seconds apart still overwrite silently.
-    public static async Task SaveWithRevisionRetryAsync
+    //
+    // Returns false, with nothing saved, when every attempt lost the race for a revision.
+    public static async Task<bool> TrySaveWithRevisionRetryAsync
     (
         BoardDbContext db,
         StagedDescriptionChange? change,
@@ -132,7 +140,7 @@ internal static class CardHistoryHelper
         if (change is null)
         {
             await db.SaveChangesAsync(ct);
-            return;
+            return true;
         }
 
         // Eight attempts, retried at once with no pause between them: the card-number allocator's
@@ -146,14 +154,14 @@ internal static class CardHistoryHelper
         // then waited on inside SQLite rather than in the provider's fixed 150 ms sleep, so that
         // sleep, the earlier explanation, is not why a pause hurts here; why it does is not
         // established. Each allocator's retry shape follows its own measurement.
-        for (var attempt = 1; attempt < _maxRetryAttempts; attempt++)
+        for (var attempt = 1; attempt <= _maxRetryAttempts; attempt++)
         {
             try
             {
                 await db.SaveChangesAsync(ct);
-                return;
+                return true;
             }
-            catch (DbUpdateException ex) when (IsRevisionCollision(ex))
+            catch (DbUpdateException ex) when (IsRevisionCollision(ex) && attempt < _maxRetryAttempts)
             {
                 // Rebuild the rows against the trail's new head rather than renumbering the ones
                 // already staged: the winning edit has by now written the seed row holding the
@@ -164,11 +172,14 @@ internal static class CardHistoryHelper
                 DetachStagedRows(db, change);
                 await StageRowsAsync(db, change, ct);
             }
+            catch (DbUpdateException ex) when (IsRevisionCollision(ex))
+            {
+                // The last attempt lost too. There is nothing to rebuild for; the caller answers
+                // with ContendedMessage.
+            }
         }
 
-        // The last attempt runs outside the catch, so an exhausted retry fails the request with the
-        // collision itself: the database's own error, naming the index that was contended.
-        await db.SaveChangesAsync(ct);
+        return false;
     }
 
     private static async Task StageRowsAsync(BoardDbContext db, StagedDescriptionChange change, CancellationToken ct)

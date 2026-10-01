@@ -61,10 +61,10 @@ public class CardHistoryConcurrencyTests(CollatticeApiFactory factory) : IClassF
             rival.Id
         );
 
-        await CardHistoryHelper.SaveWithRevisionRetryAsync(rivalDb, rivalChange);
+        (await CardHistoryHelper.TrySaveWithRevisionRetryAsync(rivalDb, rivalChange)).ShouldBeTrue();
 
         // Act — the loser's staged revisions 1 and 2 are both already taken.
-        await CardHistoryHelper.SaveWithRevisionRetryAsync(loserDb, loserChange);
+        (await CardHistoryHelper.TrySaveWithRevisionRetryAsync(loserDb, loserChange)).ShouldBeTrue();
 
         // Assert — the losing edit landed instead of erroring, and landed as a real revision.
         await using var readScope = _factory.Services.CreateAsyncScope();
@@ -131,10 +131,10 @@ public class CardHistoryConcurrencyTests(CollatticeApiFactory factory) : IClassF
             rival.Id
         );
 
-        await CardHistoryHelper.SaveWithRevisionRetryAsync(rivalDb, rivalChange);
+        (await CardHistoryHelper.TrySaveWithRevisionRetryAsync(rivalDb, rivalChange)).ShouldBeTrue();
 
         // Act
-        await CardHistoryHelper.SaveWithRevisionRetryAsync(loserDb, loserChange);
+        (await CardHistoryHelper.TrySaveWithRevisionRetryAsync(loserDb, loserChange)).ShouldBeTrue();
 
         // Assert — four revisions, dense and in commit order, nothing lost and nothing duplicated.
         await using var readScope = _factory.Services.CreateAsyncScope();
@@ -183,8 +183,8 @@ public class CardHistoryConcurrencyTests(CollatticeApiFactory factory) : IClassF
             rival.Id
         );
 
-        await CardHistoryHelper.SaveWithRevisionRetryAsync(rivalDb, rivalChange);
-        await CardHistoryHelper.SaveWithRevisionRetryAsync(loserDb, loserChange);
+        (await CardHistoryHelper.TrySaveWithRevisionRetryAsync(rivalDb, rivalChange)).ShouldBeTrue();
+        (await CardHistoryHelper.TrySaveWithRevisionRetryAsync(loserDb, loserChange)).ShouldBeTrue();
 
         // Act
         var response = await _client.GetAsync($"/api/v1/cards/{cardId}/history");
@@ -241,10 +241,10 @@ public class CardHistoryConcurrencyTests(CollatticeApiFactory factory) : IClassF
             rival.Id
         );
 
-        await CardHistoryHelper.SaveWithRevisionRetryAsync(rivalDb, rivalChange);
+        (await CardHistoryHelper.TrySaveWithRevisionRetryAsync(rivalDb, rivalChange)).ShouldBeTrue();
 
         // Act
-        await CardHistoryHelper.SaveWithRevisionRetryAsync(loserDb, loserChange);
+        (await CardHistoryHelper.TrySaveWithRevisionRetryAsync(loserDb, loserChange)).ShouldBeTrue();
 
         // Assert — exactly the trail these two edits leave when they arrive one after the other
         // instead of at once. The second one changes nothing and records nothing, either way.
@@ -318,10 +318,10 @@ public class CardHistoryConcurrencyTests(CollatticeApiFactory factory) : IClassF
             rival.Id
         );
 
-        await CardHistoryHelper.SaveWithRevisionRetryAsync(rivalDb, rivalChange);
+        (await CardHistoryHelper.TrySaveWithRevisionRetryAsync(rivalDb, rivalChange)).ShouldBeTrue();
 
         // Act
-        await CardHistoryHelper.SaveWithRevisionRetryAsync(loserDb, loserChange);
+        (await CardHistoryHelper.TrySaveWithRevisionRetryAsync(loserDb, loserChange)).ShouldBeTrue();
 
         // Assert
         await using var readScope = _factory.Services.CreateAsyncScope();
@@ -372,12 +372,13 @@ public class CardHistoryConcurrencyTests(CollatticeApiFactory factory) : IClassF
         var stagedIdsBefore = StagedHistoryIds(db);
 
         // Act
-        var act = () => CardHistoryHelper.SaveWithRevisionRetryAsync(db, change);
+        var act = () => CardHistoryHelper.TrySaveWithRevisionRetryAsync(db, change);
         await Should.ThrowAsync<DbUpdateException>(act);
 
         // Assert — the discriminator. A retry detaches the staged rows and builds replacements, so
-        // surviving with the same identities is what proves no retry ran. The exception type alone
-        // does not: an exhausted retry loop rethrows this same type on its final attempt.
+        // surviving with the same identities is what proves no retry ran. The throw alone proves
+        // less: it says the failure was not treated as a revision collision on the last attempt, not
+        // that no attempt before it was.
         StagedHistoryIds(db).ShouldBe(stagedIdsBefore);
     }
 

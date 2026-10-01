@@ -22,6 +22,8 @@ namespace Collabot.Collattice.Api.Tests;
 // the retry answers normally and one that commits through a plain save fails the request.
 public class CardHistoryWiringTests(RevisionRaceFactory factory) : IClassFixture<RevisionRaceFactory>
 {
+    private const string _contendedReason = "were being saved at the same time; try again";
+
     private readonly RevisionRaceFactory _factory = factory;
     private readonly HttpClient _client = factory.CreateClient();
 
@@ -145,13 +147,14 @@ public class CardHistoryWiringTests(RevisionRaceFactory factory) : IClassFixture
     [Theory]
     [InlineData(EntryPoint.RestPatch)]
     [InlineData(EntryPoint.McpUpdateCard)]
-    public async Task DescriptionEdit_ExhaustingEveryRetryAttempt_FailsTheRequestOnTheCollision(EntryPoint entryPoint)
+    public async Task DescriptionEdit_ExhaustingEveryRetryAttempt_AsksTheCallerToTryAgain(EntryPoint entryPoint)
     {
         // Arm a collision for every attempt, so even the last is lost and the budget runs out. The
-        // request fails rather than hanging or silently dropping the edit, and the loop terminates.
-        // The failure on its own would not distinguish exhaustion from a retry-less first-collision
-        // failure; the fired-count check is what proves the loop ran the full budget before giving
-        // up, and it is why this reds too if the retry leaves the entry point.
+        // request answers "try again" rather than hanging, failing with a 500, or silently dropping
+        // the edit, and the loop terminates. The answer on its own would not distinguish exhaustion
+        // from a retry-less first-collision answer; the fired-count check is what proves the loop ran
+        // the full budget before giving up, and it is why this reds too if the retry leaves the entry
+        // point.
         TestAuthHelper.SetAdminAuth(_client, _factory);
         var cardId = await CreateCardAsync($"Exhaustion Race {entryPoint}", "start");
         var rival = await TestAuthHelper.CreateUserAsync(_client, _factory, $"Exhaustion Rival {entryPoint}", UserRole.HumanUser);
@@ -163,15 +166,25 @@ public class CardHistoryWiringTests(RevisionRaceFactory factory) : IClassFixture
             // Act
             var outcome = await EditDescriptionAsync(entryPoint, cardId, "my wording");
 
-            // Assert — every attempt met a collision, and the exhausted write failed the request.
+            // Assert — every attempt met a collision, and the exhausted write asked to be retried.
             _factory.Interceptor.FiredCount.ShouldBe(AllocatorRetryBudget.Attempts);
             outcome.Succeeded.ShouldBeFalse();
-            outcome.ShouldHaveFailedOnCollision("CardFieldHistories.Revision");
+            outcome.ShouldHaveAskedToTryAgain(_contendedReason);
         }
         finally
         {
             _factory.Interceptor.Disarm();
         }
+
+        // Nothing of the exhausted edit was saved: the card keeps the last rival's text, and the
+        // trail holds the seed plus one revision per injected rival.
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<BoardDbContext>();
+        var card = await db.Cards.AsNoTracking().FirstAsync(c => c.Id == cardId);
+        var revisions = await db.CardFieldHistories.CountAsync(h => h.CardId == cardId);
+
+        card.DescriptionMarkdown.ShouldBe($"rival edit {AllocatorRetryBudget.Attempts}");
+        revisions.ShouldBe(AllocatorRetryBudget.Attempts + 1);
     }
 
     public enum EntryPoint
