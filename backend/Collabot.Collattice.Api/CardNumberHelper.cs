@@ -1,4 +1,5 @@
 using Collabot.Collattice.Api.Models;
+using Collabot.Collattice.Api.Persistence;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
@@ -38,6 +39,8 @@ internal static class CardNumberHelper
         CancellationToken ct = default
     )
     {
+        using var expected = ExpectedSaveFailure.Expect(IsUniqueConstraintViolation);
+
         for (var attempt = 0; attempt < _maxAttempts; attempt++)
         {
             card.Number = await NextNumberAsync(db, boardId, ct);
@@ -71,6 +74,8 @@ internal static class CardNumberHelper
     )
     {
         card.IsTemp = false;
+
+        using var expected = ExpectedSaveFailure.Expect(IsUniqueConstraintViolation);
 
         for (var attempt = 0; attempt < _maxAttempts; attempt++)
         {

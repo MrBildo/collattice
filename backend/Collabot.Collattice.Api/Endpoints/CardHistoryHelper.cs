@@ -1,4 +1,5 @@
 using Collabot.Collattice.Api.Models;
+using Collabot.Collattice.Api.Persistence;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
@@ -142,6 +143,8 @@ internal static class CardHistoryHelper
             await db.SaveChangesAsync(ct);
             return true;
         }
+
+        using var expected = ExpectedSaveFailure.Expect(IsRevisionCollision);
 
         // Eight attempts, retried at once with no pause between them: the card-number allocator's
         // shape. Measured on this helper with writers released together on one card, 8- to

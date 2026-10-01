@@ -168,9 +168,14 @@ if (!isSpecialDataSource)
     }
 }
 
-builder.Services.AddDbContext<BoardDbContext>(options => options
+// EF Core logs through ExpectedSaveFailureLoggerFactory so a save failure the code declares it
+// handles (a lost race on a unique index) is not written as an error.
+builder.Services.AddSingleton<ExpectedSaveFailureLoggerFactory>();
+
+builder.Services.AddDbContext<BoardDbContext>((serviceProvider, options) => options
     .UseSqlite(connectionString)
-    .AddInterceptors(SqliteBusyTimeoutInterceptor.Instance));
+    .AddInterceptors(SqliteBusyTimeoutInterceptor.Instance)
+    .UseLoggerFactory(serviceProvider.GetRequiredService<ExpectedSaveFailureLoggerFactory>()));
 
 builder.Services.Configure<AttachmentSettings>(builder.Configuration.GetSection(AttachmentSettings.SectionName));
 builder.Services.Configure<TempCardSweepSettings>(builder.Configuration.GetSection(TempCardSweepSettings.SectionName));

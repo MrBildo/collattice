@@ -1,4 +1,5 @@
 using Collabot.Collattice.Api.Models;
+using Collabot.Collattice.Api.Persistence;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
@@ -53,6 +54,8 @@ internal static class LaneUpdateHelper
         {
             lane.Position = newPosition;
         }
+
+        using var expected = ExpectedSaveFailure.Expect(IsPositionCollision);
 
         try
         {

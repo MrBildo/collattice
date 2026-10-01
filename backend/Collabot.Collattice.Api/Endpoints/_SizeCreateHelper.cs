@@ -1,4 +1,5 @@
 using Collabot.Collattice.Api.Models;
+using Collabot.Collattice.Api.Persistence;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
@@ -44,6 +45,8 @@ internal static class SizeCreateHelper
         CancellationToken ct = default
     )
     {
+        using var expected = ExpectedSaveFailure.Expect(IsUniqueCollision);
+
         for (var attempt = 0; attempt < _maxAttempts; attempt++)
         {
             // Asked on every attempt, not once before the loop: a collision can also be a concurrent
