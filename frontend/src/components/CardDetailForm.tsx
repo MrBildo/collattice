@@ -1086,13 +1086,19 @@ export const CardDetailForm = forwardRef<CardDetailFormHandle, CardDetailFormPro
           </div>
         )}
 
-        {/* Footer */}
-        <div className="flex items-center justify-between border-t px-6 py-3">
+        {/* Footer. It wraps rather than overflows: on a phone-width dialog a
+            delete confirmation's longer label is enough to push the last button
+            past the edge, out of reach. The right-hand controls carry ml-auto,
+            which keeps them on the right on a wide screen and when they drop to
+            a line of their own. The archived actions are display:contents so
+            they wrap one button at a time, which lets Close share a line with
+            the delete confirmation instead of stacking a third row. */}
+        <div className="flex flex-wrap items-center gap-2 border-t px-6 py-3">
           {isArchived ? (
             /* Archived card footer */
-            <div className="flex items-center gap-2">
+            <div className="contents">
               {showRestorePicker && lanes && lanes.length > 0 ? (
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <Select
                     value={restoreLaneId ?? ''}
                     onValueChange={(v) => v && setRestoreLaneId(v)}
@@ -1146,7 +1152,7 @@ export const CardDetailForm = forwardRef<CardDetailFormHandle, CardDetailFormPro
             </div>
           ) : showArchiveActions ? (
             /* Active card — expanded archive actions */
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Button size="sm" onClick={handleArchiveConfirm} disabled={archiveMutation.isPending}>
                 <Archive className="mr-1 h-4 w-4" />
                 {archiveMutation.isPending ? 'Archiving...' : 'Archive'}
@@ -1174,7 +1180,7 @@ export const CardDetailForm = forwardRef<CardDetailFormHandle, CardDetailFormPro
             </div>
           ) : (
             /* Active card — default state with archive button (all roles can archive) */
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Button variant="outline" size="sm" onClick={handleArchiveClick}>
                 <Archive className="mr-1 h-4 w-4" />
                 Archive
@@ -1183,7 +1189,7 @@ export const CardDetailForm = forwardRef<CardDetailFormHandle, CardDetailFormPro
             </div>
           )}
           {!isArchived && !showArchiveActions && (
-            <div className="flex items-center gap-2">
+            <div className="ml-auto flex flex-wrap items-center gap-2">
               {externalUpdateCount > 0 && (
                 // A solid amber chip (the accent surface paired with its own
                 // foreground) so the warning stays legible in both themes —
@@ -1217,7 +1223,7 @@ export const CardDetailForm = forwardRef<CardDetailFormHandle, CardDetailFormPro
             </div>
           )}
           {isArchived && (
-            <Button variant="outline" size="sm" onClick={handleClose}>
+            <Button variant="outline" size="sm" className="ml-auto" onClick={handleClose}>
               Close
             </Button>
           )}
