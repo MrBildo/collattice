@@ -16,14 +16,14 @@ namespace Collabot.Collattice.Api.Hosting;
 // is a conflict, not a not-found, because only the caller's retry can tell what is gone now; that
 // retry gets the endpoint's own precise answer.
 //
-// Deliberately narrow. Only these two failures are translated, and nothing in the model makes
-// either one mean anything else: there are no concurrency tokens, so an update or delete that
-// touches no row means the row was deleted, and a foreign-key failure means a referenced row is
-// missing. Every other exception still reaches the caller as a 500, and the translated one is
-// still logged.
+// Deliberately narrow. Only these two failures are translated. A foreign-key failure means a
+// referenced row is missing. An update or delete that touches no row means the row was deleted, or
+// a concurrency token on it no longer holds the value it was loaded with (another request changed
+// it meanwhile), which is why the message says "changed or deleted". Every other exception still
+// reaches the caller as a 500, and the translated one is still logged.
 internal static class ConcurrentDeleteConflict
 {
-    public const string Message = "Something this change refers to was deleted at the same moment. Reload and try again.";
+    public const string Message = "Something this change refers to was changed or deleted at the same moment. Reload and try again.";
 
     // SQLITE_CONSTRAINT_FOREIGNKEY. A unique-index failure shares the primary code 19 and is not
     // matched.

@@ -91,7 +91,7 @@ public class McpServerErrorWrapperTests(CollatticeApiFactory factory) : IClassFi
         // Assert — the same shape a tool's own refusal takes, naming nothing internal
         var text = result.Content.OfType<TextContentBlock>().Single().Text;
 
-        text.ShouldBe("Error: Something this change refers to was deleted at the same moment. Reload and try again.");
+        text.ShouldBe("Error: Something this change refers to was changed or deleted at the same moment. Reload and try again.");
     }
 
     [Fact]

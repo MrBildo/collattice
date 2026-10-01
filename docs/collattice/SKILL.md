@@ -779,7 +779,7 @@ success.
 
 **A write that races a delete says so.** If the card, lane, label or size a call
 refers to is deleted at the same moment, the call returns `Error: Something this
-change refers to was deleted at the same moment. Reload and try again.` and nothing
+change refers to was changed or deleted at the same moment. Reload and try again.` and nothing
 from it is applied. Re-read before retrying; the thing is usually gone.
 
 **Respect the archive freeze.** Archived cards reject edits, comments, label

@@ -20,7 +20,7 @@ namespace Collabot.Collattice.Api.Tests;
 public class ConcurrentDeleteRaceTests(ConcurrentDeleteRaceFactory factory) : IClassFixture<ConcurrentDeleteRaceFactory>, IDisposable
 {
     private const string _historyInsert = "INSERT INTO \"CardFieldHistories\"";
-    private const string _lostToDelete = "Error: Something this change refers to was deleted at the same moment. Reload and try again.";
+    private const string _lostToDelete = "Error: Something this change refers to was changed or deleted at the same moment. Reload and try again.";
 
     private readonly ConcurrentDeleteRaceFactory _factory = factory;
     private readonly HttpClient _client = factory.CreateClient();
@@ -151,7 +151,7 @@ public class ConcurrentDeleteRaceTests(ConcurrentDeleteRaceFactory factory) : IC
         // Assert
         restFired.ShouldBe(1);
         restResponse.StatusCode.ShouldBe(HttpStatusCode.Conflict);
-        (await restResponse.Content.ReadAsStringAsync()).ShouldContain("was deleted at the same moment");
+        (await restResponse.Content.ReadAsStringAsync()).ShouldContain("was changed or deleted at the same moment");
 
         mcpFired.ShouldBe(1);
         mcpResult.ShouldBe(_lostToDelete);
