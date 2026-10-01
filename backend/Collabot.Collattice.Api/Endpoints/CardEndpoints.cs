@@ -370,9 +370,13 @@ internal static class CardEndpoints
             await db.SaveChangesAsync(ct);
             await WebhookEventFactory.PublishCardMovedAsync(db, broadcaster, card, sourceLane, fromPosition, targetLane, http.CurrentUser(), ct);
 
-            var boardLaneIds = await db.Lanes.Where(x => x.BoardId == targetLane.BoardId).Select(x => x.Id).ToListAsync(ct);
             var lanes = await db.Lanes.Where(x => x.BoardId == targetLane.BoardId).OrderBy(l => l.Position).ToListAsync(ct);
-            var cards = await db.Cards.Where(x => boardLaneIds.Contains(x.LaneId)).OrderBy(c => c.LaneId).ThenBy(c => c.Position).ToListAsync(ct);
+
+            // Drafts are left out like every other card read, so one user's unsaved card never reaches
+            // another. Archived cards stay in, because this response carries the whole board, archive lane included.
+            var cardsQuery = CardQueryHelper.BoardCards(db.Cards, db.Lanes, targetLane.BoardId, includeArchived: true);
+            var cards = await CardQueryHelper.OrderForBoard(cardsQuery).ToListAsync(ct);
+
             return Results.Ok(new { lanes, cards });
         }).RequireAuth();
 
