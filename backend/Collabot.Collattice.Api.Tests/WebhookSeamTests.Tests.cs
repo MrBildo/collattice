@@ -617,6 +617,37 @@ public sealed class WebhookSeamTests(WebhookTestFactory factory) : IClassFixture
         fromByCard[cards[2]].GetProperty("position").GetInt32().ShouldBe(20);
     }
 
+    [Fact]
+    public async Task McpBulkUpdateSameLane_TwoCardsToTheTop_ReportsWhereTheBatchPlacedThem()
+    {
+        // Arrange — [A, B, C, D]
+        var sink = Sink;
+        var (laneId, _, cards) = await SeedBoardAsync(4);
+        sink.Clear();
+
+        // Act — C and D to the top, in that order
+        var result = await CreateBulkTools().BulkUpdateCardsAsync
+        (
+            CollatticeApiFactory.TestAdminAuthKey,
+            cardIds: $"{cards[2]},{cards[3]}",
+            laneId: laneId
+        );
+
+        // Assert — the lane is [C, D, A, B]; only the batch reports, C from 20 to 0 and D from 30 to 10
+        result.ShouldContain("\"succeeded\":2");
+        sink.Captured.Count.ShouldBe(2);
+        sink.Captured.ShouldAllBe(e => e.EventType == "card.moved");
+
+        var moves = sink.Captured
+            .Select(e => Serialize(e).GetProperty("data"))
+                .ToDictionary(d => d.GetProperty("card").GetProperty("id").GetGuid());
+
+        moves[cards[2]].GetProperty("from").GetProperty("position").GetInt32().ShouldBe(20);
+        moves[cards[2]].GetProperty("to").GetProperty("position").GetInt32().ShouldBe(0);
+        moves[cards[3]].GetProperty("from").GetProperty("position").GetInt32().ShouldBe(30);
+        moves[cards[3]].GetProperty("to").GetProperty("position").GetInt32().ShouldBe(10);
+    }
+
     // ── Scenario 5: SSE byte-for-byte unchanged across all converted sites ────────
 
     [Fact]

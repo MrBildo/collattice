@@ -662,6 +662,8 @@ Archive N cards (each to its board's archive lane).
 Restore N archived cards into **one** target lane. All cards must be on that lane's
 board — cross-board mixing is rejected up front.
 - **Params:** `authKey`, `targetLaneId` (GUID), card refs.
+- Restored cards go to the top of the target lane, next to each other in the order
+  you list them.
 
 #### `bulk_update_cards`
 Apply a uniform update across N cards — a lane/position move, a size change, and/or
@@ -670,6 +672,9 @@ name/description edits are **not** offered. When any board-scoped field (lane, s
 labels) is set, all cards must share one board.
 - **Params:** `authKey`, card refs. At least one of: `laneId` (+ optional `index`),
   `sizeId`/`sizeName`, `labelIds` (replaces the set; empty clears).
+- With `laneId`, the moved cards land next to each other in the order you list them,
+  starting at `index` (default `0`, the top). `index` counts only the lane's cards
+  that are not being moved, and those keep their order.
 - Archived cards are rejected per-card.
 
 > There is no `bulk_delete_cards`. Deletion is irreversible and is intentionally
