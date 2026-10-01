@@ -8,6 +8,8 @@ namespace Collabot.Collattice.Api.Endpoints;
 
 internal static class CardEndpoints
 {
+    private const string _notADraftMessage = "Card is not a temp card.";
+
     public static RouteGroupBuilder MapCardEndpoints(this RouteGroupBuilder group)
     {
         // Board-scoped listing and creation
@@ -519,7 +521,7 @@ internal static class CardEndpoints
 
             if (!card.IsTemp)
             {
-                return Results.BadRequest("Card is not a temp card.");
+                return Results.BadRequest(_notADraftMessage);
             }
 
             if (http.CurrentUser().Id != card.CreatedByUserId)
@@ -530,9 +532,16 @@ internal static class CardEndpoints
             card.LastUpdatedAtUtc = DateTimeOffset.UtcNow;
             card.LastUpdatedByUserId = http.CurrentUser().Id;
 
-            if (!await CardNumberHelper.TryFinalizeCardNumberAsync(db, card, card.BoardId, ct))
+            try
             {
-                return Results.Conflict(CardNumberHelper.ContendedMessage);
+                if (!await CardNumberHelper.TryFinalizeCardNumberAsync(db, card, card.BoardId, ct))
+                {
+                    return Results.Conflict(CardNumberHelper.ContendedMessage);
+                }
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return await AnswerDraftSettledMeanwhileAsync(db, id, ct);
             }
 
             // card.created fires here, on finalize — never at temp-insert (a temp card is
@@ -552,7 +561,7 @@ internal static class CardEndpoints
 
             if (!card.IsTemp)
             {
-                return Results.BadRequest("Card is not a temp card.");
+                return Results.BadRequest(_notADraftMessage);
             }
 
             if (http.CurrentUser().Id != card.CreatedByUserId)
@@ -561,12 +570,28 @@ internal static class CardEndpoints
             }
 
             db.Cards.Remove(card);
-            await db.SaveChangesAsync(ct);
+
+            try
+            {
+                await db.SaveChangesAsync(ct);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return await AnswerDraftSettledMeanwhileAsync(db, id, ct);
+            }
 
             return Results.NoContent();
         }).RequireAuth();
 
         return group;
+
+        // A finalize or cancel whose save found the draft already finalized or cancelled by another
+        // request since it was loaded. It answers as it would have arriving after that request: no
+        // longer a draft if the card is still there, not found if it was cancelled.
+        static async Task<IResult> AnswerDraftSettledMeanwhileAsync(BoardDbContext db, Guid id, CancellationToken ct) =>
+            await db.Cards.AnyAsync(c => c.Id == id, ct)
+                ? Results.BadRequest(_notADraftMessage)
+                : Results.NotFound();
 
         // Validates that every requested label belongs to the board, returning the
         // validated list (empty when none requested) or a REST-worded error. The
