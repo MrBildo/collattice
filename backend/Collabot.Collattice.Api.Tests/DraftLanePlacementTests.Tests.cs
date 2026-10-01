@@ -58,7 +58,7 @@ public class DraftLanePlacementTests(CollatticeApiFactory factory) : IClassFixtu
     }
 
     [Fact]
-    public async Task McpMoveCard_ToTheLastVisibleIndex_LandsLastAndReportsThatIndex()
+    public async Task MoveCard_OverMcpToTheLastVisibleIndex_LandsLastAndReportsThatIndex()
     {
         // Arrange
         var board = await SeedBoardAsync();
@@ -72,7 +72,7 @@ public class DraftLanePlacementTests(CollatticeApiFactory factory) : IClassFixtu
     }
 
     [Fact]
-    public async Task McpMoveCard_PastTheVisibleEnd_ReportsTheIndexItLandedAt()
+    public async Task MoveCard_OverMcpPastTheVisibleEnd_ReportsTheIndexItLandedAt()
     {
         // Arrange
         var board = await SeedBoardAsync();
@@ -86,7 +86,7 @@ public class DraftLanePlacementTests(CollatticeApiFactory factory) : IClassFixtu
     }
 
     [Fact]
-    public async Task McpUpdateCard_FromAnotherLaneToTheEndIndex_LandsLast()
+    public async Task UpdateCard_OverMcpFromAnotherLaneToTheEndIndex_LandsLast()
     {
         // Arrange
         var board = await SeedBoardAsync();
@@ -100,7 +100,7 @@ public class DraftLanePlacementTests(CollatticeApiFactory factory) : IClassFixtu
     }
 
     [Fact]
-    public async Task McpBulkUpdate_WithinTheLaneToTheLastVisibleIndex_LandsLast()
+    public async Task BulkUpdate_OverMcpWithinTheLaneToTheLastVisibleIndex_LandsLast()
     {
         // Arrange
         var board = await SeedBoardAsync();
@@ -192,9 +192,11 @@ public class DraftLanePlacementTests(CollatticeApiFactory factory) : IClassFixtu
     {
         var scope = _factory.Services.CreateScope();
         _scopes.Add(scope);
+
         var db = scope.ServiceProvider.GetRequiredService<BoardDbContext>();
         var auth = scope.ServiceProvider.GetRequiredService<McpAuthService>();
         var broadcaster = scope.ServiceProvider.GetRequiredService<BoardEventBroadcaster>();
+
         return new CardTools(db, auth, broadcaster);
     }
 
@@ -202,10 +204,12 @@ public class DraftLanePlacementTests(CollatticeApiFactory factory) : IClassFixtu
     {
         var scope = _factory.Services.CreateScope();
         _scopes.Add(scope);
+
         var db = scope.ServiceProvider.GetRequiredService<BoardDbContext>();
         var auth = scope.ServiceProvider.GetRequiredService<McpAuthService>();
         var broadcaster = scope.ServiceProvider.GetRequiredService<BoardEventBroadcaster>();
         var sink = scope.ServiceProvider.GetRequiredService<IWebhookSink>();
+
         return new BulkCardTools(db, auth, broadcaster, sink);
     }
 
