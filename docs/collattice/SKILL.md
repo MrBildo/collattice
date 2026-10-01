@@ -557,8 +557,12 @@ not delete those cards.
 ### Lanes
 
 #### `create_lane` *(admin-level)*
-Create a lane on a board.
-- **Params:** `authKey`, `boardId` (GUID), `name`, `position` (ordering value).
+Create a lane on a board. If you omit `position`, the lane is appended after the
+board's last lane. A position already held by another lane on the board is a
+conflict and is rejected. `int.MaxValue` is reserved for the archive lane, and an
+omitted position is rejected when no position is free after the last lane — pass an
+explicit one.
+- **Params:** `authKey`, `boardId` (GUID), `name`. Optional: `position` (ordering value).
 
 #### `update_lane` *(admin-level)*
 Update a lane's name and/or position. A position already held by another lane on

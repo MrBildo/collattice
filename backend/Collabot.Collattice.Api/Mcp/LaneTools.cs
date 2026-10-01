@@ -15,13 +15,13 @@ namespace Collabot.Collattice.Api.Mcp;
 public sealed class LaneTools(BoardDbContext db, McpAuthService auth, BoardEventBroadcaster broadcaster)
 {
     [McpServerTool(Name = "create_lane", Destructive = false)]
-    [Description("Create a lane (column) on a board. Requires Administrator or AgentAdministrator role. Position is the lane's ordering value; int.MaxValue is reserved for the archive lane and is rejected.")]
+    [Description("Create a lane (column) on a board. Requires Administrator or AgentAdministrator role. Position is the lane's ordering value; omit it to append the lane after the board's last lane. A position already taken by another lane on the board is a conflict, and int.MaxValue is reserved for the archive lane and is rejected.")]
     public async Task<string> CreateLaneAsync
     (
         [Description("Your auth key")] string authKey,
         [Description("The board ID to create the lane on")] Guid boardId,
         [Description("The lane name")] string name,
-        [Description("The lane's position (ordering value)")] int position,
+        [Description("The lane's position (ordering value). Optional; omitted appends after the board's last lane.")] int? position = null,
         CancellationToken ct = default
     )
     {
@@ -41,14 +41,11 @@ public sealed class LaneTools(BoardDbContext db, McpAuthService auth, BoardEvent
             return "Error: Name is required.";
         }
 
-        if (position == int.MaxValue)
+        var created = await LanePositionHelper.CreateAsync(db, boardId, name, position, ct);
+        if (created.Lane is not Lane lane)
         {
-            return "Error: Position value is reserved.";
+            return $"Error: {created.Error}";
         }
-
-        var lane = new Lane { Id = Guid.NewGuid(), BoardId = boardId, Name = name, Position = position };
-        db.Lanes.Add(lane);
-        await db.SaveChangesAsync(ct);
 
         // lane.created — REST/MCP emit the identical event through the shared factory.
         await WebhookEventFactory.PublishLaneCreatedAsync(db, broadcaster, lane, user!, ct);

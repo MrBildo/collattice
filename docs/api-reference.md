@@ -18,7 +18,7 @@ All endpoints are under `/api/v1/`, with one exception: the card-detail read als
 |--------|------|------|-------|
 | GET | /boards/{boardId}/board | All | Composite: lanes + cards + sizes |
 | GET | /boards/{boardId}/lanes | All | List lanes |
-| POST | /boards/{boardId}/lanes | Admin | Create lane |
+| POST | /boards/{boardId}/lanes | Admin | Create lane. Body `{ name, position? }` — omit `position` to append after the board's last lane; a taken position returns 409; 400 when `position` is the reserved `int.MaxValue`, or when it is omitted and no position is free after the last lane |
 | POST | /boards/{boardId}/lanes/reorder | Admin | Reorder all non-archive lanes. Body `{ laneIds }` — complete desired order; all-or-nothing |
 | GET | /boards/{boardId}/cards | All | List cards (enriched: labels, sizes, comment/attachment counts). Returns a `{ items, totalCount, offset, limit }` paged envelope. Query params: `since`, `labelId`, `laneId`, `search`, `includeArchived` (default `false`), `offset` (default `0`), `limit` |
 | POST | /boards/{boardId}/cards | All | Create card |

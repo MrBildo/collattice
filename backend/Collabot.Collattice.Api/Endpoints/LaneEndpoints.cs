@@ -28,14 +28,13 @@ internal static class LaneEndpoints
                 return Results.BadRequest("Name is required.");
             }
 
-            if (request.Position == int.MaxValue)
+            var created = await LanePositionHelper.CreateAsync(db, boardId, request.Name, request.Position, ct);
+            if (created.Lane is not Lane lane)
             {
-                return Results.BadRequest("Position value is reserved.");
+                return created.IsConflict
+                    ? Results.Conflict(created.Error)
+                    : Results.BadRequest(created.Error);
             }
-
-            var lane = new Lane { Id = Guid.NewGuid(), BoardId = boardId, Name = request.Name, Position = request.Position };
-            db.Lanes.Add(lane);
-            await db.SaveChangesAsync(ct);
 
             // lane.created — same single board bell, plus one webhook event.
             await WebhookEventFactory.PublishLaneCreatedAsync(db, broadcaster, lane, http.CurrentUser(), ct);
