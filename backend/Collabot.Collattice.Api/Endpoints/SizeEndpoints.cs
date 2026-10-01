@@ -107,28 +107,13 @@ internal static class SizeEndpoints
             var oldName = size.Name;
             var oldOrdinal = size.Ordinal;
 
-            if (request.Name is not null)
+            var (error, isConflict) = await SizeUpdateHelper.UpdateAsync(db, size, request.Name, request.Ordinal, ct);
+            if (error is not null)
             {
-                if (string.IsNullOrWhiteSpace(request.Name))
-                {
-                    return Results.BadRequest("Name cannot be empty.");
-                }
-
-                size.Name = request.Name;
+                return isConflict
+                    ? Results.Conflict(error)
+                    : Results.BadRequest(error);
             }
-
-            if (request.Ordinal is not null)
-            {
-                var newOrd = request.Ordinal.Value;
-                if (await db.CardSizes.AnyAsync(x => x.BoardId == size.BoardId && x.Ordinal == newOrd && x.Id != id, ct))
-                {
-                    return Results.Conflict(SizeCreateHelper.TakenMessage);
-                }
-
-                size.Ordinal = newOrd;
-            }
-
-            await db.SaveChangesAsync(ct);
 
             // Split by axis: a name change → size.renamed; an ordinal change → size.reordered
             // (the board's full new order). Both can co-fire from one PATCH; PublishCoalesced rings

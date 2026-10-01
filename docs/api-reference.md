@@ -26,7 +26,7 @@ All endpoints are under `/api/v1/`, with one exception: the card-detail read als
 | POST | /boards/{boardId}/sizes | Admin | Create size. Body `{ name, ordinal? }` — omit `ordinal` to place it one past the board's highest; a taken ordinal or name returns 409; 400 when `ordinal` is omitted and no ordinal is free after the highest |
 | GET | /boards/{boardId}/labels | All | List labels for a board |
 | POST | /boards/{boardId}/labels | Admin | Create label |
-| PATCH | /boards/{boardId}/labels/{id} | Admin | Update label name/color |
+| PATCH | /boards/{boardId}/labels/{id} | Admin | Update label name/color. A name another label on the board holds → 409, nothing saved |
 | DELETE | /boards/{boardId}/labels/{id} | Admin | Delete label + cleanup card assignments |
 
 ## By-ID Operations
@@ -34,7 +34,7 @@ All endpoints are under `/api/v1/`, with one exception: the card-detail read als
 | Resource | Endpoints |
 |----------|-----------|
 | Lanes | `GET /lanes/{id}`, `PATCH /lanes/{id}`, `DELETE /lanes/{id}` |
-| Sizes | `GET /sizes/{id}`, `PATCH /sizes/{id}` (name/ordinal), `DELETE /sizes/{id}` (blocked if in use) |
+| Sizes | `GET /sizes/{id}`, `PATCH /sizes/{id}` (name/ordinal; a name or ordinal another size on the board holds → 409, nothing saved), `DELETE /sizes/{id}` (blocked if in use) |
 | Cards | `GET /cards/{id}` (enriched detail; comments as a plain array — **deprecated** in favour of `GET /api/v2/cards/{id}`; see [Reading a card](#reading-a-card); includes `descriptionHistoryCount`, see [Card History](#card-history)), `GET /api/v2/cards/{id}` (the recommended read — field projection + paged comments; see [Reading a card](#reading-a-card)), `PATCH /cards/{id}` (a description edit can carry a [collision notice](#collision-awareness)), `DELETE /cards/{id}`, `POST /cards/{id}/reorder`, `POST /cards/{id}/archive`, `POST /cards/{id}/restore` |
 | Card history | `GET /cards/{id}/history` — the card's description edit trail; see [Card History](#card-history) |
 
@@ -79,7 +79,7 @@ To read comments on their own — untouched by this deprecation — use `GET /ca
 
 | Resource | Endpoints |
 |----------|-----------|
-| Card Labels | `GET /cards/{id}/labels`, `POST /cards/{id}/labels` (validates same board), `DELETE /cards/{id}/labels/{labelId}` |
+| Card Labels | `GET /cards/{id}/labels`, `POST /cards/{id}/labels` (validates same board; 409 if the label is already on the card, also when another caller added it at the same moment), `DELETE /cards/{id}/labels/{labelId}` (404 if the label is not on the card, also when another caller removed it at the same moment) |
 | Comments | `GET /cards/{id}/comments`, `POST /cards/{id}/comments`, `PATCH /comments/{id}`, `DELETE /comments/{id}` |
 | Attachments | `GET /cards/{id}/attachments`, `POST /cards/{id}/attachments` (5 MB via MCP / 50 MB via REST), `GET /attachments/{id}`, `DELETE /attachments/{id}` |
 

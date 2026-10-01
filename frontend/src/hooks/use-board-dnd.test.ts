@@ -174,6 +174,32 @@ describe('useBoardDnd reorder cache merge', () => {
   });
 });
 
+describe('useBoardDnd cancel', () => {
+  test('cancelling a drag puts the card back in its saved lane and shows it again', () => {
+    const queryClient = setupClient({ lanes: [], cards: [], sizes: [] });
+    const { result } = renderDnd(queryClient);
+
+    // Partial drag events, cast because the hook reads only these fields.
+    act(() => {
+      result.current.onDragStart({ active: { id: 'c1' } } as never);
+      result.current.onDragOver({
+        active: { id: 'c1', rect: { current: { translated: null } } },
+        over: { id: LANE_DONE, rect: { top: 0, height: 0 } },
+      } as never);
+    });
+    // The drag has moved the card into Done.
+    expect(result.current.localCards.find((c) => c.id === 'c1')?.laneId).toBe(LANE_DONE);
+
+    act(() => {
+      result.current.onDragCancel();
+    });
+
+    expect(result.current.localCards.find((c) => c.id === 'c1')?.laneId).toBe(LANE_BACKLOG);
+    expect(result.current.activeCardId).toBeNull();
+    expect(mockReorderCard).not.toHaveBeenCalled();
+  });
+});
+
 describe('useBoardDnd sensor gating (drag is desktop-only)', () => {
   test('registers drag sensors on desktop', () => {
     const queryClient = setupClient({

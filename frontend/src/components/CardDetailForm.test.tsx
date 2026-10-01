@@ -11,10 +11,11 @@ import {
   fetchCardLabels,
   fetchLabels,
   fetchUserDirectory,
+  updateCard,
 } from '@/lib/api';
 import { queryKeys } from '@/lib/query-keys';
 import { ROLES } from '@/lib/roles';
-import type { BoardData, CardHistoryTrail, CardItem } from '@/types';
+import type { BoardData, CardHistoryTrail, CardItem, CardSummary, Label } from '@/types';
 
 // This suite covers the concurrent-edit guard: an edit another person makes
 // while you have the card open surfaces as a named, reachable warning without
@@ -395,5 +396,55 @@ describe('CardDetailForm duplicate', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     await user.click(button);
     expect(onDuplicate.mock.calls[0][0].saved.labelIds).toEqual(['label-bug']);
+  });
+});
+
+describe('CardDetailForm labels', () => {
+  const bug: Label = { id: 'label-bug', boardId: 'board-1', name: 'Bug', color: '#f00' };
+  const feature: Label = {
+    id: 'label-feature',
+    boardId: 'board-1',
+    name: 'Feature',
+    color: '#0f0',
+  };
+  const chore: Label = { id: 'label-chore', boardId: 'board-1', name: 'Chore', color: '#888' };
+
+  test('the picker waits for the card labels, so a save keeps the labels the card has', async () => {
+    // Arrange — hold the card's labels request open
+    const user = userEvent.setup();
+    let resolveCardLabels: (labels: Label[]) => void = () => {};
+    vi.mocked(fetchCardLabels).mockReturnValue(
+      new Promise<Label[]>((resolve) => {
+        resolveCardLabels = resolve;
+      }),
+    );
+    vi.mocked(fetchLabels).mockResolvedValue([bug, feature, chore]);
+    // Only the patch the form sends matters here; the response just needs to resolve.
+    vi.mocked(updateCard).mockResolvedValue(makeCard() as unknown as CardSummary);
+    setup(makeCard());
+
+    // Assert — while the request is open there is nothing to pick from
+    const loading = await screen.findByRole('button', { name: 'Loading labels...' });
+    expect(loading).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Labels' })).not.toBeInTheDocument();
+    await user.click(loading);
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+
+    // Act — the labels arrive, then one more is picked and the card saved
+    await act(async () => {
+      resolveCardLabels([bug, feature]);
+    });
+    await user.click(await screen.findByRole('button', { name: /Bug/ }));
+    await user.click(await screen.findByRole('option', { name: 'Chore' }));
+    // The card's own labels arriving is not someone else's edit.
+    expect(screen.queryByText(/changed the/)).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    // Assert — the save adds to the labels the card had instead of replacing them
+    await waitFor(() => expect(updateCard).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(updateCard).mock.calls[0][1]).toEqual({
+      labelIds: ['label-bug', 'label-feature', 'label-chore'],
+    });
   });
 });

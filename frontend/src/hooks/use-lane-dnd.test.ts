@@ -129,6 +129,24 @@ describe('useLaneDnd optimistic reorder', () => {
     expect(mockReorderLanes).not.toHaveBeenCalled();
     expect(result.current.localLanes.map((l) => l.id)).toEqual([LANE_A, LANE_B, LANE_C]);
   });
+
+  test('cancelling a drag restores the saved order and clears the dragged lane', () => {
+    const queryClient = setupClient();
+    const { result } = renderLaneDnd(queryClient);
+
+    // Partial drag events, cast because the hook reads only these fields.
+    act(() => {
+      result.current.onDragStart({ active: { id: LANE_A } } as never);
+      result.current.onDragOver({ active: { id: LANE_A }, over: { id: LANE_C } } as never);
+    });
+    act(() => {
+      result.current.onDragCancel();
+    });
+
+    expect(result.current.localLanes.map((l) => l.id)).toEqual([LANE_A, LANE_B, LANE_C]);
+    expect(result.current.activeLaneId).toBeNull();
+    expect(mockReorderLanes).not.toHaveBeenCalled();
+  });
 });
 
 describe('useLaneDnd cache reconciliation', () => {
