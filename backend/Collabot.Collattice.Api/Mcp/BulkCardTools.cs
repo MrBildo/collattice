@@ -264,13 +264,28 @@ public sealed class BulkCardTools(BoardDbContext db, McpAuthService auth, BoardE
 
         // card.moved fires per actually-moved card. The bulk SSE side coalesces to
         // ONE board-bell per board (BulkExecution's existing contract — the safety
-        // property), but the webhook projection must see N distinct card.moved events. So
-        // the move snapshots are captured per-card here (before MoveCardToLaneAsync
-        // renumbers the lanes), and the events are built + enqueued in the after-save hook
-        // for the cards that actually succeeded — never via broadcaster.Publish, which
-        // would ring N SSE bells and break the one-bell coalesce. Only on a real lane
-        // change (laneId resolves to a different lane than the card's current).
-        var moveSnapshots = new Dictionary<Guid, CardMoveSnapshot>();
+        // property), but the webhook projection must see N distinct card.moved events, so
+        // they are built + enqueued in the after-save hook for the cards that succeeded —
+        // never via broadcaster.Publish, which would ring N SSE bells and break the
+        // one-bell coalesce.
+        //
+        // Which positions count: the batch saves once, so the only placements anyone
+        // outside this call can ever observe are the ones before it ran and the ones after.
+        // Every MoveCardToLaneAsync renumbers the lanes it touches, so a card's position at
+        // its own turn in the loop can already have been shifted by an earlier card's move
+        // and is never persisted. So "from" is the card's placement snapshotted here, before
+        // any card moves, and "to" is its saved placement. A card moved iff those differ —
+        // a different lane, or a different position in the same lane — which also makes a
+        // batch that leaves every card where it was silent. Only cards in the batch report.
+        // A lane neighbour renumbered by the batch does not, as with the single-card reorder.
+        var startingPlacements = new Dictionary<Guid, (Guid LaneId, int Position)>();
+        if (laneId.HasValue)
+        {
+            foreach (var card in cards!)
+            {
+                startingPlacements.TryAdd(card.Id, (card.LaneId, card.Position));
+            }
+        }
 
         // card.updated fires per card whose SIZE actually changed (size is a content axis);
         // card.labeled / card.unlabeled fire per actual add/remove. Both captured
@@ -306,15 +321,6 @@ public sealed class BulkCardTools(BoardDbContext db, McpAuthService auth, BoardE
 
             if (laneId.HasValue)
             {
-                if (laneId.Value != card.LaneId && targetLaneForMove is not null)
-                {
-                    var fromLane = await db.Lanes.FindAsync([card.LaneId], ct);
-                    if (fromLane is not null)
-                    {
-                        moveSnapshots[card.Id] = new CardMoveSnapshot(fromLane, card.Position, targetLaneForMove);
-                    }
-                }
-
                 await CardReorderHelper.MoveCardToLaneAsync(db, card, laneId.Value, index, ct);
             }
 
@@ -348,9 +354,15 @@ public sealed class BulkCardTools(BoardDbContext db, McpAuthService auth, BoardE
 
             foreach (var card in succeededCards)
             {
-                if (moveSnapshots.TryGetValue(card.Id, out var snapshot))
+                if (targetLaneForMove is not null
+                    && startingPlacements.TryGetValue(card.Id, out var start)
+                    && (start.LaneId != card.LaneId || start.Position != card.Position))
                 {
-                    webhookSink.Enqueue(await WebhookEventFactory.BuildCardMovedAsync(db, card, snapshot.FromLane, snapshot.FromPosition, snapshot.ToLane, user, ct));
+                    var fromLane = await db.Lanes.FindAsync([start.LaneId], ct);
+                    if (fromLane is not null)
+                    {
+                        webhookSink.Enqueue(await WebhookEventFactory.BuildCardMovedAsync(db, card, fromLane, start.Position, targetLaneForMove, user, ct));
+                    }
                 }
 
                 if (sizeChangedCardIds.Contains(card.Id))
@@ -381,8 +393,6 @@ public sealed class BulkCardTools(BoardDbContext db, McpAuthService auth, BoardE
             }
         });
     }
-
-    private readonly record struct CardMoveSnapshot(Lane FromLane, int FromPosition, Lane ToLane);
 
     // Returns the actually-added and actually-removed label ids so the after-save hook can
     // emit card.labeled / card.unlabeled per change.
