@@ -1,4 +1,4 @@
-import { describe, test, expect, vi } from 'vitest';
+import { afterEach, describe, test, expect, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { DndContext, MouseSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
@@ -153,5 +153,95 @@ describe('LaneColumn add-card button', () => {
 
     // Assert
     expect(onParentTouchStart).not.toHaveBeenCalled();
+  });
+});
+
+describe('LaneColumn header', () => {
+  test('the header is not itself a button, so the add-card button is not nested in one', () => {
+    renderLanes([makeLane()]);
+
+    const addButton = screen.getByRole('button', { name: 'Add card to Backlog' });
+    const header = screen.getByRole('heading', { name: 'Backlog' }).closest('[data-lane-header]');
+
+    expect(addButton.parentElement?.closest('[role="button"], button')).toBeNull();
+    expect(header).not.toHaveAttribute('role');
+    expect(header).not.toHaveAttribute('tabindex');
+    expect(header).not.toHaveAttribute('aria-describedby');
+  });
+});
+
+describe('LaneColumn collapse toggle (phone)', () => {
+  const desktopWidth = window.innerWidth;
+
+  function renderLane(isCollapsed: boolean, onToggleCollapse = vi.fn()) {
+    render(
+      <BoardDnd>
+        <LaneColumn
+          lane={makeLane()}
+          cards={[]}
+          onCardClick={vi.fn()}
+          onAddCard={vi.fn()}
+          activeCardId={null}
+          isLaneDragging={false}
+          sizeMap={new Map()}
+          enrichedCardMap={new Map()}
+          isCollapsed={isCollapsed}
+          onToggleCollapse={onToggleCollapse}
+        />
+      </BoardDnd>,
+    );
+    return { onToggleCollapse };
+  }
+
+  function setWidth(width: number) {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: width });
+  }
+
+  afterEach(() => {
+    setWidth(desktopWidth);
+  });
+
+  test('reports whether the lane is expanded and names the card list it controls', () => {
+    renderLane(false);
+    const toggle = screen.getByRole('button', { name: 'Cards in Backlog' });
+
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    const controlled = document.getElementById(toggle.getAttribute('aria-controls') ?? '');
+    expect(controlled).not.toBeNull();
+    expect(controlled).toHaveClass('max-md:grid-rows-[1fr]');
+  });
+
+  test('a collapsed lane reports collapsed and hides its cards on a phone', () => {
+    renderLane(true);
+    const toggle = screen.getByRole('button', { name: 'Cards in Backlog' });
+
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    const controlled = document.getElementById(toggle.getAttribute('aria-controls') ?? '');
+    expect(controlled).toHaveClass('max-md:invisible');
+  });
+
+  test('Enter and Space on the toggle collapse the lane on a phone', async () => {
+    // Arrange
+    setWidth(390);
+    const user = userEvent.setup();
+    const { onToggleCollapse } = renderLane(false);
+    screen.getByRole('button', { name: 'Cards in Backlog' }).focus();
+
+    // Act
+    await user.keyboard('{Enter}');
+    await user.keyboard(' ');
+
+    // Assert
+    expect(onToggleCollapse).toHaveBeenCalledTimes(2);
+  });
+
+  test('a tap on the toggle collapses the lane once', async () => {
+    setWidth(390);
+    const user = userEvent.setup();
+    const { onToggleCollapse } = renderLane(false);
+
+    await user.click(screen.getByRole('button', { name: 'Cards in Backlog' }));
+
+    expect(onToggleCollapse).toHaveBeenCalledTimes(1);
   });
 });
