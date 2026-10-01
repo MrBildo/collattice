@@ -12,6 +12,7 @@ using Collabot.Collattice.Api.Installation;
 using Collabot.Collattice.Api.Mcp;
 using Collabot.Collattice.Api.Models;
 using Microsoft.AspNetCore.Http.Features;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 
 // --version flag
@@ -434,9 +435,18 @@ await using (var scope = app.Services.CreateAsyncScope())
     );
 }
 
-// Outermost so it observes the final status of every request: fills a bodyless 405 from
-// routing with a readable message naming the allowed methods, leaving the Allow header and
-// every other response untouched.
+// Behind a TLS-terminating reverse proxy (production: Collabhost's Caddy, dialing this process
+// over plain HTTP on localhost) the request scheme Kestrel sees is http, so anything that echoes
+// the public address — get_api_info's base URL — advertised http:// for an https-only host. Honor
+// X-Forwarded-Proto, and only that: the client IP and Host are not taken from forwarded headers.
+// The framework default trusts the header only from loopback peers, which is exactly a
+// same-box proxy; a request arriving from any other address keeps the scheme it connected with.
+// First in the pipeline, so nothing added later can read the scheme before it is corrected.
+app.UseForwardedHeaders(new ForwardedHeadersOptions { ForwardedHeaders = ForwardedHeaders.XForwardedProto });
+
+// Wraps everything after the forwarded-headers fix-up (which only rewrites the request), so it
+// observes the final status of every request: fills a bodyless 405 from routing with a readable
+// message naming the allowed methods, leaving the Allow header and every other response untouched.
 app.UseMethodNotAllowedBody();
 
 if (app.Environment.IsDevelopment())
