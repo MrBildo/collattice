@@ -42,6 +42,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { LabelPicker } from '@/components/LabelPicker';
 import { queryKeys } from '@/lib/query-keys';
+import { mergeSavedCard } from '@/lib/merge-saved-card';
 import { QUERY_DEFAULTS } from '@/lib/query-config';
 import { useUserDirectory } from '@/hooks/use-user-directory';
 import { useCardLinkContext } from '@/hooks/use-card-links';
@@ -540,17 +541,19 @@ export const CardDetailForm = forwardRef<CardDetailFormHandle, CardDetailFormPro
       mutationFn: (patch: UpdateCardPatch) => updateCard(card.id, patch),
       onSuccess: (updatedCard, patch) => {
         if (boardId) {
-          // PATCH /cards/{id} now returns the enriched CardSummary, so the
-          // mutation response carries everything the board cache needs — labels,
-          // sizeName, commentCount, attachmentCount, isArchived. No re-fetch needed.
+          // PATCH /cards/{id} returns the enriched CardSummary, so the response
+          // carries everything the board cache needs for this card — labels,
+          // sizeName, commentCount, attachmentCount, isArchived.
+          const isLaneChange = patch.laneId !== undefined;
           queryClient.setQueryData<BoardData>(queryKeys.boards.data(boardId), (old) =>
-            old
-              ? {
-                  ...old,
-                  cards: old.cards.map((c) => (c.id === card.id ? { ...c, ...updatedCard } : c)),
-                }
-              : old,
+            old ? { ...old, cards: mergeSavedCard(old.cards, updatedCard, isLaneChange) } : old,
           );
+          if (isLaneChange) {
+            // A lane change renumbers both lanes on the server, and the response
+            // carries only this card's number; refetch so every card's number is
+            // the server's again.
+            queryClient.invalidateQueries({ queryKey: queryKeys.boards.data(boardId) });
+          }
         }
         queryClient.invalidateQueries({ queryKey: queryKeys.cards.labels(card.id) });
         if (patch.descriptionMarkdown !== undefined) {
