@@ -18,8 +18,10 @@ internal static class CardHistoryHelper
     public const string DescriptionField = "description";
 
     // The number of attempts SaveWithRevisionRetryAsync makes before giving up on a revision-ordinal
-    // collision. Named rather than a local literal so a test can drive exactly one collision past it.
-    public const int MaxRevisionRetryAttempts = 8;
+    // collision. The tests that drive the loop to its last attempt hold this number as their own
+    // literal rather than reading it from here, so that lowering it reds them instead of quietly
+    // moving them with it.
+    private const int _maxRetryAttempts = 8;
 
     // The store is field-general, but only description is captured today. An unrecognised field is
     // rejected rather than answered with an empty trail: on an audit surface, a typo that reads as
@@ -144,7 +146,7 @@ internal static class CardHistoryHelper
         // the lock away and then sleeps on a stale head. That is an explanation, not a rule: the
         // size-create retry measured a pause as helping, so each allocator's shape follows its own
         // measurement.
-        for (var attempt = 1; attempt < MaxRevisionRetryAttempts; attempt++)
+        for (var attempt = 1; attempt < _maxRetryAttempts; attempt++)
         {
             try
             {
