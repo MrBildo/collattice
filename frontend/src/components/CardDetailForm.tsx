@@ -1090,15 +1090,18 @@ export const CardDetailForm = forwardRef<CardDetailFormHandle, CardDetailFormPro
             delete confirmation's longer label is enough to push the last button
             past the edge, out of reach. The right-hand controls carry ml-auto,
             which keeps them on the right on a wide screen and when they drop to
-            a line of their own. The archived actions are display:contents so
-            they wrap one button at a time, which lets Close share a line with
-            the delete confirmation instead of stacking a third row. */}
+            a line of their own; their group is also justify-end, so when the
+            collision warning fills its first line, Close and Save wrap to the
+            right rather than the left. The archived actions and the restore
+            lane picker are display:contents so they wrap one control at a
+            time, which lets Close share a line with the controls before it
+            instead of stacking an extra row. */}
         <div className="flex flex-wrap items-center gap-2 border-t px-6 py-3">
           {isArchived ? (
             /* Archived card footer */
             <div className="contents">
               {showRestorePicker && lanes && lanes.length > 0 ? (
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="contents">
                   <Select
                     value={restoreLaneId ?? ''}
                     onValueChange={(v) => v && setRestoreLaneId(v)}
@@ -1189,7 +1192,7 @@ export const CardDetailForm = forwardRef<CardDetailFormHandle, CardDetailFormPro
             </div>
           )}
           {!isArchived && !showArchiveActions && (
-            <div className="ml-auto flex flex-wrap items-center gap-2">
+            <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
               {externalUpdateCount > 0 && (
                 // A solid amber chip (the accent surface paired with its own
                 // foreground) so the warning stays legible in both themes —
