@@ -21,12 +21,17 @@ internal static class SizeCreateHelper
     // Attempts for an omitted ordinal. The read of the highest ordinal and the insert are separate
     // statements, so concurrent creates on one board resolve the same ordinal and all but one lose the
     // unique index: measured before this helper, 8 simultaneous creates on one board returned 500 on
-    // 34 of 40 requests. A loser re-reads and takes the next ordinal. This is the max+1 shape that card
-    // numbers and lane positions use, so it follows their measured choice: immediate retries, no
-    // pause, because a pause stops the max advancing and wakes the losers into re-colliding clusters.
-    // Each collision means a different create committed after this one's read, so among N simultaneous
-    // creates one collides at most N - 1 times: eight attempts cover eight at once on one board. Past
-    // that a loser can run out and gets ContendedMessage, a 409 it can retry.
+    // 34 of 40 requests. A loser re-reads and takes the next ordinal. Each collision means a different
+    // create committed after this one's read, so among N simultaneous creates one collides at most
+    // N - 1 times: eight attempts cover eight at once on one board. Past that a loser can run out and
+    // gets ContendedMessage, a 409 it can retry.
+    //
+    // Measured on this allocator: eight immediate attempts gave no 409 up to 8 simultaneous creates,
+    // and 3% to 18% of creates got one at 32 at once, depending on load. Sixteen immediate attempts
+    // gave none at 32, and eight with a 2-14 ms pause gave about a quarter as many. Eight immediate is
+    // kept to match the lane-position and card-number allocators, since no realistic workload creates
+    // more than eight sizes on one board at once. Do not read it as "a pause hurts": that held for
+    // card numbers and measured the other way here.
     private const int _maxAttempts = 8;
 
     public static async Task<SizeCreateResult> CreateAsync
