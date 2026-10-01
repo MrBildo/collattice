@@ -55,11 +55,32 @@ public class ForwardedSchemeTests(CollatticeApiFactory factory) : IClassFixture<
     }
 
     [Fact]
-    public async Task NoForwardedProto_KeepsConnectionScheme()
+    public async Task ForwardedProto_Absent_KeepsConnectionScheme()
     {
         var context = await SendVersionRequestAsync(IPAddress.Loopback, forwardedProto: null);
 
         context.Request.Scheme.ShouldBe("http");
+    }
+
+    // Only the scheme is taken from a trusted proxy. A loopback peer that also sends
+    // X-Forwarded-For and X-Forwarded-Host must not change the client address or the host.
+    [Fact]
+    public async Task ForwardedForAndHost_FromLoopbackProxy_AreIgnored()
+    {
+        var context = await _factory.Server.SendAsync(request =>
+        {
+            request.Request.Method = HttpMethods.Get;
+            request.Request.Path = "/api/v1/version";
+            request.Request.Host = new HostString("collattice-api.example.test");
+            request.Connection.RemoteIpAddress = IPAddress.Loopback;
+            request.Request.Headers["X-Forwarded-Proto"] = "https";
+            request.Request.Headers["X-Forwarded-For"] = "203.0.113.7";
+            request.Request.Headers["X-Forwarded-Host"] = "spoofed.example.test";
+        });
+
+        context.Request.Scheme.ShouldBe("https");
+        context.Request.Host.Value.ShouldBe("collattice-api.example.test");
+        context.Connection.RemoteIpAddress.ShouldBe(IPAddress.Loopback);
     }
 
     [Fact]
