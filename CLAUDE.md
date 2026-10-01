@@ -67,9 +67,9 @@ dotnet run --project backend/Collabot.Collattice.AppHost
 
 The API gets a dynamic port (no more hardcoded 58343). The frontend gets a dynamic port. Aspire handles service discovery between them.
 
-Optionally configure `Admin:AuthKey` in `appsettings.Development.json` in `backend/Collabot.Collattice.Api/` — otherwise a random key is generated and logged on first run.
+Optionally pin `Admin:AuthKey` in `appsettings.Development.json` in `backend/Collabot.Collattice.Api/` (gitignored, so create it) before the first run — it is read only while the database has no users. Otherwise a random key is generated and logged on first run.
 
-Aspire does NOT run workloads natively on Linux. Use standalone `dotnet run` for Linux testing.
+Aspire does NOT run workloads natively on Linux. Use standalone `dotnet run` for Linux testing — the API start under [Frontend Only](#frontend-only-no-aspire) below sets what it needs.
 
 ### Tests
 ```powershell
@@ -86,12 +86,40 @@ Use the Aspire skill and MCP tools to manage the Aspire lifecycle (start, stop, 
 **File lock gotcha:** If Aspire is running and you need to build or test, kill the Aspire process first. The running API locks DLLs (e.g., `Collabot.Collattice.ServiceDefaults.dll`) and causes MSB3027 file copy errors. Before `dotnet test` or `dotnet build`, check for and kill any running Aspire/Collabot.Collattice.Api processes if the build fails with file lock errors.
 
 ### Frontend Only (no Aspire)
+
+The Vite dev server (port 5173) proxies `/api` to `http://localhost:58343`, so run the API yourself on that address first. A fresh clone gives it nothing to start from: the API's launch profile is a per-developer file git ignores, and the API refuses to start without a database path. Set these first — environment variables, the override channel in [Configuration Precedence](#configuration-precedence):
+
 ```powershell
+# Terminal 1, from the repo root: the API, on the address the dev server proxies to
+$env:ASPNETCORE_ENVIRONMENT = "Development"
+$env:ASPNETCORE_URLS = "http://localhost:58343"
+$env:ConnectionStrings__Board = "Data Source=$PWD\data\collattice.db"
+dotnet run --project backend/Collabot.Collattice.Api --no-launch-profile
+
+# Terminal 2, from the repo root: the dev server
 cd frontend
 npm install
 npm run dev
 ```
-Vite dev server on port 5173 with proxy to localhost:58343 (requires API running separately).
+
+The same API start in bash (Linux, macOS, WSL), from the repo root:
+
+```bash
+ASPNETCORE_ENVIRONMENT=Development \
+ASPNETCORE_URLS=http://localhost:58343 \
+ConnectionStrings__Board="Data Source=$PWD/data/collattice.db" \
+dotnet run --project backend/Collabot.Collattice.Api --no-launch-profile
+```
+
+Open `http://localhost:5173`. The admin auth key is logged at API startup (`Admin auth key: …`). To choose the key yourself, set it before the **first** start, alongside the variables above: `$env:Admin__AuthKey = "<your key>"` (bash: `Admin__AuthKey=<your key>`). It is read only while the database has no users, so setting it later does nothing; to change it, stop the API and delete `data/`, which also deletes your local boards.
+
+What each setting is for:
+- `ConnectionStrings__Board` — required, absolute path, no fallback by design. `data/` is gitignored, so the dev database stays out of the tree.
+- `ASPNETCORE_URLS` — without it the API binds `Hosting:ListenPort` (8080, all interfaces: the production default). Use `localhost`, not `127.0.0.1`: Node resolves `localhost` to `::1` first, and Kestrel's `localhost` binds both loopbacks.
+- `ASPNETCORE_ENVIRONMENT=Development` — OpenAPI, open dev CORS, and `appsettings.Development.json`.
+- `--no-launch-profile` — a local `Properties/launchSettings.json`, if you have one, would otherwise replace the values above.
+
+To proxy to an API somewhere else, set `services__api__http__0` (the variable Aspire sets) to its base URL before `npm run dev`.
 
 ## Auth Model
 
