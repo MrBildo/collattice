@@ -16,7 +16,7 @@ namespace Collabot.Collattice.Api.Tests;
 // no two cards share a position, and every lane it touched holds its cards at 0, 10, 20, ...
 // Each test seeds its own board through the REST API, so the lanes hold exactly the cards the
 // test names, at the positions the API gives them.
-public sealed class BulkCardPlacementTests(CollatticeApiFactory factory) : IClassFixture<CollatticeApiFactory>, IDisposable
+public class BulkCardPlacementTests(CollatticeApiFactory factory) : IClassFixture<CollatticeApiFactory>, IDisposable
 {
     private readonly CollatticeApiFactory _factory = factory;
     private readonly HttpClient _client = factory.CreateClient();
@@ -30,6 +30,7 @@ public sealed class BulkCardPlacementTests(CollatticeApiFactory factory) : IClas
         }
 
         _client.Dispose();
+        GC.SuppressFinalize(this);
     }
 
     [Fact]
@@ -305,8 +306,8 @@ public sealed class BulkCardPlacementTests(CollatticeApiFactory factory) : IClas
         var db = scope.ServiceProvider.GetRequiredService<BoardDbContext>();
         var archiveLaneId = await db.Lanes
             .Where(l => l.BoardId == boardId && l.IsArchiveLane)
-            .Select(l => l.Id)
-                .SingleAsync();
+                .Select(l => l.Id)
+                    .SingleAsync();
 
         var board = new SeededBoard(boardId, laneIds, archiveLaneId, ids);
         for (var i = 0; i < lanes.Length; i++)
@@ -341,8 +342,8 @@ public sealed class BulkCardPlacementTests(CollatticeApiFactory factory) : IClas
         var cards = await db.Cards
             .Where(c => c.LaneId == laneId)
             .OrderBy(c => c.Position)
-            .Select(c => new { c.Id, c.Position })
-                .ToListAsync();
+                .Select(c => new { c.Id, c.Position })
+                    .ToListAsync();
 
         return [.. cards.Select(c => (c.Id, c.Position))];
     }
