@@ -1,6 +1,7 @@
 import { describe, test, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -52,6 +53,25 @@ describe('Select', () => {
           <FruitItems />
         </Select>
       </>,
+    );
+
+    // Act
+    await user.click(screen.getByRole('combobox', { name: 'Fruit' }));
+
+    // Assert
+    expect(await screen.findByRole('listbox', { name: 'Fruit' })).toBeInTheDocument();
+  });
+
+  test('a name given to the trigger does not replace the name on the Select', async () => {
+    // Arrange
+    const user = userEvent.setup();
+    render(
+      <Select aria-label="Fruit" defaultValue="apple">
+        <SelectTrigger aria-label="Named on the trigger">
+          <SelectValue />
+        </SelectTrigger>
+        <FruitItems />
+      </Select>,
     );
 
     // Act

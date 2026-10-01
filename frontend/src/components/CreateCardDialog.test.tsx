@@ -206,7 +206,7 @@ describe('CreateCardDialog prefilled from a duplicate', () => {
 });
 
 describe('CreateCardDialog accessible names', () => {
-  test('the Size and Lane selects and their open lists are named by their labels', async () => {
+  test('the Size select and its open list are named by the Size label', async () => {
     // Arrange
     const user = userEvent.setup();
     setup();
@@ -216,8 +216,17 @@ describe('CreateCardDialog accessible names', () => {
 
     // Assert
     expect(await screen.findByRole('listbox', { name: 'Size' })).toBeInTheDocument();
-    await user.keyboard('{Escape}');
+  });
+
+  test('the Lane select and its open list are named by the Lane label', async () => {
+    // Arrange
+    const user = userEvent.setup();
+    setup();
+
+    // Act
     await user.click(screen.getByRole('combobox', { name: 'Lane' }));
+
+    // Assert
     expect(await screen.findByRole('listbox', { name: 'Lane' })).toBeInTheDocument();
   });
 });
