@@ -525,14 +525,8 @@ internal static class CardEndpoints
 
             card.LastUpdatedAtUtc = DateTimeOffset.UtcNow;
             card.LastUpdatedByUserId = http.CurrentUser().Id;
-            try
-            {
-                await CardNumberHelper.FinalizeCardNumberAsync(db, card, card.BoardId, ct);
-            }
-            catch (InvalidOperationException)
-            {
-                return Results.StatusCode(500);
-            }
+
+            await CardNumberHelper.FinalizeCardNumberAsync(db, card, card.BoardId, ct);
 
             // card.created fires here, on finalize — never at temp-insert (a temp card is
             // invisible pre-creation limbo and may be cancelled). The cancel site emits

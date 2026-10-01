@@ -145,14 +145,14 @@ internal static class CardHistoryHelper
         // shape: five attempts with a random 2 to 14 ms pause lost about one edit in forty, five
         // immediate attempts about one in six hundred, and eight immediate attempts none. Only at
         // 128-way did an edit ever need all eight; at eight-way none needed more than four.
-        for (var attempt = 0; attempt < MaxRevisionRetryAttempts; attempt++)
+        for (var attempt = 1; attempt < MaxRevisionRetryAttempts; attempt++)
         {
             try
             {
                 await db.SaveChangesAsync(ct);
                 return;
             }
-            catch (DbUpdateException ex) when (attempt < MaxRevisionRetryAttempts - 1 && IsRevisionCollision(ex))
+            catch (DbUpdateException ex) when (IsRevisionCollision(ex))
             {
                 // Rebuild the rows against the trail's new head rather than renumbering the ones
                 // already staged: the winning edit has by now written the seed row holding the
@@ -165,7 +165,9 @@ internal static class CardHistoryHelper
             }
         }
 
-        throw new InvalidOperationException("Failed to allocate a description history revision after retries.");
+        // The last attempt runs outside the catch, so an exhausted retry fails the request with the
+        // collision itself: the database's own error, naming the index that was contended.
+        await db.SaveChangesAsync(ct);
     }
 
     private static async Task StageRowsAsync(BoardDbContext db, StagedDescriptionChange change, CancellationToken ct)
