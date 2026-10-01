@@ -15,10 +15,15 @@ namespace Collabot.Collattice.Api.Persistence;
 // A site that catches a failure declares it around the save by passing Expect the same predicate its
 // catch filter uses, and holds the returned declaration in a using. While the declaration is in
 // force, a failed save the predicate matches has both of EF's entries written at Debug instead,
-// unchanged otherwise. Any other failure is written exactly as EF wrote it,
-// at its own level and in its own order, and so is everything outside a declaration. Deciding needs
-// the exception, which only the second entry carries, so the first is held until the second arrives
-// and is written with it.
+// unchanged otherwise. Any other failure is written at the level EF gave it, and so is everything
+// outside a declaration. Deciding needs the exception, which only the second entry carries, so the
+// first is held until the second arrives and is written with it. Entries at Warning or above keep
+// their order around a held one; a Debug entry EF writes in between (a transaction's rollback) can
+// land before it.
+//
+// A declaration is an AsyncLocal, so work started inside one carries it after the declaration ends.
+// Nothing here starts such work, and an ended declaration passes every entry straight through, so
+// work that outlives it is logged as if nothing were declared.
 internal static class ExpectedSaveFailure
 {
     private static readonly AsyncLocal<Expectation?> _current = new();
@@ -45,7 +50,7 @@ internal static class ExpectedSaveFailure
         write(level);
     }
 
-    // sealed: a private leaf; nothing derives from it.
+    // sealed: Sonar S3260 asks for it on a private class nothing derives from.
     private sealed class Expectation(Func<DbUpdateException, bool> isExpected, Expectation? outer) : IDisposable
     {
         private readonly Func<DbUpdateException, bool> _isExpected = isExpected
@@ -53,9 +58,16 @@ internal static class ExpectedSaveFailure
         private readonly Expectation? _outer = outer;
 
         private (LogLevel Level, Action<LogLevel> Write)? _heldCommandError;
+        private bool _isEnded;
 
         public void Route(EventId eventId, LogLevel level, Exception? exception, Action<LogLevel> write)
         {
+            if (_isEnded)
+            {
+                write(level);
+                return;
+            }
+
             if (eventId.Id == RelationalEventId.CommandError.Id)
             {
                 ReleaseHeldCommandError(asExpected: false);
@@ -92,6 +104,7 @@ internal static class ExpectedSaveFailure
         {
             ReleaseHeldCommandError(asExpected: false);
 
+            _isEnded = true;
             _current.Value = _outer;
         }
 
@@ -115,9 +128,7 @@ internal static class ExpectedSaveFailure
 
 // The logger factory EF Core is given. While a save failure is declared expected, every entry passes
 // through ExpectedSaveFailure; otherwise it goes straight to the app's logger.
-//
-// sealed: a leaf decorator over the app's logger factory; no subtype hierarchy is intended.
-internal sealed class ExpectedSaveFailureLoggerFactory(ILoggerFactory inner) : ILoggerFactory
+internal class ExpectedSaveFailureLoggerFactory(ILoggerFactory inner) : ILoggerFactory
 {
     private readonly ILoggerFactory _inner = inner
         ?? throw new ArgumentNullException(nameof(inner));
@@ -132,7 +143,7 @@ internal sealed class ExpectedSaveFailureLoggerFactory(ILoggerFactory inner) : I
     }
 }
 
-// sealed: a leaf decorator; no subtype hierarchy is intended.
+// sealed: Sonar S3260 asks for it on a file-local class nothing derives from.
 file sealed class ExpectedSaveFailureLogger(ILogger inner) : ILogger
 {
     private readonly ILogger _inner = inner

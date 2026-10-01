@@ -61,7 +61,7 @@ public class ExpectedSaveFailureLoggingTests
     }
 
     [Fact]
-    public async Task ASaveFailureNothingDeclared_IsStillLoggedAsAnError()
+    public async Task SaveChanges_NothingDeclared_IsLoggedAsAnError()
     {
         // Arrange
         await using var factory = new LoggingFileDatabaseFactory();
@@ -82,7 +82,7 @@ public class ExpectedSaveFailureLoggingTests
     }
 
     [Fact]
-    public async Task ASaveFailureTheDeclarationDoesNotMatch_IsStillLoggedAsAnError()
+    public async Task SaveChanges_DeclarationDoesNotMatch_IsLoggedAsAnError()
     {
         // Arrange — a declaration is in force, but for some other failure.
         await using var factory = new LoggingFileDatabaseFactory();
@@ -106,7 +106,7 @@ public class ExpectedSaveFailureLoggingTests
     }
 
     [Fact]
-    public async Task ASaveFailureTheDeclarationMatches_IsLoggedAtDebug()
+    public async Task SaveChanges_DeclarationMatches_IsLoggedAtDebug()
     {
         // Arrange — the same failure as the two tests above, now declared expected. This is what
         // lets their Error assertions be read as the declaration's doing rather than the setup's.
@@ -131,6 +131,92 @@ public class ExpectedSaveFailureLoggingTests
 
         EntryLevels(factory, _commandError).ShouldBe([LogLevel.Debug]);
         EntryLevels(factory, _saveChangesFailed).ShouldBe([LogLevel.Debug]);
+    }
+
+    [Fact]
+    public async Task FailedQuery_UnderADeclaration_IsLoggedAsAnErrorWhenTheDeclarationEnds()
+    {
+        // Arrange — a command that fails with no save failure after it, inside a declaration that
+        // would match anything. Its CommandError is held, and only the declaration's end writes it.
+        await using var factory = new LoggingFileDatabaseFactory();
+        _ = factory.CreateClient();
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<BoardDbContext>();
+
+        factory.Log.Clear();
+
+        // Act
+        using (ExpectedSaveFailure.Expect(_ => true))
+        {
+            await Should.ThrowAsync<SqliteException>(() => db.Database.ExecuteSqlRawAsync("SELECT * FROM NoSuchTable"));
+        }
+
+        // Assert
+        EntryLevels(factory, _commandError).ShouldBe([LogLevel.Error]);
+    }
+
+    [Fact]
+    public async Task FailedQueryThenExpectedSave_UnderOneDeclaration_KeepsTheQueryAtError()
+    {
+        // Arrange — the query's CommandError is held when the save's own CommandError arrives.
+        await using var factory = new LoggingFileDatabaseFactory();
+        _ = factory.CreateClient();
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<BoardDbContext>();
+        var (boardId, _) = await FirstBoardAndLaneAsync(factory);
+
+        StageDuplicateLabels(db, boardId);
+        factory.Log.Clear();
+
+        // Act
+        using (ExpectedSaveFailure.Expect(_ => true))
+        {
+            await Should.ThrowAsync<SqliteException>(() => db.Database.ExecuteSqlRawAsync("SELECT * FROM NoSuchTable"));
+            await Should.ThrowAsync<DbUpdateException>(() => db.SaveChangesAsync());
+        }
+
+        // Assert — the query's failure keeps its level; only the declared save failure drops.
+        EntryLevels(factory, _commandError).ShouldBe([LogLevel.Error, LogLevel.Debug]);
+        EntryLevels(factory, _saveChangesFailed).ShouldBe([LogLevel.Debug]);
+    }
+
+    [Fact]
+    public async Task SaveChanges_InWorkThatOutlivesItsDeclaration_IsLoggedAsAnError()
+    {
+        // Arrange — work started inside a declaration carries it, because it is an AsyncLocal. This
+        // work waits until the declaration has ended, then fails a save the declaration would match.
+        await using var factory = new LoggingFileDatabaseFactory();
+        _ = factory.CreateClient();
+
+        var (boardId, _) = await FirstBoardAndLaneAsync(factory);
+        using var declarationEnded = new SemaphoreSlim(0);
+
+        factory.Log.Clear();
+
+        // Act
+        Task outliving;
+        using (ExpectedSaveFailure.Expect(_ => true))
+        {
+            outliving = Task.Run(async () =>
+            {
+                await declarationEnded.WaitAsync();
+
+                await using var scope = factory.Services.CreateAsyncScope();
+                var db = scope.ServiceProvider.GetRequiredService<BoardDbContext>();
+
+                StageDuplicateLabels(db, boardId);
+
+                await Should.ThrowAsync<DbUpdateException>(() => db.SaveChangesAsync());
+            });
+        }
+
+        declarationEnded.Release();
+        await outliving;
+
+        // Assert
+        AssertLoggedAsAnError(factory);
     }
 
     // Two labels claiming one name on one board, which the board's unique index refuses.
