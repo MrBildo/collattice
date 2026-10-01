@@ -286,7 +286,10 @@ internal static class CardEndpoints
             // on how a concurrent edit racing the same revision number is resolved.
             var descriptionChange = await CardHistoryHelper.StageDescriptionChangeAsync(db, card.Id, oldDescription, card.DescriptionMarkdown, actor.Id, ct);
 
-            await CardHistoryHelper.SaveWithRevisionRetryAsync(db, descriptionChange, ct);
+            if (!await CardHistoryHelper.TrySaveWithRevisionRetryAsync(db, descriptionChange, ct))
+            {
+                return Results.Conflict(CardHistoryHelper.ContendedMessage);
+            }
 
             // Multi-axis co-fire: a single PATCH can change content + lane + labels and
             // emits one webhook event per CHANGED axis, while ringing EXACTLY ONE SSE bell via

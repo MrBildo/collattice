@@ -313,7 +313,10 @@ public sealed class CardTools(BoardDbContext db, McpAuthService auth, BoardEvent
         // racing the same revision number is resolved.
         var descriptionChange = await CardHistoryHelper.StageDescriptionChangeAsync(db, card.Id, oldDescription, card.DescriptionMarkdown, user.Id, ct);
 
-        await CardHistoryHelper.SaveWithRevisionRetryAsync(db, descriptionChange, ct);
+        if (!await CardHistoryHelper.TrySaveWithRevisionRetryAsync(db, descriptionChange, ct))
+        {
+            return $"Error: {CardHistoryHelper.ContendedMessage}";
+        }
 
         // Multi-axis co-fire: one webhook event per changed axis (content / lane /
         // labels), all riding ONE coalesced SSE bell. Routed through the shared factory seam so
