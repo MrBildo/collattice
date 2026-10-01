@@ -9,15 +9,16 @@ internal static class CardNumberHelper
     // Attempts before giving up on a board-scoped card-number collision. Both allocation surfaces
     // (insert and finalize) share the count — they contend over the same (BoardId, Number) index.
     // Eight immediate retries, with no pause between them, and the absence of a pause is deliberate:
-    // a card number is max+1 per board, so a loser re-reads the max and takes the next free number,
-    // and retrying at once keeps a tight pipeline through SQLite's single writer while the max
-    // advances continuously as winners commit. A random pause between attempts was measured to make
-    // this dramatically worse: while every loser sleeps the max stops advancing, and the narrow pause
-    // window wakes them in re-colliding clusters. Measured on the running allocator with writers
-    // released together on one board: three immediate retries lost roughly a tenth of creations
-    // through thirty-two-way, a five-with-pause shape lost up to two in five, and eight immediate
-    // retries lost none through thirty-two-way. The description-history allocator has the same max+1
-    // shape, was measured the same way, and retries the same way.
+    // a card number is max+1 per board, so a loser re-reads the max and takes the next free number.
+    // A random pause between attempts was measured to make this dramatically worse. Measured on the
+    // running allocator with writers released together on one board: three immediate retries lost
+    // roughly a tenth of creations through thirty-two-way, a five-with-pause shape lost up to two in
+    // five, and eight immediate retries lost none through thirty-two-way. The likely reason is that
+    // while every loser sleeps the max stops advancing, and the narrow pause window wakes them in
+    // re-colliding clusters. That is an explanation, not a rule: the size-create allocator has the
+    // same max+1 shape and measured a pause as helping, so each allocator's shape follows its own
+    // measurement. The description-history allocator was measured the same way and also retries
+    // immediately.
     private const int _maxRetries = 8;
 
     public static async Task InsertCardWithAutoNumberAsync
