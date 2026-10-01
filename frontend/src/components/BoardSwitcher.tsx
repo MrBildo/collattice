@@ -21,8 +21,16 @@ export function BoardSwitcher({ boards, currentSlug }: BoardSwitcherProps) {
   return (
     <Select value={currentSlug ?? ''} onValueChange={(v) => navigate(`/boards/${v}`)}>
       <Tooltip>
+        {/* Named for what it does, so it is announced as a board picker and not only by the
+            board it currently shows. */}
         <TooltipTrigger
-          render={<SelectTrigger size="sm" className="min-w-[7rem] max-w-[10rem] flex-1" />}
+          render={
+            <SelectTrigger
+              size="sm"
+              aria-label="Board"
+              className="min-w-[7rem] max-w-[10rem] flex-1"
+            />
+          }
         >
           <SelectValue>{currentBoard?.name ?? 'Select board'}</SelectValue>
         </TooltipTrigger>

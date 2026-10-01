@@ -232,9 +232,12 @@ export function SearchCommand() {
         ) : (
           <Search className="pointer-events-none absolute left-2.5 top-1/2 w-4 h-4 -translate-y-1/2 text-muted-foreground" />
         )}
+        {/* A fixed name: the placeholder is cleared on focus and shortens to "/" when the box
+            is narrow, so it cannot be what the field is called. */}
         <Input
           ref={inputRef}
           type="text"
+          aria-label="Search cards"
           placeholder={isInputFocused ? '' : placeholder}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -250,6 +253,7 @@ export function SearchCommand() {
           <Button
             variant="ghost"
             size="icon-xs"
+            aria-label="Clear search"
             onClick={handleClear}
             className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
           >
