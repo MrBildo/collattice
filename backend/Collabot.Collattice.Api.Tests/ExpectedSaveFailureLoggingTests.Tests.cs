@@ -1,10 +1,6 @@
 using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Json;
-using Collabot.Collattice.Api.Hosting.UpdateCheck;
-using Collabot.Collattice.Api.Models;
-using Collabot.Collattice.Api.Persistence;
-using Collabot.Collattice.Api.Tests.Infrastructure;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;

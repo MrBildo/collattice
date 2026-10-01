@@ -1,6 +1,4 @@
 using System.Net;
-using Collabot.Collattice.Api.Events;
-using Collabot.Collattice.Api.Hosting.Webhooks;
 using Shouldly;
 
 namespace Collabot.Collattice.Api.Tests;

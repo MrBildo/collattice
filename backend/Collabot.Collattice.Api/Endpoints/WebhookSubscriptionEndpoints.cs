@@ -1,7 +1,3 @@
-using Collabot.Collattice.Api.Auth;
-using Collabot.Collattice.Api.Hosting.Webhooks;
-using Collabot.Collattice.Api.Models;
-
 namespace Collabot.Collattice.Api.Endpoints;
 
 // Webhook subscription management (the registry CRUD + the test-delivery affordance). Every

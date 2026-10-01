@@ -1,5 +1,4 @@
 using System.Reflection;
-using Collabot.Collattice.Api.Events;
 using Shouldly;
 
 namespace Collabot.Collattice.Api.Tests;

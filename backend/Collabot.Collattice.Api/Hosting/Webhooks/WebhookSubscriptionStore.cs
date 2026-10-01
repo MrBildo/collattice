@@ -1,6 +1,3 @@
-using Collabot.Collattice.Api.Configuration;
-using Collabot.Collattice.Api.Events;
-using Collabot.Collattice.Api.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 

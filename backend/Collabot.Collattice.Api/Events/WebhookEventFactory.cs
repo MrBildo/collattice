@@ -1,5 +1,3 @@
-using Collabot.Collattice.Api.Endpoints;
-using Collabot.Collattice.Api.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace Collabot.Collattice.Api.Events;

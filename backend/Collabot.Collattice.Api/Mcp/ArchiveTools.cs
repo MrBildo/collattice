@@ -1,7 +1,5 @@
 using System.ComponentModel;
 using System.Globalization;
-using Collabot.Collattice.Api.Endpoints;
-using Collabot.Collattice.Api.Events;
 using Microsoft.EntityFrameworkCore;
 using ModelContextProtocol.Server;
 

@@ -1,4 +1,3 @@
-using Collabot.Collattice.Api.Configuration;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 

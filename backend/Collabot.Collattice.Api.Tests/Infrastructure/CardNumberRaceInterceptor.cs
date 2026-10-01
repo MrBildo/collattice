@@ -1,5 +1,4 @@
 using System.Globalization;
-using Collabot.Collattice.Api.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Diagnostics;

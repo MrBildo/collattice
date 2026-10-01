@@ -1,4 +1,3 @@
-using Collabot.Collattice.Api.Hosting;
 using Microsoft.Extensions.Configuration;
 using Shouldly;
 

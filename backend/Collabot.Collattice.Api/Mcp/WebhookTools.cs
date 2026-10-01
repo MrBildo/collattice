@@ -1,6 +1,5 @@
 using System.ComponentModel;
 using System.Text.Json;
-using Collabot.Collattice.Api.Hosting.Webhooks;
 using ModelContextProtocol.Server;
 
 namespace Collabot.Collattice.Api.Mcp;

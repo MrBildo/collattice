@@ -1,4 +1,3 @@
-using Collabot.Collattice.Api.Configuration;
 using Microsoft.Extensions.Options;
 
 namespace Collabot.Collattice.Api.Hosting.UpdateCheck;

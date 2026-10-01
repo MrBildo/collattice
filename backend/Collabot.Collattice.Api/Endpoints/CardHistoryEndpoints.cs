@@ -1,4 +1,3 @@
-using Collabot.Collattice.Api.Auth;
 using Microsoft.EntityFrameworkCore;
 
 namespace Collabot.Collattice.Api.Endpoints;

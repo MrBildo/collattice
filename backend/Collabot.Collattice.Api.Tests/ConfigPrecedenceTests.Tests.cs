@@ -1,4 +1,3 @@
-using Collabot.Collattice.Api.Tests.Infrastructure;
 using Microsoft.Extensions.Configuration;
 using Shouldly;
 
