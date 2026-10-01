@@ -35,7 +35,7 @@ internal static class LabelEndpoints
 
             if (await db.Labels.AnyAsync(x => x.BoardId == boardId && x.Name == request.Name, ct))
             {
-                return Results.Conflict("A label with that name already exists on this board.");
+                return Results.Conflict(LabelUpdateHelper.NameTakenMessage);
             }
 
             var label = new Label
@@ -61,22 +61,13 @@ internal static class LabelEndpoints
                 return Results.NotFound();
             }
 
-            if (request.Name is not null)
+            var (error, isConflict) = await LabelUpdateHelper.UpdateAsync(db, label, request.Name, request.Color, ct);
+            if (error is not null)
             {
-                if (string.IsNullOrWhiteSpace(request.Name))
-                {
-                    return Results.BadRequest("Name cannot be empty.");
-                }
-
-                label.Name = request.Name;
+                return isConflict
+                    ? Results.Conflict(error)
+                    : Results.BadRequest(error);
             }
-
-            if (request.Color is not null)
-            {
-                label.Color = request.Color;
-            }
-
-            await db.SaveChangesAsync(ct);
 
             // label.updated — same single board bell, plus one webhook event.
             await WebhookEventFactory.PublishLabelUpdatedAsync(db, broadcaster, label, http.CurrentUser(), ct);
@@ -144,14 +135,10 @@ internal static class LabelEndpoints
                 return Results.BadRequest("Label does not belong to the same board as the card.");
             }
 
-            if (await db.CardLabels.AnyAsync(x => x.CardId == id && x.LabelId == labelId, ct))
+            if (await CardLabelHelper.AssignAsync(db, id, labelId, ct) is not CardLabel cardLabel)
             {
                 return Results.Conflict("Label is already assigned to this card.");
             }
-
-            var cardLabel = new CardLabel { CardId = id, LabelId = labelId };
-            db.CardLabels.Add(cardLabel);
-            await db.SaveChangesAsync(ct);
 
             // card.labeled — the card's label-set changed; the label resource is embedded so a
             // consumer knows which label without a follow-up fetch. Same SSE bell.
@@ -175,8 +162,10 @@ internal static class LabelEndpoints
             var card = await db.Cards.FindAsync([id], ct);
             var label = await db.Labels.FindAsync([labelId], ct);
 
-            db.CardLabels.Remove(cardLabel);
-            await db.SaveChangesAsync(ct);
+            if (!await CardLabelHelper.UnassignAsync(db, cardLabel, ct))
+            {
+                return Results.NotFound();
+            }
 
             // card.unlabeled — the label row itself persists (only the card↔label association
             // is removed), so the embedded label resource is still resolvable.

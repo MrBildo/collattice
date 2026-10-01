@@ -135,11 +135,18 @@ export function useLaneDnd(boardId: string | undefined, serverLanes: Lane[]) {
     reorderMutation.mutate(finalOrder.map((l) => l.id));
   };
 
+  // Escape during a drag cancels it: the lanes go back to the saved order.
+  const onDragCancel = () => {
+    setActiveLaneId(null);
+    setDragLanes(null);
+  };
+
   return {
     activeLaneId,
     localLanes,
     onDragStart,
     onDragOver,
     onDragEnd,
+    onDragCancel,
   };
 }

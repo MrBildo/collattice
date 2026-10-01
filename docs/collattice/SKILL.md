@@ -531,12 +531,14 @@ Delete an attachment. You may delete your own; admin-level roles may delete any.
 #### `add_label_to_card`
 Assign a label to a card. Identify the label by `labelId` or by `labelName`
 (case-insensitive, within the card's board). Idempotent — re-assigning an existing
-label reports it rather than erroring. The label must belong to the card's board.
+label reports it rather than erroring, and so does a call that loses to another caller
+assigning the same label at the same moment. The label must belong to the card's board.
 - **Params:** `authKey`, a card ref, `labelId` **or** `labelName`.
 - Archived cards are rejected.
 
 #### `remove_label_from_card`
-Remove a label from a card. Same identification options as above.
+Remove a label from a card. Same identification options as above. A label that is not
+on the card is an error, including one another caller removed at the same moment.
 - **Params:** `authKey`, a card ref, `labelId` **or** `labelName`.
 - Archived cards are rejected.
 
@@ -546,7 +548,8 @@ Create a label on a board. Names are unique within a board.
   string).
 
 #### `update_label` *(admin-level)*
-Update a label's name and/or color.
+Update a label's name and/or color. A name already held by another label on the
+board is a conflict and is rejected, and nothing in the call is saved.
 - **Params:** `authKey`, `labelId` (GUID). Optional: `name`, `color`.
 
 #### `delete_label` *(destructive, admin-level)*
@@ -592,8 +595,8 @@ size on the board is a conflict and is rejected.
 - **Params:** `authKey`, `boardId` (GUID), `name`. Optional: `ordinal`.
 
 #### `update_size` *(admin-level)*
-Update a size's name and/or ordinal. An ordinal already held by another size on the
-board is a conflict.
+Update a size's name and/or ordinal. A name or an ordinal already held by another
+size on the board is a conflict, and nothing in the call is saved.
 - **Params:** `authKey`, `sizeId` (GUID). Optional: `name`, `ordinal`.
 
 #### `delete_size` *(destructive, admin-level)*

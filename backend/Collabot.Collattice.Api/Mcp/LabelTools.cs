@@ -67,7 +67,7 @@ public sealed class LabelTools(BoardDbContext db, McpAuthService auth, BoardEven
 
         if (await db.Labels.AnyAsync(l => l.BoardId == boardId && l.Name == name, ct))
         {
-            return "Error: A label with that name already exists on this board.";
+            return $"Error: {LabelUpdateHelper.NameTakenMessage}";
         }
 
         var label = new Label
@@ -86,7 +86,7 @@ public sealed class LabelTools(BoardDbContext db, McpAuthService auth, BoardEven
     }
 
     [McpServerTool(Name = "update_label", Destructive = false)]
-    [Description("Update a label's name and/or color. Requires Administrator or AgentAdministrator role. Color is an optional string (e.g. a hex value).")]
+    [Description("Update a label's name and/or color. Requires Administrator or AgentAdministrator role. Color is an optional string (e.g. a hex value). A name already taken by another label on the board is a conflict, and nothing in the call is saved.")]
     public async Task<string> UpdateLabelAsync
     (
         [Description("Your auth key")] string authKey,
@@ -108,22 +108,11 @@ public sealed class LabelTools(BoardDbContext db, McpAuthService auth, BoardEven
             return "Error: Label not found.";
         }
 
-        if (name is not null)
+        var (updateError, _) = await LabelUpdateHelper.UpdateAsync(db, label, name, color, ct);
+        if (updateError is not null)
         {
-            if (string.IsNullOrWhiteSpace(name))
-            {
-                return "Error: Name cannot be empty.";
-            }
-
-            label.Name = name;
+            return $"Error: {updateError}";
         }
-
-        if (color is not null)
-        {
-            label.Color = color;
-        }
-
-        await db.SaveChangesAsync(ct);
 
         // label.updated — REST/MCP emit the identical event through the shared factory.
         await WebhookEventFactory.PublishLabelUpdatedAsync(db, broadcaster, label, user!, ct);
@@ -217,13 +206,10 @@ public sealed class LabelTools(BoardDbContext db, McpAuthService auth, BoardEven
             return "Error: Label does not belong to the same board as the card.";
         }
 
-        if (await db.CardLabels.AnyAsync(cl => cl.CardId == card.Id && cl.LabelId == resolvedLabelId, ct))
+        if (await CardLabelHelper.AssignAsync(db, card.Id, label.Id, ct) is null)
         {
             return "Label already assigned to this card.";
         }
-
-        db.CardLabels.Add(new CardLabel { CardId = card.Id, LabelId = resolvedLabelId!.Value });
-        await db.SaveChangesAsync(ct);
 
         // card.labeled — REST/MCP emit the identical event through the shared factory.
         await WebhookEventFactory.PublishCardLabeledAsync(db, broadcaster, card, label, user!, ct);
@@ -285,8 +271,10 @@ public sealed class LabelTools(BoardDbContext db, McpAuthService auth, BoardEven
         // row itself persists; only the card↔label join is removed).
         var label = await db.Labels.FindAsync([resolvedLabelId!.Value], ct);
 
-        db.CardLabels.Remove(cardLabel);
-        await db.SaveChangesAsync(ct);
+        if (!await CardLabelHelper.UnassignAsync(db, cardLabel, ct))
+        {
+            return "Error: Label not assigned to this card.";
+        }
 
         // card.unlabeled — REST/MCP emit the identical event through the shared factory.
         if (label is not null)

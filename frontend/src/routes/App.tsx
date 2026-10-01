@@ -2,6 +2,7 @@ import {
   DndContext,
   DragOverlay,
   useDndContext,
+  type DragCancelEvent,
   type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent,
@@ -32,6 +33,10 @@ import { useCurrentUser } from '@/hooks/use-current-user';
 import { useIsMobile } from '@/hooks/use-is-mobile';
 import { useLaneCollapse } from '@/hooks/use-lane-collapse';
 import { cn } from '@/lib/utils';
+import {
+  BOARD_DRAG_INSTRUCTIONS,
+  buildBoardDragAnnouncements,
+} from '@/lib/board-drag-announcements';
 import { isLaneDragEvent } from '@/lib/dnd-active-type';
 import { useLaneResize } from '@/hooks/use-lane-resize';
 import type { CardPrefill } from '@/lib/duplicate-card';
@@ -138,6 +143,7 @@ export function App() {
     onDragStart: onCardDragStart,
     onDragOver: onCardDragOver,
     onDragEnd: onCardDragEnd,
+    onDragCancel: onCardDragCancel,
   } = useBoardDnd(boardId, serverCards, laneIds, isMobile);
 
   const {
@@ -146,6 +152,7 @@ export function App() {
     onDragStart: onLaneDragStart,
     onDragOver: onLaneDragOver,
     onDragEnd: onLaneDragEnd,
+    onDragCancel: onLaneDragCancel,
   } = useLaneDnd(boardId, lanes);
 
   // Two drag concerns share one DndContext (card reorder + lane reorder). Route
@@ -156,6 +163,24 @@ export function App() {
     isLaneDragEvent(event) ? onLaneDragOver(event) : onCardDragOver(event);
   const handleDragEnd = (event: DragEndEvent) =>
     isLaneDragEvent(event) ? onLaneDragEnd(event) : onCardDragEnd(event);
+  const handleDragCancel = (event: DragCancelEvent) =>
+    isLaneDragEvent(event) ? onLaneDragCancel() : onCardDragCancel();
+
+  // What a screen reader hears during a drag. dnd-kit re-registers its
+  // announcement listener whenever this object changes, so it is rebuilt only
+  // when the cards or lanes it names change, not on every render of the board.
+  const dragAccessibility = useMemo(
+    () => ({
+      announcements: buildBoardDragAnnouncements({
+        cards: localCards,
+        savedCards: sortedServerCards,
+        lanes: localLanes,
+        savedLanes: lanes,
+      }),
+      screenReaderInstructions: BOARD_DRAG_INSTRUCTIONS,
+    }),
+    [localCards, sortedServerCards, localLanes, lanes],
+  );
 
   // Derive selected card from URL — check board data first, fall back to archived card fetch
   const cardNum = cardNumber ? parseInt(cardNumber, 10) : null;
@@ -308,6 +333,8 @@ export function App() {
         onDragStart={handleDragStart}
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
+        onDragCancel={handleDragCancel}
+        accessibility={dragAccessibility}
       >
         <CardTileFinderBridge finderRef={findCardTileRef} />
         <section

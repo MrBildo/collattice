@@ -2,7 +2,6 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Collabot.Collattice.Api.Auth;
-using Collabot.Collattice.Api.Endpoints;
 using Collabot.Collattice.Api.Events;
 using Collabot.Collattice.Api.Mcp;
 using Collabot.Collattice.Api.Models;
@@ -95,31 +94,30 @@ public class CardHistoryWiringTests(RevisionRaceFactory factory) : IClassFixture
         await AssertBothEditsRecordedAsync(cardId, "rival edit 1", "my wording");
     }
 
-    [Fact]
-    public async Task RestDescriptionPatch_LosingEveryRetryButTheLast_StillAnswers()
+    [Theory]
+    [InlineData(EntryPoint.RestPatch)]
+    [InlineData(EntryPoint.McpUpdateCard)]
+    public async Task DescriptionEdit_LosingEveryRetryButTheLast_StillAnswers(EntryPoint entryPoint)
     {
         // Arm one collision short of the retry budget, so the write path loses on every attempt but
         // its last and still commits. The single-collision tests above never reach a second
-        // iteration of the retry loop; this is where a loop that stopped rebuilding after one try —
-        // or a retry deleted from the entry point — would surface.
+        // iteration of the retry loop; this is where a loop that stopped rebuilding after one try, a
+        // cut budget, or a retry deleted from the entry point would surface. The budget is the
+        // test-side one, never the helper's own constant, so that a cut cannot move the test with it.
         TestAuthHelper.SetAdminAuth(_client, _factory);
-        var cardId = await CreateCardAsync("Rest Last Attempt Race", "start");
-        var rival = await TestAuthHelper.CreateUserAsync(_client, _factory, "Rest Last Attempt Rival", UserRole.HumanUser);
+        var cardId = await CreateCardAsync($"Last Attempt Race {entryPoint}", "start");
+        var rival = await TestAuthHelper.CreateUserAsync(_client, _factory, $"Last Attempt Rival {entryPoint}", UserRole.HumanUser);
 
-        _factory.Interceptor.Arm(cardId, rival.Id, CardHistoryHelper.MaxRevisionRetryAttempts - 1);
+        _factory.Interceptor.Arm(cardId, rival.Id, AllocatorRetryBudget.Attempts - 1);
 
         try
         {
             // Act
-            var response = await _client.PatchAsJsonAsync
-            (
-                $"/api/v1/cards/{cardId}",
-                new { descriptionMarkdown = "my wording" }
-            );
+            var outcome = await EditDescriptionAsync(entryPoint, cardId, "my wording");
 
             // Assert — every collision but the last was met, and the request still answered.
-            _factory.Interceptor.FiredCount.ShouldBe(CardHistoryHelper.MaxRevisionRetryAttempts - 1);
-            response.StatusCode.ShouldBe(HttpStatusCode.OK);
+            _factory.Interceptor.FiredCount.ShouldBe(AllocatorRetryBudget.Attempts - 1);
+            outcome.Succeeded.ShouldBeTrue();
         }
         finally
         {
@@ -135,7 +133,7 @@ public class CardHistoryWiringTests(RevisionRaceFactory factory) : IClassFixture
             .OrderBy(h => h.Revision)
                 .ToListAsync();
 
-        rows.Count.ShouldBe(CardHistoryHelper.MaxRevisionRetryAttempts + 1);
+        rows.Count.ShouldBe(AllocatorRetryBudget.Attempts + 1);
         rows.Count(r => r.Value == "start").ShouldBe(1);
         rows[0].EditedByUserId.ShouldBeNull();
         rows[^1].Value.ShouldBe("my wording");
@@ -144,37 +142,58 @@ public class CardHistoryWiringTests(RevisionRaceFactory factory) : IClassFixture
         card.DescriptionMarkdown.ShouldBe("my wording");
     }
 
-    [Fact]
-    public async Task RestDescriptionPatch_ExhaustingEveryRetryAttempt_FailsTheRequest()
+    [Theory]
+    [InlineData(EntryPoint.RestPatch)]
+    [InlineData(EntryPoint.McpUpdateCard)]
+    public async Task DescriptionEdit_ExhaustingEveryRetryAttempt_FailsTheRequestOnTheCollision(EntryPoint entryPoint)
     {
         // Arm a collision for every attempt, so even the last is lost and the budget runs out. The
-        // request fails (500) rather than hanging or silently dropping the edit, and the loop
-        // terminates. The 500 on its own would not distinguish exhaustion from a retry-less
-        // first-collision failure — the fired-count check is what proves the loop ran the full
-        // budget before giving up, and it is why this reds too if the retry leaves the entry point.
+        // request fails rather than hanging or silently dropping the edit, and the loop terminates.
+        // The failure on its own would not distinguish exhaustion from a retry-less first-collision
+        // failure; the fired-count check is what proves the loop ran the full budget before giving
+        // up, and it is why this reds too if the retry leaves the entry point.
         TestAuthHelper.SetAdminAuth(_client, _factory);
-        var cardId = await CreateCardAsync("Rest Exhaustion Race", "start");
-        var rival = await TestAuthHelper.CreateUserAsync(_client, _factory, "Rest Exhaustion Rival", UserRole.HumanUser);
+        var cardId = await CreateCardAsync($"Exhaustion Race {entryPoint}", "start");
+        var rival = await TestAuthHelper.CreateUserAsync(_client, _factory, $"Exhaustion Rival {entryPoint}", UserRole.HumanUser);
 
-        _factory.Interceptor.Arm(cardId, rival.Id, CardHistoryHelper.MaxRevisionRetryAttempts);
+        _factory.Interceptor.Arm(cardId, rival.Id, AllocatorRetryBudget.Attempts);
 
         try
         {
             // Act
-            var response = await _client.PatchAsJsonAsync
-            (
-                $"/api/v1/cards/{cardId}",
-                new { descriptionMarkdown = "my wording" }
-            );
+            var outcome = await EditDescriptionAsync(entryPoint, cardId, "my wording");
 
             // Assert — every attempt met a collision, and the exhausted write failed the request.
-            _factory.Interceptor.FiredCount.ShouldBe(CardHistoryHelper.MaxRevisionRetryAttempts);
-            response.StatusCode.ShouldBe(HttpStatusCode.InternalServerError);
+            _factory.Interceptor.FiredCount.ShouldBe(AllocatorRetryBudget.Attempts);
+            outcome.Succeeded.ShouldBeFalse();
+            outcome.ShouldHaveFailedOnCollision("CardFieldHistories.Revision");
         }
         finally
         {
             _factory.Interceptor.Disarm();
         }
+    }
+
+    public enum EntryPoint
+    {
+        RestPatch,
+        McpUpdateCard
+    }
+
+    private async Task<WriteOutcome> EditDescriptionAsync(EntryPoint entryPoint, Guid cardId, string descriptionMarkdown)
+    {
+        if (entryPoint == EntryPoint.RestPatch)
+        {
+            return WriteOutcome.FromResponse(await _client.PatchAsJsonAsync($"/api/v1/cards/{cardId}", new { descriptionMarkdown }));
+        }
+
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<BoardDbContext>();
+        var broadcaster = scope.ServiceProvider.GetRequiredService<BoardEventBroadcaster>();
+        var tools = new CardTools(db, new McpAuthService(new UserResolver(db)), broadcaster);
+
+        return await WriteOutcome.FromToolAsync(() =>
+            tools.UpdateCardAsync(CollatticeApiFactory.TestAdminAuthKey, cardId: cardId, descriptionMarkdown: descriptionMarkdown));
     }
 
     private async Task AssertBothEditsRecordedAsync(Guid cardId, string rivalValue, string ownValue)
