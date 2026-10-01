@@ -12,10 +12,12 @@ internal static class McpCardResolver
     // single error string (no per-card envelope) when any ref is malformed,
     // when the disjunction is violated, or when any referenced card does not
     // exist. On success it returns the cards in input order so the caller's
-    // per-card result envelope aligns 1:1 with the requested order.
+    // per-card result envelope aligns 1:1 with the requested order. Another
+    // user's draft does not exist as far as the caller is concerned.
     public static async Task<(List<CardItem>? Cards, string? Error)> ResolveCardRefsAsync
     (
         BoardDbContext db,
+        BoardUser caller,
         string? cardIds,
         string? cardNumbers,
         Guid? boardId,
@@ -30,7 +32,7 @@ internal static class McpCardResolver
         {
             (true, true) => (null, "Error: provide cardIds OR cardNumbers, not both."),
             (false, false) => (null, "Error: no card refs provided."),
-            (true, _) => await ResolveByIdsAsync(db, cardIds!, ct),
+            (true, _) => await ResolveByIdsAsync(db, caller, cardIds!, ct),
             _ => await ResolveByNumbersAsync(db, cardNumbers!, boardId, boardSlug, ct),
         };
     }
@@ -38,6 +40,7 @@ internal static class McpCardResolver
     private static async Task<(List<CardItem>? Cards, string? Error)> ResolveByIdsAsync
     (
         BoardDbContext db,
+        BoardUser caller,
         string cardIds,
         CancellationToken ct
     )
@@ -64,7 +67,9 @@ internal static class McpCardResolver
             .Where(c => requestedIds.Contains(c.Id))
                 .ToListAsync(ct);
 
-        var foundById = found.ToDictionary(c => c.Id);
+        var foundById = found
+            .Where(c => !DraftVisibility.IsHiddenFrom(c, caller.Id))
+                .ToDictionary(c => c.Id);
         var missing = requestedIds.Where(id => !foundById.ContainsKey(id)).ToList();
         if (missing.Count > 0)
         {
@@ -124,9 +129,14 @@ internal static class McpCardResolver
         return (ordered, null);
     }
 
+    // The one place a single-card MCP tool turns its card reference into a card. The card is loaded
+    // into the tool's context here, so the tool's own lookup of it afterwards costs nothing more.
+    // Another user's draft resolves as not found. Every draft carries number 0, so a card number
+    // below 1 names no card at all, for anyone, the draft's creator included.
     public static async Task<(Guid? CardId, string? Error)> ResolveCardIdAsync
     (
         BoardDbContext db,
+        BoardUser caller,
         Guid? cardId,
         long? cardNumber,
         Guid? boardId = null,
@@ -146,7 +156,10 @@ internal static class McpCardResolver
 
         if (cardId.HasValue)
         {
-            return (cardId.Value, null);
+            var byId = await db.Cards.FindAsync([cardId.Value], ct);
+            return byId is null || DraftVisibility.IsHiddenFrom(byId, caller.Id)
+                ? (null, "Error: Card not found.")
+                : (byId.Id, null);
         }
 
         // cardNumber requires board context
@@ -156,14 +169,32 @@ internal static class McpCardResolver
             return (null, boardError);
         }
 
-        var card = await db.Cards.FirstOrDefaultAsync
-        (
-            c => c.BoardId == resolvedBoardId && c.Number == cardNumber,
-            ct
-        );
+        var number = cardNumber!.Value;
+        var card = number < 1
+            ? null
+            : await db.Cards.SingleOrDefaultAsync(c => c.BoardId == resolvedBoardId && c.Number == number, ct);
+
         return card is not null
             ? (card.Id, null)
-            : (null, $"Error: Card #{cardNumber!.Value.ToString(CultureInfo.InvariantCulture)} not found on this board.");
+            : (null, $"Error: Card #{number.ToString(CultureInfo.InvariantCulture)} not found on this board.");
+    }
+
+    // A comment or an attachment on another user's draft is answered as one that does not exist,
+    // the same as the draft itself.
+    public static async Task<CardComment?> FindVisibleCommentAsync(BoardDbContext db, BoardUser caller, Guid commentId, CancellationToken ct)
+    {
+        var comment = await db.Comments.FindAsync([commentId], ct);
+        return comment is null || await DraftVisibility.IsCardHiddenFromAsync(db, comment.CardId, caller.Id, ct)
+            ? null
+            : comment;
+    }
+
+    public static async Task<CardAttachment?> FindVisibleAttachmentAsync(BoardDbContext db, BoardUser caller, Guid attachmentId, CancellationToken ct)
+    {
+        var attachment = await db.Attachments.FindAsync([attachmentId], ct);
+        return attachment is null || await DraftVisibility.IsCardHiddenFromAsync(db, attachment.CardId, caller.Id, ct)
+            ? null
+            : attachment;
     }
 
     private static async Task<(Guid? BoardId, string? Error)> ResolveBoardIdAsync

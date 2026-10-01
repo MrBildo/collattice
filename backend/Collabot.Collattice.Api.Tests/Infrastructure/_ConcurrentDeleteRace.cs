@@ -20,6 +20,8 @@ public class ConcurrentDeleteRaceInterceptor(IServiceScopeFactory scopeFactory) 
     private string? _afterReadOf;
     private Func<BoardDbContext, Task>? _rival;
     private int _firedCount;
+    private int _fireOnRead;
+    private int _matchingReads;
     private bool _injectingRival;
     private ConcurrentQueue<string> _commands = new();
 
@@ -32,11 +34,14 @@ public class ConcurrentDeleteRaceInterceptor(IServiceScopeFactory scopeFactory) 
 
     // Armed per test for one rival: the fixture is shared across the class, and leftover arming would
     // let a later test meet a rival it never asked for. The rival fires once, after the first SELECT
-    // reading the named table.
-    public void Arm(string afterReadOf, Func<BoardDbContext, Task> rival)
+    // reading the named table, or after a later one when the request reads that table more than once
+    // before the check the test is aimed at.
+    public void Arm(string afterReadOf, Func<BoardDbContext, Task> rival, int onRead = 1)
     {
         _afterReadOf = $"FROM \"{afterReadOf}\"";
         _rival = rival;
+        _fireOnRead = onRead;
+        Volatile.Write(ref _matchingReads, 0);
         Volatile.Write(ref _firedCount, 0);
         _injectingRival = false;
         _commands = new();
@@ -75,7 +80,7 @@ public class ConcurrentDeleteRaceInterceptor(IServiceScopeFactory scopeFactory) 
         InterceptionResult result
     )
     {
-        if (ShouldFire(command) && _rival is Func<BoardDbContext, Task> rival)
+        if (ShouldFire(command) && Interlocked.Increment(ref _matchingReads) == _fireOnRead && _rival is Func<BoardDbContext, Task> rival)
         {
             _rival = null;
             Interlocked.Increment(ref _firedCount);

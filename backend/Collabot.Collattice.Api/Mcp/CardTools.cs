@@ -87,7 +87,7 @@ public sealed class CardTools(BoardDbContext db, McpAuthService auth, BoardEvent
             return error;
         }
 
-        var (resolvedCardId, resolveError) = await McpCardResolver.ResolveCardIdAsync(db, cardId, cardNumber, boardId, boardSlug, ct);
+        var (resolvedCardId, resolveError) = await McpCardResolver.ResolveCardIdAsync(db, user!, cardId, cardNumber, boardId, boardSlug, ct);
         if (resolveError is not null)
         {
             return resolveError;
@@ -157,7 +157,7 @@ public sealed class CardTools(BoardDbContext db, McpAuthService auth, BoardEvent
             return error;
         }
 
-        var (resolvedCardId, resolveError) = await McpCardResolver.ResolveCardIdAsync(db, cardId, cardNumber, boardId, boardSlug, ct);
+        var (resolvedCardId, resolveError) = await McpCardResolver.ResolveCardIdAsync(db, user!, cardId, cardNumber, boardId, boardSlug, ct);
         if (resolveError is not null)
         {
             return resolveError;
@@ -409,13 +409,13 @@ public sealed class CardTools(BoardDbContext db, McpAuthService auth, BoardEvent
         CancellationToken ct = default
     )
     {
-        var (_, error) = await auth.RequireUserAsync(authKey, ct);
+        var (user, error) = await auth.RequireUserAsync(authKey, ct);
         if (error is not null)
         {
             return error;
         }
 
-        var (resolvedCardId, resolveError) = await McpCardResolver.ResolveCardIdAsync(db, cardId, cardNumber, boardId, boardSlug, ct);
+        var (resolvedCardId, resolveError) = await McpCardResolver.ResolveCardIdAsync(db, user!, cardId, cardNumber, boardId, boardSlug, ct);
         if (resolveError is not null)
         {
             return resolveError;
