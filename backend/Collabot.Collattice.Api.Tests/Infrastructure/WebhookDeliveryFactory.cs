@@ -1,6 +1,5 @@
 using Collabot.Collattice.Api.Hosting.Webhooks;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -54,31 +53,9 @@ public sealed class WebhookDeliveryFactory : CollatticeApiFactory
 
         host.Services
             .GetRequiredService<IHostApplicationLifetime>()
-                .ApplicationStopped.Register(DeleteDatabaseFiles);
+                .ApplicationStopped.Register(() => PersistentDatabaseFactory.DeleteDatabaseFiles(_databasePath));
 
         return host;
-    }
-
-    private void DeleteDatabaseFiles()
-    {
-        // Close this database's pooled connections first; an open one keeps the file locked on
-        // Windows.
-        using (var connection = new SqliteConnection($"Data Source={_databasePath}"))
-        {
-            SqliteConnection.ClearPool(connection);
-        }
-
-        foreach (var path in new[] { _databasePath, $"{_databasePath}-wal", $"{_databasePath}-shm" })
-        {
-            try
-            {
-                File.Delete(path);
-            }
-            catch (IOException)
-            {
-                // A temp file still held open is left for the OS to clean up; it is never read again.
-            }
-        }
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)

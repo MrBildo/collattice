@@ -86,8 +86,8 @@ public class CollatticeApiFactory : WebApplicationFactory<Program>, IAsyncLifeti
                 // The temp-card and delivery-log sweeps run in every test host, and neither touches
                 // the database until its first timer tick. Pinning the temp-card interval to a day
                 // keeps that tick out of reach of any test host whatever the production default
-                // becomes, so neither sweep can race a test thread on the shared connection. A test
-                // that needs the running loop overrides this and brings a database of its own.
+                // becomes. The delivery-log sweep's interval is a fixed day in code. A test that
+                // needs the running temp-card loop overrides this and brings a database of its own.
                 ["TempCardSweep:SweepInterval"] = "1.00:00:00",
             });
 
