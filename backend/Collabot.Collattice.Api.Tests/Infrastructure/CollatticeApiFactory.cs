@@ -103,7 +103,7 @@ public class CollatticeApiFactory : WebApplicationFactory<Program>, IAsyncLifeti
 
             services.AddDbContext<BoardDbContext>((serviceProvider, options) =>
             {
-                options.UseSqlite(_connection);
+                UseTestDatabase(options);
                 ConfigureDbContext(serviceProvider, options);
             });
 
@@ -154,6 +154,13 @@ public class CollatticeApiFactory : WebApplicationFactory<Program>, IAsyncLifeti
                 http.AddHttpMessageHandler(() => new GitHubEgressGuardHandler(_gitHubAttempts)));
         });
     }
+
+    // Every context in a standard test host shares the one in-memory connection, so all database
+    // work must stay on the test's own thread. A derived factory that runs a hosted service doing
+    // database work alongside requests overrides this with a database each context opens its own
+    // connection to: one SqliteConnection cannot be used from two threads, and opening a second
+    // context on it while another thread's statement is active fails outright.
+    protected virtual void UseTestDatabase(DbContextOptionsBuilder options) => options.UseSqlite(_connection);
 
     // Lets a derived factory add to the test DbContext without re-registering it. Re-registration
     // would drop the shared in-memory connection this class owns, which is the whole harness.
