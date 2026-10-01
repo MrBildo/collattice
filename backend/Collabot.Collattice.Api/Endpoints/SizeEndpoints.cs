@@ -86,8 +86,16 @@ internal static class SizeEndpoints
                 return Results.Conflict("Size is in use by cards.");
             }
 
-            db.CardSizes.Remove(size);
-            await db.SaveChangesAsync(ct);
+            var deleteOutcome = await GuardedDelete.SizeAsync(db, size, ct);
+            if (deleteOutcome is GuardedDeleteOutcome.InUse)
+            {
+                return Results.Conflict("Size is in use by cards.");
+            }
+
+            if (deleteOutcome is GuardedDeleteOutcome.NotFound)
+            {
+                return Results.NotFound();
+            }
 
             // size.deleted — published from the captured size after the row is gone; the board still
             // exists, so the slug resolves.

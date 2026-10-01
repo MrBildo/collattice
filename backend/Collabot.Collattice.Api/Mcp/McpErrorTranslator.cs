@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Collabot.Collattice.Api.Hosting;
 using ModelContextProtocol;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
@@ -17,7 +18,9 @@ namespace Collabot.Collattice.Api.Mcp;
 //
 // Security posture: only known operator-input shapes surface their messages.
 // Stack traces never leak. Server-internal failures (DB, downstream timeouts,
-// EF-translation crashes) keep the body-less wrapper response.
+// EF-translation crashes) keep the body-less wrapper response, with one
+// exception: a write that lost to a concurrent delete is answered with a fixed
+// message (see ConcurrentDeleteConflict), never the exception's own text.
 internal static class McpErrorTranslator
 {
     // Surface message for input-validation / serialization shapes. Anything
@@ -65,6 +68,16 @@ internal static class McpErrorTranslator
             catch (Exception ex) when (ShouldSurface(ex))
             {
                 throw ToMcpException(ex);
+            }
+            catch (Exception ex) when (ConcurrentDeleteConflict.Matches(ex))
+            {
+                // A write that lost to a concurrent delete answers the way a tool answers anything
+                // it refuses, with an "Error: " string: the MCP form of the 409 REST gives. The
+                // message is fixed and names no table or constraint, so nothing internal leaks.
+                return new CallToolResult
+                {
+                    Content = [new TextContentBlock { Text = $"Error: {ConcurrentDeleteConflict.Message}" }],
+                };
             }
         };
 }

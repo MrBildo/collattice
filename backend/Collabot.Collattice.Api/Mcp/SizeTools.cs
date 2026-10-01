@@ -122,8 +122,16 @@ public sealed class SizeTools(BoardDbContext db, McpAuthService auth, BoardEvent
             return "Error: Size is in use by cards.";
         }
 
-        db.CardSizes.Remove(size);
-        await db.SaveChangesAsync(ct);
+        var deleteOutcome = await GuardedDelete.SizeAsync(db, size, ct);
+        if (deleteOutcome is GuardedDeleteOutcome.InUse)
+        {
+            return "Error: Size is in use by cards.";
+        }
+
+        if (deleteOutcome is GuardedDeleteOutcome.NotFound)
+        {
+            return "Error: Size not found.";
+        }
 
         // size.deleted — published from the captured size after the row is gone; REST/MCP identical
         // through the shared factory.

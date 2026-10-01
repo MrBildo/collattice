@@ -1,8 +1,11 @@
 using Collabot.Collattice.Api.Mcp;
 using Collabot.Collattice.Api.Tests.Infrastructure;
+using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using ModelContextProtocol;
+using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using Shouldly;
 
@@ -72,6 +75,37 @@ public class McpServerErrorWrapperTests(CollatticeApiFactory factory) : IClassFi
             async () => await pipeline(null!, CancellationToken.None).ConfigureAwait(false));
 
         // Assert — exact same exception instance bubbled through.
+        ex.ShouldBeSameAs(inner);
+    }
+
+    [Fact]
+    public async Task WrapForCallTool_WriteLostToConcurrentDelete_AnswersWithAToolErrorString()
+    {
+        // Arrange — the failure a write gets when a row it refers to was deleted under it
+        var pipeline = McpErrorTranslator.WrapForCallTool(static (_, _) =>
+            throw new DbUpdateException("save failed", new SqliteException("FOREIGN KEY constraint failed", 19, 787)));
+
+        // Act
+        var result = await pipeline(null!, CancellationToken.None);
+
+        // Assert — the same shape a tool's own refusal takes, naming nothing internal
+        var text = result.Content.OfType<TextContentBlock>().Single().Text;
+
+        text.ShouldBe("Error: Something this change refers to was changed or deleted at the same moment. Reload and try again.");
+    }
+
+    [Fact]
+    public async Task WrapForCallTool_UniqueCollision_PassesThrough()
+    {
+        // Arrange — same primary SQLite code (19), a different failure: not a concurrent delete
+        var inner = new DbUpdateException("save failed", new SqliteException("UNIQUE constraint failed", 19, 2067));
+        var pipeline = McpErrorTranslator.WrapForCallTool((_, _) => throw inner);
+
+        // Act
+        var ex = await Should.ThrowAsync<DbUpdateException>(
+            async () => await pipeline(null!, CancellationToken.None).ConfigureAwait(false));
+
+        // Assert
         ex.ShouldBeSameAs(inner);
     }
 

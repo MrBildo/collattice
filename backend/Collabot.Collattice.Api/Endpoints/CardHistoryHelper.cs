@@ -244,9 +244,12 @@ internal static class CardHistoryHelper
     // retried and rethrown as a revision problem it never was. The discrimination is on the rows
     // the failed statement was actually writing, which the exception carries; asking instead what
     // this request had staged answers yes every time, because a staged revision is the only reason
-    // this method is running.
+    // this method is running. The match is on the unique-constraint code itself, not SQLite's
+    // primary constraint code it shares with a foreign-key failure: a card deleted under the edit
+    // fails the history rows' foreign key, and retrying that only repeats the same failure eight
+    // times before the caller hears it.
     private static bool IsRevisionCollision(DbUpdateException ex) =>
-        ex.InnerException is SqliteException { SqliteErrorCode: 19 }
+        ex.InnerException is SqliteException { SqliteExtendedErrorCode: 2067 }
         && ex.Entries.Any(e => e.Entity is CardFieldHistory);
 
     private static void DetachStagedRows(BoardDbContext db, StagedDescriptionChange change)

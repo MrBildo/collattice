@@ -297,7 +297,9 @@ builder.Services
         // shapes and rethrows as McpException so the wrapper renders
         // "<tool>': <Type — Message>". Server-internal failures (DB, EF,
         // downstream) deliberately fall through, preserving the body-less
-        // wrapper response so infrastructure detail does not leak.
+        // wrapper response so infrastructure detail does not leak. A write that
+        // lost to a concurrent delete is the one database failure it answers,
+        // with a fixed "Error: " message.
         filters.AddCallToolFilter(McpErrorTranslator.WrapForCallTool);
     });
 
@@ -452,6 +454,10 @@ app.UseForwardedHeaders(new ForwardedHeadersOptions { ForwardedHeaders = Forward
 // observes the final status of every request: fills a bodyless 405 from routing with a readable
 // message naming the allowed methods, leaving the Allow header and every other response untouched.
 app.UseMethodNotAllowedBody();
+
+// Answers a write that lost to a concurrent delete (a foreign key that now points at nothing, or a
+// row already gone) with a 409 instead of a 500. Inside the 405 filler, outside every endpoint.
+app.UseConcurrentDeleteConflict();
 
 if (app.Environment.IsDevelopment())
 {
