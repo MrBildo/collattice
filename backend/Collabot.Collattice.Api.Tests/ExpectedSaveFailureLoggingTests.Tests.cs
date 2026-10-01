@@ -274,6 +274,8 @@ public class ExpectedSaveFailureLoggingTests
 
             builder.ConfigureLogging(logging =>
             {
+                TestHostLogging.RemoveEventLog(logging);
+
                 logging.AddProvider(_provider);
                 logging.AddFilter<CapturingLoggerProvider>(null, LogLevel.Trace);
             });
