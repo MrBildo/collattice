@@ -46,6 +46,7 @@ export function LaneColumn({
     data: { type: 'lane' },
   });
   const cardIds = useMemo(() => cards.map((c) => c.id), [cards]);
+  const addCardLabel = `Add card to ${lane.name}`;
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -91,20 +92,32 @@ export function LaneColumn({
           </Tooltip>
           <span className="shrink-0 text-xs text-muted-foreground">{cards.length}</span>
         </div>
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          // Stop the pointer-down from reaching the header's drag listeners so a
-          // press on the add button never starts a lane drag.
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={(e) => {
-            e.stopPropagation();
-            onAddCard();
-          }}
-          className="text-muted-foreground"
-        >
-          <Plus className="h-3.5 w-3.5" />
-        </Button>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                aria-label={addCardLabel}
+                // Stop the press from reaching the header's drag listeners so a
+                // press on the add button never starts a lane drag. The board's
+                // sensors listen for mousedown and touchstart, so those are the
+                // events that must stop here; pointerdown alone is not enough.
+                onPointerDown={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAddCard();
+                }}
+                className="text-muted-foreground"
+              />
+            }
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </TooltipTrigger>
+          <TooltipContent>{addCardLabel}</TooltipContent>
+        </Tooltip>
       </div>
       <SortableContext items={cardIds} strategy={verticalListSortingStrategy}>
         <div
