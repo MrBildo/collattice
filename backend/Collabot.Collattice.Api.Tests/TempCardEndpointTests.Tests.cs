@@ -185,7 +185,7 @@ public class TempCardEndpointTests(CollatticeApiFactory factory) : IClassFixture
     }
 
     [Fact]
-    public async Task FinalizeCard_ByNonCreator_Returns403()
+    public async Task FinalizeCard_ByNonCreator_Returns404()
     {
         // Arrange
         var tempCardId = await CreateTempCardAsync();
@@ -206,7 +206,7 @@ public class TempCardEndpointTests(CollatticeApiFactory factory) : IClassFixture
         );
 
         // Assert
-        response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 
     [Fact]

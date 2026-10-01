@@ -19,7 +19,7 @@ internal static class AttachmentEndpoints
                     .Select(x => new { x.Id, x.FileName, x.ContentType, FileSize = (long)x.Payload.Length, x.AddedByUserId, x.AddedAtUtc })
                         .ToListAsync();
             return Results.Ok(attachments);
-        }).RequireAuth();
+        }).RequireAuth().HidesOthersDrafts();
 
         group.MapPost("/cards/{id:guid}/attachments", async (BoardDbContext db, HttpContext http, Guid id, IFormFile file, BoardEventBroadcaster broadcaster, IOptions<AttachmentSettings> settings, CancellationToken ct) =>
         {
@@ -56,13 +56,13 @@ internal static class AttachmentEndpoints
             // attachment.created — metadata only, same single board bell plus one webhook.
             await WebhookEventFactory.PublishAttachmentCreatedAsync(db, broadcaster, attachment, http.CurrentUser(), ct);
             return Results.Created($"/api/v1/cards/{id}/attachments/{attachment.Id}", new { attachment.Id, attachment.FileName });
-        }).DisableAntiforgery().RequireAuth();
+        }).DisableAntiforgery().RequireAuth().HidesOthersDrafts();
 
         group.MapGet("/attachments/{id:guid}", async (BoardDbContext db, Guid id) =>
         {
             var attachment = await db.Attachments.FindAsync(id);
             return attachment is null ? Results.NotFound() : Results.File(attachment.Payload, attachment.ContentType, attachment.FileName);
-        }).RequireAuth();
+        }).RequireAuth().HidesOthersDrafts(RouteIdentifies.Attachment);
 
         group.MapDelete("/attachments/{id:guid}", async (BoardDbContext db, HttpContext http, Guid id, BoardEventBroadcaster broadcaster, CancellationToken ct) =>
         {
@@ -92,7 +92,7 @@ internal static class AttachmentEndpoints
             // attachment.deleted — published from the captured attachment after the row is gone.
             await WebhookEventFactory.PublishAttachmentDeletedAsync(db, broadcaster, attachment, user, ct);
             return Results.NoContent();
-        }).RequireAuth();
+        }).RequireAuth().HidesOthersDrafts(RouteIdentifies.Attachment);
 
         return group;
     }

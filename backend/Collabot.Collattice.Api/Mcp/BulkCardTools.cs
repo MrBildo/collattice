@@ -47,7 +47,7 @@ public sealed class BulkCardTools(BoardDbContext db, McpAuthService auth, BoardE
             return error;
         }
 
-        var (cards, refError) = await McpCardResolver.ResolveCardRefsAsync(db, cardIds, cardNumbers, boardId, boardSlug, ct);
+        var (cards, refError) = await McpCardResolver.ResolveCardRefsAsync(db, user!, cardIds, cardNumbers, boardId, boardSlug, ct);
         if (refError is not null)
         {
             return refError;
@@ -114,7 +114,7 @@ public sealed class BulkCardTools(BoardDbContext db, McpAuthService auth, BoardE
             return error;
         }
 
-        var (cards, refError) = await McpCardResolver.ResolveCardRefsAsync(db, cardIds, cardNumbers, boardId, boardSlug, ct);
+        var (cards, refError) = await McpCardResolver.ResolveCardRefsAsync(db, user!, cardIds, cardNumbers, boardId, boardSlug, ct);
         if (refError is not null)
         {
             return refError;
@@ -196,7 +196,7 @@ public sealed class BulkCardTools(BoardDbContext db, McpAuthService auth, BoardE
             return "Error: No changes specified. Provide laneId, sizeId/sizeName, and/or labelIds.";
         }
 
-        var (cards, refError) = await McpCardResolver.ResolveCardRefsAsync(db, cardIds, cardNumbers, boardId, boardSlug, ct);
+        var (cards, refError) = await McpCardResolver.ResolveCardRefsAsync(db, user!, cardIds, cardNumbers, boardId, boardSlug, ct);
         if (refError is not null)
         {
             return refError;

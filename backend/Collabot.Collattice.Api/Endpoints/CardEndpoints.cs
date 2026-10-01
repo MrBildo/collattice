@@ -95,12 +95,8 @@ internal static class CardEndpoints
         // deserializes it unchanged. The paged successor is GET /api/v2/cards/{id}; every response here advertises
         // that with Deprecation + Link headers. includeDescription stays (an additive, never-breaking
         // projection); commentsOffset/commentsLimit are the paged surface's and live only on v2.
-        group.MapGet("/cards/{id:guid}", async (BoardDbContext db, HttpContext http, Guid id, bool? includeDescription, CancellationToken ct) =>
+        group.MapGet("/cards/{id:guid}", async (BoardDbContext db, Guid id, bool? includeDescription, CancellationToken ct) =>
         {
-            // Deprecation is a property of the resource, not of a particular card, so it is advertised on
-            // every response from this route — the 404 as much as the 200.
-            StampV1CardDetailDeprecation(http.Response, id);
-
             var card = await db.Cards.FindAsync([id], ct);
             if (card is null)
             {
@@ -109,7 +105,17 @@ internal static class CardEndpoints
 
             var detail = await CardDetailBuilder.BuildLegacyAsync(db, card, includeDescription ?? true, ct);
             return Results.Ok(detail);
-        }).RequireAuth();
+        }).RequireAuth().AddEndpointFilter(async (context, next) =>
+        {
+            // Deprecation is a property of the resource, not of a particular card, so it is advertised on
+            // every response from this route — the 404 as much as the 200, including the 404 another
+            // user's draft gets before the handler runs.
+            var id = Guid.Parse(context.HttpContext.GetRouteValue("id")!.ToString()!, CultureInfo.InvariantCulture);
+
+            StampV1CardDetailDeprecation(context.HttpContext.Response, id);
+
+            return await next(context);
+        }).HidesOthersDrafts();
 
         group.MapPatch("/cards/{id:guid}", async (BoardDbContext db, HttpContext http, Guid id, UpdateCardRequest request, BoardEventBroadcaster broadcaster, CancellationToken ct) =>
         {
@@ -306,7 +312,7 @@ internal static class CardEndpoints
             // shared CardSummaryBuilder — so it cannot appear in list, search or webhook payloads.
             var summaries = await CardSummaryBuilder.BuildAsync(db, [card], ct);
             return Results.Ok(new CardUpdateResult(summaries[0], collision));
-        }).RequireAuth();
+        }).RequireAuth().HidesOthersDrafts();
 
         group.MapPost("/cards/{id:guid}/reorder", async (BoardDbContext db, HttpContext http, Guid id, ReorderCardRequest request, BoardEventBroadcaster broadcaster, CancellationToken ct) =>
         {
@@ -377,7 +383,7 @@ internal static class CardEndpoints
             var cards = await CardQueryHelper.OrderForBoard(cardsQuery).ToListAsync(ct);
 
             return Results.Ok(new { lanes, cards });
-        }).RequireAuth();
+        }).RequireAuth().HidesOthersDrafts();
 
         group.MapDelete("/cards/{id:guid}", async (BoardDbContext db, HttpContext http, Guid id, BoardEventBroadcaster broadcaster, CancellationToken ct) =>
         {
@@ -405,7 +411,7 @@ internal static class CardEndpoints
             broadcaster.Publish(deletedEvent);
 
             return Results.NoContent();
-        }).RequireRole(UserRole.Administrator, UserRole.HumanUser);
+        }).RequireRole(UserRole.Administrator, UserRole.HumanUser).HidesOthersDrafts();
 
         group.MapPost("/cards/{id:guid}/archive", async (BoardDbContext db, HttpContext http, Guid id, BoardEventBroadcaster broadcaster, CancellationToken ct) =>
         {
@@ -444,7 +450,7 @@ internal static class CardEndpoints
             await WebhookEventFactory.PublishCardArchivedAsync(db, broadcaster, card, http.CurrentUser(), ct);
 
             return Results.NoContent();
-        }).RequireAuth();
+        }).RequireAuth().HidesOthersDrafts();
 
         group.MapPost("/cards/{id:guid}/restore", async (BoardDbContext db, HttpContext http, Guid id, RestoreCardRequest request, BoardEventBroadcaster broadcaster, CancellationToken ct) =>
         {
@@ -487,7 +493,7 @@ internal static class CardEndpoints
             await WebhookEventFactory.PublishCardRestoredAsync(db, broadcaster, card, http.CurrentUser(), ct);
 
             return Results.NoContent();
-        }).RequireAuth();
+        }).RequireAuth().HidesOthersDrafts();
 
         // Temp card lifecycle endpoints
         group.MapPost("/boards/{boardId:guid}/cards/temp", async (BoardDbContext db, HttpContext http, Guid boardId, CreateCardRequest request, CancellationToken ct) =>
@@ -530,11 +536,6 @@ internal static class CardEndpoints
                 return Results.BadRequest(_notADraftMessage);
             }
 
-            if (http.CurrentUser().Id != card.CreatedByUserId)
-            {
-                return Results.StatusCode(StatusCodes.Status403Forbidden);
-            }
-
             // A draft has no place in its lane's order, so the card goes to the end of the lane.
             card.Position = await CardReorderHelper.EndOfLanePositionAsync(db, card.LaneId, ct: ct);
 
@@ -558,9 +559,9 @@ internal static class CardEndpoints
             // nothing. (the temp-card create wrinkle.)
             await WebhookEventFactory.PublishCardCreatedAsync(db, broadcaster, card, http.CurrentUser(), ct);
             return Results.Ok(new { card.Id, card.Number });
-        }).RequireAuth();
+        }).RequireAuth().HidesOthersDrafts();
 
-        group.MapPost("/cards/{id:guid}/cancel", async (BoardDbContext db, HttpContext http, Guid id, CancellationToken ct) =>
+        group.MapPost("/cards/{id:guid}/cancel", async (BoardDbContext db, Guid id, CancellationToken ct) =>
         {
             var card = await db.Cards.FindAsync([id], ct);
             if (card is null)
@@ -571,11 +572,6 @@ internal static class CardEndpoints
             if (!card.IsTemp)
             {
                 return Results.BadRequest(_notADraftMessage);
-            }
-
-            if (http.CurrentUser().Id != card.CreatedByUserId)
-            {
-                return Results.StatusCode(StatusCodes.Status403Forbidden);
             }
 
             db.Cards.Remove(card);
@@ -590,7 +586,7 @@ internal static class CardEndpoints
             }
 
             return Results.NoContent();
-        }).RequireAuth();
+        }).RequireAuth().HidesOthersDrafts();
 
         return group;
 

@@ -103,7 +103,7 @@ internal static class LabelEndpoints
                         .ToListAsync();
 
             return Results.Ok(labels);
-        }).RequireAuth();
+        }).RequireAuth().HidesOthersDrafts();
 
         group.MapPost("/cards/{id:guid}/labels", async (BoardDbContext db, HttpContext http, Guid id, AddCardLabelRequest request, BoardEventBroadcaster broadcaster, CancellationToken ct) =>
         {
@@ -141,7 +141,7 @@ internal static class LabelEndpoints
             // consumer knows which label without a follow-up fetch. Same SSE bell.
             await WebhookEventFactory.PublishCardLabeledAsync(db, broadcaster, card, label, http.CurrentUser(), ct);
             return Results.Created($"/api/v1/cards/{id}/labels/{labelId}", cardLabel);
-        }).RequireAuth();
+        }).RequireAuth().HidesOthersDrafts();
 
         group.MapDelete("/cards/{id:guid}/labels/{labelId:guid}", async (BoardDbContext db, HttpContext http, Guid id, Guid labelId, BoardEventBroadcaster broadcaster, CancellationToken ct) =>
         {
@@ -172,7 +172,7 @@ internal static class LabelEndpoints
             }
 
             return Results.NoContent();
-        }).RequireAuth();
+        }).RequireAuth().HidesOthersDrafts();
 
         return group;
     }
