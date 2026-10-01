@@ -50,7 +50,6 @@ import { useRestoreCard } from '@/hooks/use-restore-card';
 import { usePasteAttachment } from '@/hooks/use-paste-attachment';
 import { cn, arraysEqual, formatDateTime } from '@/lib/utils';
 import {
-  AlertCircle,
   Archive,
   ArchiveRestore,
   Check,
@@ -730,7 +729,7 @@ export const CardDetailForm = forwardRef<CardDetailFormHandle, CardDetailFormPro
         size="sm"
         onClick={handleDuplicate}
         disabled={!canDuplicate}
-        aria-describedby={labelsQuery.isError ? labelsErrorId : undefined}
+        aria-describedby={labelsQuery.isLoadingError ? labelsErrorId : undefined}
       >
         <Copy className="mr-1 h-4 w-4" />
         Duplicate
@@ -906,13 +905,13 @@ export const CardDetailForm = forwardRef<CardDetailFormHandle, CardDetailFormPro
             )}
             {/* Without the card's own labels the picker would start from none, and
                 a save after one click would drop every label the card has; a
-                duplicate would silently lose them too. Say so instead. */}
-            {labelsQuery.isError && (
-              <div role="alert" className="flex items-center gap-1.5 text-sm text-destructive">
-                <AlertCircle className="h-4 w-4 shrink-0" aria-hidden="true" />
-                <span id={labelsErrorId}>
-                  Couldn&apos;t load this card&apos;s labels, so it can&apos;t be duplicated.
-                </span>
+                duplicate would silently lose them too. Say so instead. Only when
+                they never loaded: a failed refresh still has the last good list. */}
+            {labelsQuery.isLoadingError && (
+              <div className="flex items-center gap-2">
+                <div id={labelsErrorId}>
+                  <InlineError message="Couldn't load this card's labels, so they can't be edited and the card can't be duplicated." />
+                </div>
                 <Button
                   variant="outline"
                   size="xs"
@@ -923,7 +922,7 @@ export const CardDetailForm = forwardRef<CardDetailFormHandle, CardDetailFormPro
                 </Button>
               </div>
             )}
-            {!isArchived && !labelsQuery.isError && (
+            {!isArchived && !labelsQuery.isLoadingError && (
               <div className="flex items-center gap-1">
                 <LabelPicker
                   allLabels={allLabelsQuery.data ?? []}

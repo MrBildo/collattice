@@ -74,6 +74,8 @@ export function useToggleCardLabel({ cardId, boardId }: UseToggleCardLabelOption
     // made. Sent together, a quick double click's two requests race on the
     // server and the loser fails; queued, the second one finds the first done.
     // The tile still updates on every click, because onMutate runs at once.
+    // The cost: a request that hangs holds back the toggles behind it until it
+    // fails or the HTTP client gives up on it.
     scope: { id: `card-labels-${cardId}` },
     // Board action with an optimistic update: a failure reverts the label on the
     // tile, and the global error floor toasts the reason.

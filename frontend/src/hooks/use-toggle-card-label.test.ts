@@ -84,6 +84,8 @@ function buildHttpError(status: number) {
     'ERR_BAD_REQUEST',
     undefined,
     undefined,
+    // Cast because the hook reads only the response status; a full response
+    // (headers, config, request) would be filler the code under test ignores.
     {
       status,
     } as AxiosResponse,
