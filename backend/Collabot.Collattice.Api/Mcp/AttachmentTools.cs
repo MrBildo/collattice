@@ -7,7 +7,7 @@ using ModelContextProtocol.Server;
 namespace Collabot.Collattice.Api.Mcp;
 
 [McpServerToolType]
-public sealed class AttachmentTools
+public class AttachmentTools
 (
     BoardDbContext db,
     McpAuthService auth,

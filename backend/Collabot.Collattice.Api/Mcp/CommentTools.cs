@@ -5,7 +5,7 @@ using ModelContextProtocol.Server;
 namespace Collabot.Collattice.Api.Mcp;
 
 [McpServerToolType]
-public sealed class CommentTools(BoardDbContext db, McpAuthService auth, BoardEventBroadcaster broadcaster)
+public class CommentTools(BoardDbContext db, McpAuthService auth, BoardEventBroadcaster broadcaster)
 {
     [McpServerTool(Name = "add_comment", Destructive = false)]
     [Description("Add a comment to a card. Provide either cardId or cardNumber to identify the card.")]

@@ -27,7 +27,7 @@ namespace Collabot.Collattice.Api.Mcp;
 // These are all-roles tools — they gate via RequireUserAsync (the per-card analogs
 // they batch are all-roles today), NOT RequireAdminLevelAsync.
 [McpServerToolType]
-public sealed class BulkCardTools(BoardDbContext db, McpAuthService auth, BoardEventBroadcaster broadcaster, IWebhookSink webhookSink)
+public class BulkCardTools(BoardDbContext db, McpAuthService auth, BoardEventBroadcaster broadcaster, IWebhookSink webhookSink)
 {
     [McpServerTool(Name = "bulk_archive_cards", Destructive = false)]
     [Description("Archive multiple cards in a single call (move them to their boards' archive lanes). Provide cardIds (CSV of card GUIDs) OR cardNumbers (CSV) + boardId/boardSlug, not both. Pre-validates all refs (fails loud with no mutations if any is invalid or missing), then archives best-effort. Returns a per-card result envelope: { totalRequested, succeeded, failed, results: [{ cardId, number, status, error? }] } aligned 1:1 with the input order.")]
@@ -418,6 +418,8 @@ public sealed class BulkCardTools(BoardDbContext db, McpAuthService auth, BoardE
 // and ONE deduplicated broadcast per affected board. A SaveChanges throw collapses
 // the whole batch to a single error string (the only place "all-or-nothing"
 // genuinely applies — at the persistence layer).
+// Sealed: a file-local helper of the bulk tools that nothing can derive from, and unsealing it
+// raises S3260 for exactly that reason.
 file sealed class BulkExecution(BoardDbContext db, BoardEventBroadcaster broadcaster, Guid userId, DateTimeOffset now)
 {
     private readonly List<BulkCardResult> _results = [];

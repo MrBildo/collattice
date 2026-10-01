@@ -6,7 +6,8 @@ using Shouldly;
 
 namespace Collabot.Collattice.Api.Tests;
 
-public class McpCardToolsTests(CollatticeApiFactory factory) : IClassFixture<CollatticeApiFactory>, IDisposable
+// Sealed so the plain IDisposable shape below is complete; no derived class can add state to dispose.
+public sealed class McpCardToolsTests(CollatticeApiFactory factory) : IClassFixture<CollatticeApiFactory>, IDisposable
 {
     private readonly CollatticeApiFactory _factory = factory;
     private readonly List<IServiceScope> _scopes = [];

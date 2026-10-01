@@ -12,7 +12,7 @@ namespace Collabot.Collattice.Api.Hosting.Webhooks;
 // Timeout (configured in Program.cs from Webhooks:DeliveryTimeout) so a slow endpoint is a failed
 // attempt, not a wait. The outbound connection passes the SSRF connect guard wired on the client's
 // primary handler — a blocked target throws at connect and surfaces here as a Failed attempt.
-internal sealed class HttpWebhookSender(HttpClient httpClient) : IWebhookSender
+internal class HttpWebhookSender(HttpClient httpClient) : IWebhookSender
 {
     private readonly HttpClient _httpClient = httpClient
         ?? throw new ArgumentNullException(nameof(httpClient));

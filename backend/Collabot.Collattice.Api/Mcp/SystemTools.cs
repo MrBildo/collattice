@@ -5,7 +5,7 @@ using ModelContextProtocol.Server;
 namespace Collabot.Collattice.Api.Mcp;
 
 [McpServerToolType]
-public sealed class SystemTools(McpAuthService auth, IHttpContextAccessor httpContextAccessor)
+public class SystemTools(McpAuthService auth, IHttpContextAccessor httpContextAccessor)
 {
     [McpServerTool(Name = "get_api_info", ReadOnly = true, Destructive = false)]
     [Description("Returns the API's base URL and version. Use this to discover the API address for direct REST calls (e.g. downloading large attachments).")]

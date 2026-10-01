@@ -6,7 +6,7 @@ using ModelContextProtocol.Server;
 namespace Collabot.Collattice.Api.Mcp;
 
 [McpServerToolType]
-public sealed class ArchiveTools(BoardDbContext db, McpAuthService auth, BoardEventBroadcaster broadcaster)
+public class ArchiveTools(BoardDbContext db, McpAuthService auth, BoardEventBroadcaster broadcaster)
 {
     [McpServerTool(Name = "archive_card", Destructive = false)]
     [Description("Archive a card — hides it from normal views but preserves it for reference. All roles can archive.")]

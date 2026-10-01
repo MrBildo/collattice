@@ -7,7 +7,7 @@ namespace Collabot.Collattice.Api.Events;
 // TryDequeue. In-memory means an API restart drops un-drained events — the deliberate v1
 // reliability bar, and the documented swap-point for a durable outbox: the
 // IWebhookSink seam is what makes that a swap, not a rewrite.
-public sealed class WebhookQueue : IWebhookSink
+public class WebhookQueue : IWebhookSink
 {
     private readonly ConcurrentQueue<BoardEvent> _queue = new();
 
