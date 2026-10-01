@@ -28,10 +28,11 @@ internal static class SizeCreateHelper
     //
     // Measured on this allocator: eight immediate attempts gave no 409 up to 8 simultaneous creates,
     // and 3% to 18% of creates got one at 32 at once, depending on load. Sixteen immediate attempts
-    // gave none at 32, and eight with a 2-14 ms pause gave about a quarter as many. Eight immediate is
-    // kept to match the lane-position and card-number allocators, since no realistic workload creates
-    // more than eight sizes on one board at once. Do not read it as "a pause hurts": that held for
-    // card numbers and measured the other way here.
+    // gave none at 32. Eight with a 2-14 ms pause gave about a quarter as many while connections had
+    // no busy timeout, and more rather than fewer once every connection had one (45 and 54 of 480 at
+    // 32 at once, against 21 to 47 for eight immediate). Eight immediate is kept to match the
+    // lane-position and card-number allocators, since no realistic workload creates more than eight
+    // sizes on one board at once. Whether a pause helps here depends on how a held lock is waited on.
     private const int _maxAttempts = 8;
 
     public static async Task<SizeCreateResult> CreateAsync

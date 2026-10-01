@@ -11,6 +11,7 @@ using Collabot.Collattice.Api.Hosting.Webhooks;
 using Collabot.Collattice.Api.Installation;
 using Collabot.Collattice.Api.Mcp;
 using Collabot.Collattice.Api.Models;
+using Collabot.Collattice.Api.Persistence;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
@@ -167,7 +168,12 @@ if (!isSpecialDataSource)
     }
 }
 
-builder.Services.AddDbContext<BoardDbContext>(options => options.UseSqlite(connectionString));
+builder.Services.AddDbContext<BoardDbContext>
+(
+    options => options
+        .UseSqlite(connectionString)
+        .AddInterceptors(SqliteBusyTimeoutInterceptor.Instance)
+);
 
 builder.Services.Configure<AttachmentSettings>(builder.Configuration.GetSection(AttachmentSettings.SectionName));
 builder.Services.Configure<TempCardSweepSettings>(builder.Configuration.GetSection(TempCardSweepSettings.SectionName));
@@ -325,8 +331,9 @@ await using (var scope = app.Services.CreateAsyncScope())
 
     await db.Database.MigrateAsync();
 
+    // WAL is recorded in the database file, so setting it once covers every connection. The busy
+    // timeout is per connection and is set on each one by SqliteBusyTimeoutInterceptor.
     await db.Database.ExecuteSqlRawAsync("PRAGMA journal_mode = 'wal';");
-    await db.Database.ExecuteSqlRawAsync("PRAGMA busy_timeout = 5000;");
 
     if (!await db.Users.AnyAsync())
     {

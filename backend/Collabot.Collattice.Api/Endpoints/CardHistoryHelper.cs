@@ -140,12 +140,12 @@ internal static class CardHistoryHelper
         // 128-way, a fresh card per round, 9,600 edits per shape: five attempts with a random 2 to
         // 14 ms pause lost about one edit in forty, five immediate attempts about one in six
         // hundred, and eight immediate attempts none. Only at 128-way did an edit ever need all
-        // eight; at eight-way none needed more than four. The likely reason a pause hurts here: a
-        // save that finds the write lock held is retried by the SQLite provider itself after a fixed
-        // 150 ms sleep, still holding the head it read before sleeping, so a loser that pauses gives
-        // the lock away and then sleeps on a stale head. That is an explanation, not a rule: the
-        // size-create retry measured a pause as helping, so each allocator's shape follows its own
-        // measurement.
+        // eight; at eight-way none needed more than four. Re-measured with SQLite's busy timeout set
+        // on every connection, 16- to 64-way, 1,344 edits per shape: eight immediate attempts and
+        // five immediate attempts still lost none, and the pause still lost 18. A held write lock is
+        // then waited on inside SQLite rather than in the provider's fixed 150 ms sleep, so that
+        // sleep, the earlier explanation, is not why a pause hurts here; why it does is not
+        // established. Each allocator's retry shape follows its own measurement.
         for (var attempt = 1; attempt < _maxRetryAttempts; attempt++)
         {
             try
