@@ -14,9 +14,9 @@ namespace Collabot.Collattice.Api.Tests;
 
 // Registry-delivery fan-out tests. The dispatcher loads the enabled subscriptions per event
 // and fans out to those whose selection matches. Driven through the deterministic DeliverEventAsync
-// seam (never race the hosted dispatcher against the shared
-// in-memory connection): RunDispatcher = false, the test owns delivery, the real HttpWebhookSender
-// runs against a capture stub. No Webhooks:Endpoint, so subscriptions are explicit, not seeded.
+// seam so each test decides when delivery happens: RunDispatcher = false, the test owns delivery,
+// the real HttpWebhookSender runs against a capture stub. No Webhooks:Endpoint, so subscriptions are
+// explicit, not seeded.
 public sealed class WebhookRegistryDeliveryTests
 {
     private const string _urlA = "https://sub-a.test/hook";

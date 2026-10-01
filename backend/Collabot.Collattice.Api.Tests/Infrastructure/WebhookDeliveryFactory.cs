@@ -1,6 +1,9 @@
 using Collabot.Collattice.Api.Hosting.Webhooks;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace Collabot.Collattice.Api.Tests.Infrastructure;
 
@@ -17,18 +20,66 @@ namespace Collabot.Collattice.Api.Tests.Infrastructure;
 //    the capturing handler or on a count-of-zero (no DB read race).
 //  - RunDispatcher = false: the hosted dispatcher is removed so the test OWNS the queue and drives
 //    WebhookDispatcherService.DeliverEventAsync deterministically against a scope's DbContext —
-//    the TempCardSweepService.SweepAsync pattern. This avoids racing the running hosted service
-//    against the shared in-memory SQLite connection (EF + a single shared connection is not safe
-//    for concurrent cross-thread reads/writes), which is the right way to verify persistence.
+//    the TempCardSweepService.SweepAsync pattern. The test then decides exactly when delivery
+//    happens and when the rows it wrote are read back, which is the right way to verify persistence.
 //
 // Webhooks config (Endpoint / Secret / MaxAttempts / a near-zero RetryBackoffBase) flows through
 // the base ConfigOverrides path — both UseSetting (early) and ConfigureAppConfiguration (late),
 // per the WAF eager-read seam.
 public sealed class WebhookDeliveryFactory : CollatticeApiFactory
 {
+    // A database file per host, opened fresh by every context. The running dispatcher queries the
+    // subscription registry while the request that enqueued the event is still reading from its own
+    // context; on the base harness's single shared connection, the dispatcher's context then failed
+    // to initialise ("unable to delete/modify user-function due to active statements"), the tick
+    // dropped the already-dequeued event, and the test waited out its 30 s backstop for a POST that
+    // could never come. Separate connections over a WAL file are the production model, where a
+    // reader does not stop another connection's work. Pooling stays on: with it off, every context
+    // reopened the file and a card create took about ten times as long, enough to push the
+    // slow-endpoint test past its 2 s bound on a loaded box.
+    private readonly string _databasePath = Path.Combine(Path.GetTempPath(), $"collattice-delivery-{Guid.NewGuid():N}.db");
+
     public CapturingHttpMessageHandler Handler { get; } = new();
 
     public bool RunDispatcher { get; init; } = true;
+
+    protected override void UseTestDatabase(DbContextOptionsBuilder options) =>
+        options.UseSqlite($"Data Source={_databasePath}");
+
+    // The delivery tests dispose through WebApplicationFactory's own DisposeAsync, so the files are
+    // removed when the host stops rather than from a disposal override.
+    protected override IHost CreateHost(IHostBuilder builder)
+    {
+        var host = base.CreateHost(builder);
+
+        host.Services
+            .GetRequiredService<IHostApplicationLifetime>()
+                .ApplicationStopped.Register(DeleteDatabaseFiles);
+
+        return host;
+    }
+
+    private void DeleteDatabaseFiles()
+    {
+        // Close this database's pooled connections first; an open one keeps the file locked on
+        // Windows.
+        using (var connection = new SqliteConnection($"Data Source={_databasePath}"))
+        {
+            SqliteConnection.ClearPool(connection);
+        }
+
+        foreach (var path in new[] { _databasePath, $"{_databasePath}-wal", $"{_databasePath}-shm" })
+        {
+            try
+            {
+                File.Delete(path);
+            }
+            catch (IOException)
+            {
+                // A temp file still held open is left for the OS to clean up; it is never read again.
+            }
+        }
+    }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
