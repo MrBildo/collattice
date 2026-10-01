@@ -47,8 +47,8 @@ internal static class WebhookEventFactory
     }
 
     // fromLane / fromPosition are captured by the call-site BEFORE the move mutates the
-    // card (MoveCardToLaneAsync — or the PATCH site's inline mutation — renumbers both
-    // lanes, so the source position is gone once it runs). By call time the card already
+    // card (MoveCardToLaneAsync renumbers both lanes, so the source position is gone once
+    // it runs). By call time the card already
     // sits in the target lane at the target position. Used by the four single-card move
     // sites, which fan out to SSE + webhook together via broadcaster.Publish.
     public static async Task PublishCardMovedAsync

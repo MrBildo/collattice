@@ -174,10 +174,9 @@ internal static class CardEndpoints
             }
 
             // This block handles a lane change; a within-lane position change is handled after the
-            // position mutation below. A name/size/label-only update raises no move event. This
-            // site mutates LaneId/Position INLINE (it does not route through MoveCardToLaneAsync),
-            // so the source lane/position must be snapshotted before the mutation. Resolved only on
-            // a real lane change.
+            // position mutation below. A name/size/label-only update raises no move event. The
+            // source lane/position is snapshotted before the card moves, since the move overwrites
+            // both. Resolved only on a real lane change.
             Lane? moveFromLane = null;
             Lane? moveToLane = null;
             var moveFromPosition = 0;
@@ -206,18 +205,22 @@ internal static class CardEndpoints
                     moveFromLane = await db.Lanes.FindAsync([card.LaneId], ct);
                     moveToLane = targetLane;
                     moveFromPosition = card.Position;
+
+                    // A move to another lane goes through the same helper as every other move path,
+                    // so both lanes are renumbered and the lane left behind keeps no gap.
+                    var targetIndex = await ResolveLaneMoveIndexAsync(db, newLaneId, request.Position, ct);
+                    await CardReorderHelper.MoveCardToLaneAsync(db, card, newLaneId, targetIndex, ct);
                 }
-
-                card.LaneId = newLaneId;
-
-                if (request.Position is null)
+                else if (request.Position is null)
                 {
                     var maxPosition = await db.Cards.Where(c => c.LaneId == newLaneId && c.Id != id).MaxAsync(c => (int?)c.Position, ct) ?? -10;
                     card.Position = maxPosition + 10;
                 }
             }
 
-            if (request.Position is not null)
+            // On a move to another lane the position has already been turned into a place in the
+            // target lane above; anywhere else it is the stored number, set as given.
+            if (request.Position is not null && moveToLane is null)
             {
                 card.Position = request.Position.Value;
             }
@@ -640,5 +643,18 @@ internal static class CardEndpoints
     {
         response.Headers.Append("Deprecation", $"@{_v1CardDetailDeprecatedAtUnixSeconds.ToString(CultureInfo.InvariantCulture)}");
         response.Headers.Append("Link", $"</api/v2/cards/{id}>; rel=\"successor-version\"");
+    }
+
+    // PATCH's position is a stored position number, while the shared move helper places a card at an
+    // index. With no position the card goes to the end of the target lane. With one, it goes where
+    // that number sorts: ahead of the first card whose number is not below it, so the target lane's
+    // order is the one the number asked for, and the lane is then renumbered.
+    private static async Task<int> ResolveLaneMoveIndexAsync(BoardDbContext db, Guid targetLaneId, int? position, CancellationToken ct)
+    {
+        var targetCards = db.Cards.Where(c => c.LaneId == targetLaneId);
+
+        return position is null
+            ? await targetCards.CountAsync(ct)
+            : await targetCards.CountAsync(c => c.Position < position.Value, ct);
     }
 }
