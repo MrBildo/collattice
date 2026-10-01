@@ -65,17 +65,14 @@ public class DraftRaceInterceptor : SaveChangesInterceptor
         return await base.SavingChangesAsync(eventData, result, cancellationToken);
     }
 
-    private bool SavesTheArmedDraft(DbContext? context)
-    {
-        if (context is null || _armedCardId == Guid.Empty || _runningRival || FiredCount > 0)
-        {
-            return false;
-        }
-
-        return context.ChangeTracker
+    private bool SavesTheArmedDraft(DbContext? context) =>
+        context is not null
+        && _armedCardId != Guid.Empty
+        && !_runningRival
+        && FiredCount == 0
+        && context.ChangeTracker
             .Entries<CardItem>()
                 .Any(e => e.Entity.Id == _armedCardId && e.State is EntityState.Modified or EntityState.Deleted);
-    }
 }
 
 // Adds the draft-race interceptor to the standard harness and captures webhook events, so a test can
