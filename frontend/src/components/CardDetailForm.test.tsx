@@ -732,6 +732,67 @@ describe('CardDetailForm typing during a save', () => {
     expect(isDirtyRef.current).toBe(false);
   });
 
+  test('an earlier save that lands before a later one fails is not shown as a change by someone else', async () => {
+    // Arrange: two saves in flight (the second through the form's handle, as the
+    // unsaved-changes prompt does).
+    const user = userEvent.setup();
+    const releases: Array<(card: CardSummary) => void> = [];
+    const failures: Array<(error: Error) => void> = [];
+    vi.mocked(updateCard).mockImplementation(
+      () =>
+        new Promise<CardSummary>((resolve, reject) => {
+          releases.push(resolve);
+          failures.push(reject);
+        }),
+    );
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const formRef = createRef<CardDetailFormHandle>();
+    const tree = (card: CardItem) => (
+      <MemoryRouter>
+        <QueryClientProvider client={queryClient}>
+          <Dialog open onOpenChange={() => {}}>
+            <DialogContent>
+              <CardDetailForm
+                ref={formRef}
+                card={card}
+                onClose={() => {}}
+                currentUserId="me"
+                currentUserRole={ROLES.Human}
+                boardId="board-1"
+                isDirtyRef={{ current: false }}
+              />
+            </DialogContent>
+          </Dialog>
+        </QueryClientProvider>
+      </MemoryRouter>
+    );
+    const { rerender } = render(tree(makeCard({ name: 'Original name' })));
+    const nameInput = await screen.findByDisplayValue('Original name');
+    await user.type(nameInput, ' A');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(releases).toHaveLength(1));
+    await user.type(nameInput, ' B');
+    act(() => formRef.current?.save());
+    await waitFor(() => expect(releases).toHaveLength(2));
+
+    // Act: the first save lands and the board hands the form the card it saved,
+    // then the second save fails
+    const firstSaved = makeCard({ name: 'Original name A' });
+    await act(async () => {
+      releases[0](toSummary(firstSaved));
+    });
+    rerender(tree(firstSaved));
+    await act(async () => {
+      failures[1](new Error('Server error'));
+    });
+
+    // Assert: the typing is still there and unsaved, with no collision warning
+    expect(await screen.findByText('Server error')).toBeInTheDocument();
+    expect(nameInput).toHaveValue('Original name A B');
+    expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+    expect(screen.queryByText(/changed the/)).not.toBeInTheDocument();
+  });
+
   test('an earlier save landing after a later one does not reset the form to its older values', async () => {
     // Arrange: a second save can start while the first is in flight (the unsaved-changes
     // prompt saves through the form's handle). Render with that handle.

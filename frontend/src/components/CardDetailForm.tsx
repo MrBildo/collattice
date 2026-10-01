@@ -289,6 +289,9 @@ export const CardDetailForm = forwardRef<CardDetailFormHandle, CardDetailFormPro
     // earlier save landing after a later one was sent would otherwise reset the
     // baseline to its own, older values.
     const latestSaveId = useRef(0);
+    // The most recent save whose result has landed, so that an earlier save
+    // landing after a later one can't move the baseline back.
+    const latestLandedSaveId = useRef(0);
 
     function markTouched(field: FieldName) {
       touchedFields.current.add(field);
@@ -585,10 +588,20 @@ export const CardDetailForm = forwardRef<CardDetailFormHandle, CardDetailFormPro
         }
 
         // A later save is already on its way and carries everything this one
-        // did; that one settles the form.
+        // did; that one settles the form. The server now holds what this save
+        // sent, though, so the baseline moves to it: left behind, this save's
+        // own values would come back through the board cache and read as
+        // someone else's change, and if the later save failed, accepting
+        // "their version" would throw the typing away.
         if (saveId !== latestSaveId.current) {
+          if (saveId > latestLandedSaveId.current) {
+            latestLandedSaveId.current = saveId;
+            setBaselineState(sent);
+          }
           return;
         }
+
+        latestLandedSaveId.current = saveId;
 
         // The baseline is what this save sent, not what is on screen now: this
         // callback runs with the latest render's values, which include anything
