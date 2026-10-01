@@ -240,6 +240,12 @@ Only the **description** is checked today, because it is the only field with a r
 
 `collision` is **additive and non-breaking**: it appears only on the two write responses (this `PATCH` and MCP `update_card`), beside the card's usual fields, so a consumer already reading the update response keeps working unchanged and simply gains a field when one is present. It is deliberately built into those two responses alone and never into the shared card summary that feeds card lists, [search](#search), and [webhook](#webhooks) payloads, so it cannot appear on any of those surfaces.
 
+## Writes that race a delete
+
+A write checks that the card, lane, label or size it refers to exists before it saves. If that thing is deleted in the moment between the check and the save — a comment posted as its card is deleted, a card created into a lane as the lane is deleted — the write answers **`409 Conflict`** with the message `"Something this change refers to was deleted at the same moment. Reload and try again."` The failed save is not applied. Retrying gets the usual precise answer, normally a `404` because the thing is now gone. MCP tools answer the same case with that message prefixed `Error: `. This applies to every write, REST and MCP alike.
+
+The three deletes that are refused while something depends on the row — a lane that still has cards, a size a card uses, a board that still has lanes — make that check part of the delete itself. A card or lane that lands at the same moment is never removed along with its parent; the delete answers as it would have if the card or lane had been there first (`409 "Lane must be empty."`, `409 "Size is in use by cards."`, `400 "Board must have no lanes before it can be deleted."`).
+
 ## Search
 
 | Method | Path | Auth | Notes |

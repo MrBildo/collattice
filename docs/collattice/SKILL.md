@@ -777,6 +777,11 @@ A failure is a string starting with `Error:` (or a short explanatory sentence), 
 a no-op edit returns `No changes specified.` Inspect the text rather than assuming
 success.
 
+**A write that races a delete says so.** If the card, lane, label or size a call
+refers to is deleted at the same moment, the call returns `Error: Something this
+change refers to was deleted at the same moment. Reload and try again.` and nothing
+from it is applied. Re-read before retrying; the thing is usually gone.
+
 **Respect the archive freeze.** Archived cards reject edits, comments, label
 changes, and attachment changes. If you need to change an archived card, `restore`
 it first.

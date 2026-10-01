@@ -173,8 +173,16 @@ public sealed class LaneTools(BoardDbContext db, McpAuthService auth, BoardEvent
             return "Error: Lane must be empty.";
         }
 
-        db.Lanes.Remove(lane);
-        await db.SaveChangesAsync(ct);
+        var deleteOutcome = await GuardedDelete.LaneAsync(db, lane, ct);
+        if (deleteOutcome is GuardedDeleteOutcome.InUse)
+        {
+            return "Error: Lane must be empty.";
+        }
+
+        if (deleteOutcome is GuardedDeleteOutcome.NotFound)
+        {
+            return "Error: Lane not found.";
+        }
 
         // lane.deleted — published from the captured lane after the row is gone; REST/MCP identical
         // through the shared factory.

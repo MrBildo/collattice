@@ -91,8 +91,16 @@ internal static class LaneEndpoints
                 return Results.Conflict("Lane must be empty.");
             }
 
-            db.Lanes.Remove(lane);
-            await db.SaveChangesAsync(ct);
+            var deleteOutcome = await GuardedDelete.LaneAsync(db, lane, ct);
+            if (deleteOutcome is GuardedDeleteOutcome.InUse)
+            {
+                return Results.Conflict("Lane must be empty.");
+            }
+
+            if (deleteOutcome is GuardedDeleteOutcome.NotFound)
+            {
+                return Results.NotFound();
+            }
 
             // lane.deleted — published from the captured lane after the row is gone; the board still
             // exists, so the slug resolves.
