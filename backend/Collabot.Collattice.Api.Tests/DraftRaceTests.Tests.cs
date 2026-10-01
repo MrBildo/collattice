@@ -127,6 +127,44 @@ public class DraftRaceTests(DraftRaceFactory factory) : IClassFixture<DraftRaceF
         (await FindCardAsync(draftId)).ShouldBeNull();
     }
 
+    [Fact]
+    public async Task DeletingADraft_WhileAFinalizeOfItSavesFirst_ConflictsAndKeepsTheAnnouncedCard()
+    {
+        // Arrange
+        var draftId = await CreateDraftAsync("Deleted while finalized");
+        HttpResponseMessage? rival = null;
+
+        _factory.Interceptor.Arm(draftId, async () => rival = await FinalizeAsync(draftId));
+        _factory.Sink.Clear();
+
+        // Act
+        HttpResponseMessage response;
+        try
+        {
+            response = await _client.DeleteAsync($"/api/v1/cards/{draftId}");
+        }
+        finally
+        {
+            _factory.Interceptor.Disarm();
+        }
+
+        // Assert — the delete read a draft and the draft became a card before it saved, so it is
+        // told the card changed under it, and the card the finalize announced survives
+        _factory.Interceptor.FiredCount.ShouldBe(1);
+        rival.ShouldNotBeNull().StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        (await response.Content.ReadAsStringAsync()).ShouldContain("changed or deleted at the same moment");
+
+        CreatedEventsFor(draftId).ShouldBe(1);
+        _factory.Sink.Captured.ShouldNotContain(e => e.EventType == WebhookEventTypes.CardDeleted);
+
+        var card = await FindCardAsync(draftId);
+
+        card.ShouldNotBeNull();
+        card.IsTemp.ShouldBeFalse();
+    }
+
     private async Task<Guid> CreateDraftAsync(string name)
     {
         TestAuthHelper.SetAdminAuth(_client, _factory);
