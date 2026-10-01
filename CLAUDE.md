@@ -177,7 +177,7 @@ All endpoints under `/api/v1/` — with one exception: the card-detail read also
 | Resource | Endpoints |
 |----------|-----------|
 | Users | `GET /users`, `GET /users/{id}`, `POST /users`, `PATCH /users/{id}`, `PATCH /users/{id}/deactivate`, `GET /auth/me` |
-| Card Labels | `GET /cards/{id}/labels`, `POST /cards/{id}/labels` (validates label belongs to same board as card), `DELETE /cards/{id}/labels/{labelId}` |
+| Card Labels | `GET /cards/{id}/labels`, `POST /cards/{id}/labels` (validates label belongs to same board as card; 409 if already assigned, including a concurrent duplicate add), `DELETE /cards/{id}/labels/{labelId}` (404 if not assigned, including a concurrent duplicate remove). The assign/unassign write is shared with MCP `add_label_to_card` / `remove_label_from_card` via `CardLabelHelper` |
 | Comments | `GET /cards/{id}/comments`, `POST /cards/{id}/comments` (400 if archived), `PATCH /comments/{id}` (400 if archived), `DELETE /comments/{id}` (400 if archived) |
 | Attachments | `GET /cards/{id}/attachments`, `POST /cards/{id}/attachments` (400 if archived), `GET /attachments/{id}` (auth required — downloads attachment content via `X-User-Key`; no browser-native `<img>` consumer), `DELETE /attachments/{id}` (400 if archived) |
 
