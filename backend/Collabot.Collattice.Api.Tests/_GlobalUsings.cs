@@ -10,3 +10,4 @@ global using Collabot.Collattice.Api.Mcp;
 global using Collabot.Collattice.Api.Models;
 global using Collabot.Collattice.Api.Persistence;
 global using Collabot.Collattice.Api.Tests.Infrastructure;
+global using Microsoft.Extensions.Logging;

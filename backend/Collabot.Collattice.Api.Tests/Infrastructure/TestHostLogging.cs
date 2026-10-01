@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.EventLog;
 
 namespace Collabot.Collattice.Api.Tests.Infrastructure;
