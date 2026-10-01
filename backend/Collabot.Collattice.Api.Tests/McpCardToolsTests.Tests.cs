@@ -89,7 +89,7 @@ public class McpCardToolsTests(CollatticeApiFactory factory) : IClassFixture<Col
     }
 
     [Fact]
-    public async Task UpdateCard_ReturnsEnrichedCardSummary()
+    public async Task UpdateCard_ExistingCard_ReturnsEnrichedCardSummary()
     {
         // Arrange — parity with create_card: the JSON payload carries sizeName,
         // labels, commentCount, attachmentCount, isArchived so the caller has
@@ -704,7 +704,7 @@ public class McpCardToolsTests(CollatticeApiFactory factory) : IClassFixture<Col
     // ── get_cards pagination ─────────────────────────────────────────────
 
     [Fact]
-    public async Task GetCards_ReturnsPagedEnvelope()
+    public async Task GetCards_DefaultBoard_ReturnsPagedEnvelope()
     {
         // Arrange
         var (db, tools, authKey) = CreateTools();

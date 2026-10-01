@@ -69,6 +69,6 @@ public class SemVerTests
     }
 
     [Fact]
-    public void ToString_RendersNumericCore() =>
+    public void ToString_ThreePartVersion_RendersNumericCore() =>
         new SemVer(1, 16, 3).ToString().ShouldBe("1.16.3");
 }

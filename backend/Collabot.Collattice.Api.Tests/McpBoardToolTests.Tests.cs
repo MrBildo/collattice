@@ -19,7 +19,7 @@ public class McpBoardToolTests(CollatticeApiFactory factory) : IClassFixture<Col
     }
 
     [Fact]
-    public async Task GetLanes_ReturnsCardCountPerLane()
+    public async Task GetLanes_LanesWithCards_ReturnsCardCountPerLane()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);

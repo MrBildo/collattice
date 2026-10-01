@@ -17,7 +17,7 @@ namespace Collabot.Collattice.Api.Tests;
 // is swapped for a capture stub. Each scenario needs its own Webhooks config (Endpoint/Secret/
 // MaxAttempts/RetryBackoffBase bind at startup), so each test builds its own factory rather than
 // sharing a fixture.
-public sealed class WebhookDeliveryTests
+public class WebhookDeliveryTests
 {
     private const string _testEndpoint = "https://sink.test/webhooks";
 
@@ -135,7 +135,7 @@ public sealed class WebhookDeliveryTests
     }
 
     [Fact]
-    public async Task DisabledMasterSwitch_MakesNoOutboundCalls()
+    public async Task Delivery_MasterSwitchDisabled_MakesNoOutboundCalls()
     {
         // Endpoint set but Enabled=false → still dark (the pause-but-keep-config affordance).
         var config = BaseConfig(_testEndpoint);
@@ -183,7 +183,7 @@ public sealed class WebhookDeliveryTests
     }
 
     [Fact]
-    public async Task WithoutSecret_SendsNoSignatureHeader()
+    public async Task Delivery_WithoutSecret_SendsNoSignatureHeader()
     {
         await using var factory = await CreateFactoryAsync(BaseConfig(_testEndpoint, secret: null));
         var client = factory.CreateClient();
@@ -203,7 +203,7 @@ public sealed class WebhookDeliveryTests
     // context for the whole create-and-deliver reproduces that state on demand.
 
     [Fact]
-    public async Task OpenStatementOnAnotherContext_DoesNotStopTheCreateOrItsDelivery()
+    public async Task Delivery_OpenStatementOnAnotherContext_DoesNotStopTheCreateOrItsDelivery()
     {
         await using var factory = await CreateFactoryAsync(BaseConfig(_testEndpoint));
         var client = factory.CreateClient();
@@ -430,7 +430,7 @@ public sealed class WebhookDeliveryTests
     // ── Edge cases ────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task SlowEndpoint_DoesNotBlockOrFailTheMutation()
+    public async Task Delivery_SlowEndpoint_DoesNotBlockOrFailTheMutation()
     {
         // The sink hangs ~3s; the create must still return promptly (delivery is never inline).
         var config = BaseConfig(_testEndpoint);
@@ -451,7 +451,7 @@ public sealed class WebhookDeliveryTests
     }
 
     [Fact]
-    public async Task FailedMutation_EmitsNoEvent()
+    public async Task Delivery_FailedMutation_EmitsNoEvent()
     {
         // A create with an invalid label → 400; enqueue is after a successful SaveChanges, so no
         // event is ever delivered.

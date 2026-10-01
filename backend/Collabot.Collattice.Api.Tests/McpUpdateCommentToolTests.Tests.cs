@@ -115,7 +115,7 @@ public class McpUpdateCommentToolTests(CollatticeApiFactory factory) : IClassFix
     }
 
     [Fact]
-    public async Task UpdateComment_ReturnsCommentJsonWithUpdatedBody()
+    public async Task UpdateComment_ExistingComment_ReturnsCommentJsonWithUpdatedBody()
     {
         // Arrange
         var (db, commentTools) = CreateTools();

@@ -21,7 +21,7 @@ public class McpServerErrorWrapperTests(CollatticeApiFactory factory) : IClassFi
     private readonly CollatticeApiFactory _factory = factory;
 
     [Fact]
-    public void Program_RegistersCallToolFilter()
+    public void Program_McpServerOptions_RegistersCallToolFilter()
     {
         // Guard: future cleanup must not silently drop the registration on the
         // configured McpServerOptions. The exact filter count is intentionally

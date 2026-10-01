@@ -121,7 +121,7 @@ public class McpCardHistoryToolTests(CollatticeApiFactory factory) : IClassFixtu
     }
 
     [Fact]
-    public async Task UpdateCardOverMcp_RecordsHistoryAttributedToTheCallingUser()
+    public async Task UpdateCard_OverMcp_RecordsHistoryAttributedToTheCallingUser()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -148,7 +148,7 @@ public class McpCardHistoryToolTests(CollatticeApiFactory factory) : IClassFixtu
     }
 
     [Fact]
-    public async Task GetCardHistory_OldestRevisionCarriesTheCardCreatorAsAnInferredEditor()
+    public async Task GetCardHistory_FirstEditedBySomeoneElse_OldestRevisionCarriesTheCardCreatorAsAnInferredEditor()
     {
         // Arrange — created by the admin, first edited over MCP by someone else, so the inferred
         // editor can only be the creator if it is not simply whoever triggered the first capture.
@@ -268,7 +268,7 @@ public class McpCardHistoryToolTests(CollatticeApiFactory factory) : IClassFixtu
         [.. JsonDocument.Parse(json).RootElement.GetProperty("entries").EnumerateArray()];
 
     [Fact]
-    public async Task GetCardHistory_ReturnsThePagingEnvelopeAlongsideTheEntries()
+    public async Task GetCardHistory_CardWithRevisions_ReturnsThePagingEnvelopeAlongsideTheEntries()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -288,7 +288,7 @@ public class McpCardHistoryToolTests(CollatticeApiFactory factory) : IClassFixtu
     }
 
     [Fact]
-    public async Task GetCardHistory_PagesFromTheNewestEndAndKeepsTotalCountWhole()
+    public async Task GetCardHistory_PagedRead_PagesFromTheNewestEndAndKeepsTotalCountWhole()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -314,7 +314,7 @@ public class McpCardHistoryToolTests(CollatticeApiFactory factory) : IClassFixtu
     }
 
     [Fact]
-    public async Task GetCardHistory_ClampsItsLimitToTheToolCeiling()
+    public async Task GetCardHistory_LimitAboveCeiling_ClampsItsLimitToTheToolCeiling()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -349,7 +349,7 @@ public class McpCardHistoryToolTests(CollatticeApiFactory factory) : IClassFixtu
     }
 
     [Fact]
-    public async Task GetCard_CarriesTheDescriptionHistoryCount()
+    public async Task GetCard_CardWithRevisions_CarriesTheDescriptionHistoryCount()
     {
         // The same count REST's card detail carries — both surfaces read it through one builder,
         // so a bot deciding whether to spend a call on the trail gets the same answer a browser does.

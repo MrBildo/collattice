@@ -49,7 +49,7 @@ public class AttachmentEndpointTests(CollatticeApiFactory factory) : IClassFixtu
     }
 
     [Fact]
-    public async Task GetCardAttachments_ReturnsMetadataWithoutPayload()
+    public async Task GetCardAttachments_CardWithUpload_ReturnsMetadataWithoutPayload()
     {
         // Arrange
         var cardId = await CreateCardAsync();
@@ -147,7 +147,7 @@ public class AttachmentEndpointTests(CollatticeApiFactory factory) : IClassFixtu
     }
 
     [Fact]
-    public async Task GetAttachment_ReturnsFileWithCorrectContent()
+    public async Task GetAttachment_UploadedFile_ReturnsFileWithCorrectContent()
     {
         // Arrange
         var cardId = await CreateCardAsync();

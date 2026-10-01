@@ -6,7 +6,7 @@ namespace Collabot.Collattice.Api.Tests.Infrastructure;
 // CollatticeApiFactory variant that swaps the production WebhookQueue for a
 // CapturingWebhookSink, exposed via Sink so a test can read the events the seam
 // enqueued. This capture path has no dispatcher/HTTP — the sink IS the observable.
-public sealed class WebhookTestFactory : CollatticeApiFactory
+public class WebhookTestFactory : CollatticeApiFactory
 {
     public CapturingWebhookSink Sink { get; } = new();
 

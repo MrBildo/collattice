@@ -12,6 +12,7 @@ namespace Collabot.Collattice.Api.Tests;
 // the board's FULL new left-to-right order (the one-bell reorder coalesce contract). Each site rings the
 // same single SSE bell it always did, so the SSE wire stays byte-for-byte unchanged. The
 // CapturingWebhookSink IS the observable (no HTTP delivery here).
+// Sealed so the plain IDisposable shape below is complete; no derived class can add state to dispose.
 public sealed class WebhookLaneCatalogTests : IClassFixture<WebhookTestFactory>, IDisposable
 {
     private readonly WebhookTestFactory _factory;
@@ -66,7 +67,7 @@ public sealed class WebhookLaneCatalogTests : IClassFixture<WebhookTestFactory>,
     }
 
     [Fact]
-    public async Task McpCreateLane_FiresLaneCreated()
+    public async Task CreateLane_OverMcp_FiresLaneCreated()
     {
         var sink = Sink;
         var tools = CreateLaneTools();
@@ -83,7 +84,7 @@ public sealed class WebhookLaneCatalogTests : IClassFixture<WebhookTestFactory>,
     // ── lane.renamed (name axis) ──────────────────────────────────────────────────
 
     [Fact]
-    public async Task RestUpdateLaneName_FiresLaneRenamed()
+    public async Task UpdateLaneName_OverRest_FiresLaneRenamed()
     {
         var sink = Sink;
         var laneId = await CreateLaneAsync("rename-me");
@@ -97,7 +98,7 @@ public sealed class WebhookLaneCatalogTests : IClassFixture<WebhookTestFactory>,
     }
 
     [Fact]
-    public async Task McpUpdateLaneName_FiresLaneRenamed()
+    public async Task UpdateLaneName_OverMcp_FiresLaneRenamed()
     {
         var sink = Sink;
         var tools = CreateLaneTools();
@@ -183,7 +184,7 @@ public sealed class WebhookLaneCatalogTests : IClassFixture<WebhookTestFactory>,
     }
 
     [Fact]
-    public async Task McpUpdateLaneNameAndPosition_CoFiresRenamedAndReordered()
+    public async Task UpdateLaneNameAndPosition_OverMcp_CoFiresRenamedAndReordered()
     {
         var sink = Sink;
         var tools = CreateLaneTools();
@@ -315,7 +316,7 @@ public sealed class WebhookLaneCatalogTests : IClassFixture<WebhookTestFactory>,
     }
 
     [Fact]
-    public async Task McpDeleteLane_FiresLaneDeleted()
+    public async Task DeleteLane_OverMcp_FiresLaneDeleted()
     {
         var sink = Sink;
         var tools = CreateLaneTools();
@@ -329,7 +330,7 @@ public sealed class WebhookLaneCatalogTests : IClassFixture<WebhookTestFactory>,
     }
 
     [Fact]
-    public async Task CreateLane_RingsExactlyOneSseBell()
+    public async Task CreateLane_SubscribedToBoardStream_RingsExactlyOneSseBell()
     {
         var sink = Sink;
         var broadcaster = _factory.Services.GetRequiredService<BoardEventBroadcaster>();

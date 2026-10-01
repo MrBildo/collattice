@@ -8,7 +8,7 @@ namespace Collabot.Collattice.Api.Tests;
 // injected so a DNS-rebind (a host resolving to loopback at delivery) is simulated without real
 // DNS. One end-to-end test drives a real SocketsHttpHandler with the connect callback to prove the
 // guard throws and surfaces as a Failed delivery attempt.
-public sealed class WebhookSsrfGuardTests
+public class WebhookSsrfGuardTests
 {
     // ── IsBlockedAddress — the denylist table (control 2) ────────────────────────
 
@@ -31,7 +31,7 @@ public sealed class WebhookSsrfGuardTests
     [InlineData("fd12:3456::1")]         // v6 unique-local
     [InlineData("::ffff:127.0.0.1")]     // IPv4-mapped loopback (must unwrap)
     [InlineData("::ffff:10.0.0.1")]      // IPv4-mapped RFC1918 (must unwrap)
-    public void IsBlockedAddress_BlocksInternalAndSpecialRanges(string ip) =>
+    public void IsBlockedAddress_InternalOrSpecialRange_IsBlocked(string ip) =>
         SsrfGuard.IsBlockedAddress(IPAddress.Parse(ip)).ShouldBeTrue($"{ip} should be blocked");
 
     [Theory]
@@ -43,7 +43,7 @@ public sealed class WebhookSsrfGuardTests
     [InlineData("192.167.255.255")]      // just below 192.168/16
     [InlineData("223.255.255.255")]      // just below multicast
     [InlineData("2606:2800:220:1:248:1893:25c8:1946")]   // public v6
-    public void IsBlockedAddress_AllowsPublicRanges(string ip) =>
+    public void IsBlockedAddress_PublicRange_IsAllowed(string ip) =>
         SsrfGuard.IsBlockedAddress(IPAddress.Parse(ip)).ShouldBeFalse($"{ip} should be allowed");
 
     // ── IsBlockedAddress(allowPrivate: true) — the unconditional carve-out ────────
@@ -78,14 +78,14 @@ public sealed class WebhookSsrfGuardTests
     [InlineData("ftp://example.com/hook")]
     [InlineData("file:///etc/passwd")]
     [InlineData("gopher://example.com")]
-    public async Task ValidateForRegistration_RejectsNonHttpScheme(string url)
+    public async Task ValidateForRegistration_NonHttpScheme_IsRejected(string url)
     {
         var validate = () => SsrfGuard.ValidateForRegistrationAsync(url, allowPrivate: false, CancellationToken.None);
         await Should.ThrowAsync<WebhookValidationException>(validate);
     }
 
     [Fact]
-    public async Task ValidateForRegistration_RejectsNonAbsoluteUrl()
+    public async Task ValidateForRegistration_NonAbsoluteUrl_IsRejected()
     {
         var validate = () => SsrfGuard.ValidateForRegistrationAsync("not-a-url", allowPrivate: false, CancellationToken.None);
         await Should.ThrowAsync<WebhookValidationException>(validate);
@@ -159,7 +159,7 @@ public sealed class WebhookSsrfGuardTests
     // ── Connect-pin — the DNS-rebind / TOCTOU defense ────────────
 
     [Fact]
-    public async Task ConnectPin_BlocksHostThatRebindsToLoopback()
+    public async Task ConnectPin_HostRebindsToLoopback_IsBlocked()
     {
         // The rebind case: a host that resolves to loopback at connect time is blocked — the guard
         // throws WebhookSsrfBlockedException rather than dialing internal.
@@ -174,7 +174,7 @@ public sealed class WebhookSsrfGuardTests
     }
 
     [Fact]
-    public async Task ConnectPin_BlocksWhenAnyResolvedAddressIsInternal()
+    public async Task ConnectPin_AnyResolvedAddressInternal_IsBlocked()
     {
         // Mixed resolution: a public address AND a loopback. ANY blocked address blocks the host —
         // a connect cannot pick the public one and ignore the trap.

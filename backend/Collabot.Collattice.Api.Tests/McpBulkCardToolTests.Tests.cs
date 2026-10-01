@@ -385,7 +385,7 @@ public class McpBulkCardToolTests(CollatticeApiFactory factory) : IClassFixture<
     }
 
     [Fact]
-    public async Task BulkArchive_ResultsAlignWithInputOrder()
+    public async Task BulkArchive_UnsortedInput_ResultsAlignWithInputOrder()
     {
         var (db, bulk, _, _) = CreateTools();
         var board = await CreateBoardAsync(db);
@@ -404,7 +404,7 @@ public class McpBulkCardToolTests(CollatticeApiFactory factory) : IClassFixture<
     }
 
     [Fact]
-    public async Task BulkRestore_MovesArchivedCardsToTargetLane()
+    public async Task BulkRestore_TwoArchivedCards_MovesArchivedCardsToTargetLane()
     {
         var (db, bulk, _, _) = CreateTools();
         var board = await CreateBoardAsync(db);

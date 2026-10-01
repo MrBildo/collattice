@@ -30,7 +30,7 @@ public class CommentEndpointTests(CollatticeApiFactory factory) : IClassFixture<
     }
 
     [Fact]
-    public async Task GetComments_ReturnsCommentsForCard()
+    public async Task GetComments_CardWithTwoComments_ReturnsCommentsForCard()
     {
         // Arrange
         var cardId = await CreateCardAsync();
@@ -342,7 +342,7 @@ public class CommentEndpointTests(CollatticeApiFactory factory) : IClassFixture<
     }
 
     [Fact]
-    public async Task GetComments_IncludesCreatedAtUtc()
+    public async Task GetComments_PostedComment_IncludesCreatedAtUtc()
     {
         // Arrange
         var cardId = await CreateCardAsync();
