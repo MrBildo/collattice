@@ -140,7 +140,7 @@ public class WebhookSubscriptionEndpointTests
     }
 
     [Fact]
-    public async Task Patch_SecretSetKeepClear()
+    public async Task Patch_KeepThenClearThenSetSecret_SignedFlagFollowsEachStep()
     {
         await using var factory = new CollatticeApiFactory();
         await factory.InitializeAsync();
