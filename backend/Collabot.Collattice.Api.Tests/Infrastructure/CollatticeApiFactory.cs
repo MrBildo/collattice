@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using Collabot.Collattice.Api.Hosting.UpdateCheck;
 using Collabot.Collattice.Api.Hosting.Webhooks;
 using Collabot.Collattice.Api.Models;
 using Microsoft.AspNetCore.Hosting;
@@ -13,10 +15,15 @@ namespace Collabot.Collattice.Api.Tests.Infrastructure;
 public class CollatticeApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
     private SqliteConnection _connection = null!;
+    private readonly ConcurrentQueue<Uri> _gitHubAttempts = new();
 
     public const string TestAdminAuthKey = "test-admin-auth-key-12345678";
     public string AdminAuthKey { get; private set; } = string.Empty;
     public Guid DefaultBoardId { get; private set; }
+
+    // Every request this host attempted to api.github.com, in arrival order. Empty is the only
+    // acceptable state at disposal.
+    public IReadOnlyCollection<Uri> GitHubAttempts => _gitHubAttempts;
 
     // In-memory config overrides applied after the baseline test config. Lets a test
     // flip Hosting:ServeSpa, populate Cors:AllowedOrigins, set ASPNETCORE_ENVIRONMENT,
@@ -128,6 +135,23 @@ public class CollatticeApiFactory : WebApplicationFactory<Program>, IAsyncLifeti
             {
                 services.Remove(tempSweep);
             }
+
+            // Keep every test host off the real GitHub API. The update-check hosted service still
+            // runs (it does no database work, so it cannot race the shared connection), but it
+            // polls a source that answers "no release known" instead of api.github.com. Tests that
+            // need a release replace this source with their own.
+            var versionSource = services.SingleOrDefault(d => d.ServiceType == typeof(ILatestVersionSource));
+            if (versionSource is not null)
+            {
+                services.Remove(versionSource);
+            }
+
+            services.AddSingleton<ILatestVersionSource, NoNetworkVersionSource>();
+
+            // Backstop for any path the swap above does not cover: every IHttpClientFactory client
+            // refuses api.github.com and records the attempt, and DisposeAsync fails on a record.
+            services.ConfigureHttpClientDefaults(http =>
+                http.AddHttpMessageHandler(() => new GitHubEgressGuardHandler(_gitHubAttempts)));
         });
     }
 
@@ -163,5 +187,18 @@ public class CollatticeApiFactory : WebApplicationFactory<Program>, IAsyncLifeti
         // lands — before the dispatcher has finished persisting its attempt row.)
         await base.DisposeAsync();
         await _connection.DisposeAsync();
+
+        // Checked after teardown so a failure here never leaks the host or the connection. An
+        // IClassFixture's disposal failure is reported against its test class, so an attempt from
+        // a hosted service (whose own failures are swallowed) still turns the run red.
+        if (!_gitHubAttempts.IsEmpty)
+        {
+            throw new InvalidOperationException
+            (
+                $"A test host attempted {_gitHubAttempts.Count} request(s) to "
+                + $"{GitHubEgressGuardHandler.BlockedHost}; tests must not reach the real GitHub API: "
+                + string.Join(", ", _gitHubAttempts)
+            );
+        }
     }
 }
