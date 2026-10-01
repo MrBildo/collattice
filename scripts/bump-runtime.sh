@@ -21,6 +21,13 @@
 # bundle sourcemaps) lands in a scratch directory that is removed on exit, so the
 # working tree is left with those two edits and no residue.
 #
+# It deliberately leaves the SDK line in global.json alone. That line is a floor (any
+# .NET 10 SDK at or above it builds the repo), not a tracked version, and the runtime
+# packs this pin selects come from NuGet rather than from the installed SDK, so a
+# runtime bump never needs a newer SDK. Raising the floor in step with the runtime
+# would make every developer install a new SDK each month, and would lock out the
+# 10.0.1xx feature band that Ubuntu's own .NET packages carry.
+#
 # Usage:
 #   bump-runtime.sh <version>
 #     <version>  the .NET runtime servicing version to pin, e.g. 10.0.12
