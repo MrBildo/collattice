@@ -35,7 +35,7 @@ public sealed record CardCollisionActor(Guid UserId, string Name);
 // serialized with the same options so its naming policy and its LaneId-when-default omission are
 // preserved, then its members are lifted one level up — which is what keeps the shape additive rather
 // than a new envelope.
-internal sealed class CardUpdateResultConverter : JsonConverter<CardUpdateResult>
+internal class CardUpdateResultConverter : JsonConverter<CardUpdateResult>
 {
     public override void Write(Utf8JsonWriter writer, CardUpdateResult value, JsonSerializerOptions options)
     {

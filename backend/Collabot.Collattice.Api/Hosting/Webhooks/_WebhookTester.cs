@@ -9,7 +9,7 @@ namespace Collabot.Collattice.Api.Hosting.Webhooks;
 // target with the flag off is connect-blocked here exactly as it is on a real event. Synchronous and
 // one-shot — the operator clicked "send test" and wants the outcome now; no retry, one attempt row,
 // returned inline. The secret is read from the entity to sign but is never returned.
-internal sealed class WebhookTester
+internal class WebhookTester
 (
     BoardDbContext db,
     IWebhookSender sender

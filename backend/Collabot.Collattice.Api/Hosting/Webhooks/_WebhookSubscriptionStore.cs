@@ -14,7 +14,7 @@ namespace Collabot.Collattice.Api.Hosting.Webhooks;
 // Validation reads AllowPrivateNetworkTargets via IOptions (startup-bound), so registration and
 // the connect-time guard read the SAME value and agree. The secret is write-only at the
 // API surface: ToView projects `signed: bool` and NEVER the secret string.
-internal sealed class WebhookSubscriptionStore
+internal class WebhookSubscriptionStore
 (
     BoardDbContext db,
     IOptions<WebhookSettings> settings

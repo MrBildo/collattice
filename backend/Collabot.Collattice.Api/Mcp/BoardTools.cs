@@ -10,7 +10,7 @@ namespace Collabot.Collattice.Api.Mcp;
 // so they enqueue straight to IWebhookSink with no board bell, keeping the SSE wire byte-for-byte
 // unchanged.
 [McpServerToolType]
-public sealed class BoardTools(BoardDbContext db, McpAuthService auth, IWebhookSink webhookSink)
+public class BoardTools(BoardDbContext db, McpAuthService auth, IWebhookSink webhookSink)
 {
     [McpServerTool(Name = "get_boards", ReadOnly = true, Destructive = false)]
     [Description("List all boards. Use this to discover board IDs for scoping other tools.")]

@@ -9,7 +9,7 @@ namespace Collabot.Collattice.Api.Mcp;
 // surface in LaneEndpoints.cs (POST /boards/{boardId}/lanes, PATCH /lanes/{id},
 // DELETE /lanes/{id}). All three gate via RequireAdminLevelAsync.
 [McpServerToolType]
-public sealed class LaneTools(BoardDbContext db, McpAuthService auth, BoardEventBroadcaster broadcaster)
+public class LaneTools(BoardDbContext db, McpAuthService auth, BoardEventBroadcaster broadcaster)
 {
     [McpServerTool(Name = "create_lane", Destructive = false)]
     [Description("Create a lane (column) on a board. Requires Administrator or AgentAdministrator role. Position is the lane's ordering value; omit it to append the lane after the board's last lane. A position already taken by another lane on the board is a conflict, and int.MaxValue is reserved for the archive lane and is rejected.")]

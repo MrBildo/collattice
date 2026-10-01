@@ -18,7 +18,7 @@ namespace Collabot.Collattice.Api.Mcp;
 // types, not public-only) and instantiates through the public primary constructor, so an internal
 // tool type is discovered and resolved the same as a public one.
 [McpServerToolType]
-internal sealed class WebhookTools(WebhookSubscriptionStore store, WebhookTester tester, McpAuthService auth)
+internal class WebhookTools(WebhookSubscriptionStore store, WebhookTester tester, McpAuthService auth)
 {
     [McpServerTool(Name = "create_webhook", Destructive = false)]
     [Description("Create a webhook subscription. Requires Administrator or AgentAdministrator role. The URL must be http/https and (unless Webhooks:AllowPrivateNetworkTargets is set) must not resolve to a private/loopback/link-local address. events is a comma-separated list of event types or \"*\" for all. The optional secret is the HMAC signing key (write-only — never returned).")]
