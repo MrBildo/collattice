@@ -4,6 +4,7 @@ import { useRef } from 'react';
 import { MessageSquare, Paperclip } from 'lucide-react';
 import { CardLabelQuickPicker } from '@/components/CardLabelQuickPicker';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useLabelLayout } from '@/hooks/use-label-layout';
 import { cn, getContrastColor } from '@/lib/utils';
@@ -26,7 +27,13 @@ export function SortableCard({
   sizeMap,
   enrichedData,
 }: SortableCardProps) {
-  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: card.id });
+  // dnd-kit's `attributes` are deliberately not spread on the tile. They would
+  // make the whole tile one focusable button, announced together with the label
+  // picker button inside it, and describe a press-space-to-drag gesture the
+  // board does not support (it registers no keyboard sensor). Opening the card
+  // is the title's button instead; the tile keeps its click handler so a pointer
+  // press anywhere on it still opens the card, and keeps the drag listeners.
+  const { listeners, setNodeRef, transform, transition } = useSortable({ id: card.id });
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -45,15 +52,28 @@ export function SortableCard({
       ref={setNodeRef}
       style={style}
       {...listeners}
-      {...attributes}
+      data-card-tile=""
       onClick={() => onCardClick(card)}
       className={cn(
         'group/tile cursor-pointer overflow-hidden rounded-lg border border-border bg-card p-3 shadow-xs transition-shadow hover:shadow-md hover:border-primary/30',
+        // The focus ring belongs to the whole tile, so it shows here when the
+        // title's button has keyboard focus.
+        'has-[[data-tile-open]:focus-visible]:border-ring has-[[data-tile-open]:focus-visible]:ring-3 has-[[data-tile-open]:focus-visible]:ring-ring/50',
         isDragging && 'opacity-0',
       )}
     >
       <div className="flex items-start justify-between gap-2">
-        <h3 className="min-w-0 text-sm font-medium leading-snug break-words">{card.name}</h3>
+        <h3 className="min-w-0 text-sm font-medium leading-snug break-words">
+          {/* Has no click handler of its own: its click, from a pointer or from
+              Enter or Space, bubbles to the tile's, which opens the card. */}
+          <Button
+            variant="ghost"
+            data-tile-open=""
+            className="block h-auto w-full cursor-pointer rounded-none border-0 p-0 text-left leading-snug whitespace-normal break-words focus-visible:ring-0 hover:bg-transparent active:translate-y-0"
+          >
+            {card.name}
+          </Button>
+        </h3>
         {(() => {
           const sizeName = sizeMap.get(card.sizeId) ?? '?';
           let sizeDisplay: string;
