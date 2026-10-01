@@ -217,13 +217,10 @@ public sealed class LabelTools(BoardDbContext db, McpAuthService auth, BoardEven
             return "Error: Label does not belong to the same board as the card.";
         }
 
-        if (await db.CardLabels.AnyAsync(cl => cl.CardId == card.Id && cl.LabelId == resolvedLabelId, ct))
+        if (await CardLabelHelper.AssignAsync(db, card.Id, label.Id, ct) is null)
         {
             return "Label already assigned to this card.";
         }
-
-        db.CardLabels.Add(new CardLabel { CardId = card.Id, LabelId = resolvedLabelId!.Value });
-        await db.SaveChangesAsync(ct);
 
         // card.labeled — REST/MCP emit the identical event through the shared factory.
         await WebhookEventFactory.PublishCardLabeledAsync(db, broadcaster, card, label, user!, ct);
@@ -285,8 +282,10 @@ public sealed class LabelTools(BoardDbContext db, McpAuthService auth, BoardEven
         // row itself persists; only the card↔label join is removed).
         var label = await db.Labels.FindAsync([resolvedLabelId!.Value], ct);
 
-        db.CardLabels.Remove(cardLabel);
-        await db.SaveChangesAsync(ct);
+        if (!await CardLabelHelper.UnassignAsync(db, cardLabel, ct))
+        {
+            return "Error: Label not assigned to this card.";
+        }
 
         // card.unlabeled — REST/MCP emit the identical event through the shared factory.
         if (label is not null)
