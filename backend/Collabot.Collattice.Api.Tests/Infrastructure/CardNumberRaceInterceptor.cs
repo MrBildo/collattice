@@ -108,7 +108,7 @@ public class CardNumberRaceInterceptor(IServiceScopeFactory scopeFactory) : Save
                 Id = Guid.NewGuid(),
                 Number = claimed.Number,
                 BoardId = claimed.BoardId,
-                Name = "rival card " + claimed.Number.ToString(CultureInfo.InvariantCulture),
+                Name = $"rival card {claimed.Number.ToString(CultureInfo.InvariantCulture)}",
                 SizeId = claimed.SizeId,
                 LaneId = claimed.LaneId,
                 Position = claimed.Position,
