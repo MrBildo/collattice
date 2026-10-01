@@ -399,8 +399,12 @@ function UsersTab() {
                       placeholder="Name"
                       aria-label="User name"
                     />
-                    <Select value={editRole} onValueChange={(v) => v && setEditRole(v)}>
-                      <SelectTrigger className="h-7 w-40" aria-label="User role">
+                    <Select
+                      aria-label="User role"
+                      value={editRole}
+                      onValueChange={(v) => v && setEditRole(v)}
+                    >
+                      <SelectTrigger className="h-7 w-40">
                         <SelectValue>{ROLE_MAP[parseInt(editRole, 10)] ?? editRole}</SelectValue>
                       </SelectTrigger>
                       <SelectContent>
@@ -502,8 +506,12 @@ function UsersTab() {
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label>Role</Label>
-            <Select value={newRole} onValueChange={(v) => v && setNewRole(v)}>
+            <Label id="new-user-role-label">Role</Label>
+            <Select
+              aria-labelledby="new-user-role-label"
+              value={newRole}
+              onValueChange={(v) => v && setNewRole(v)}
+            >
               <SelectTrigger className="w-40">
                 <SelectValue>{ROLE_MAP[parseInt(newRole, 10)] ?? newRole}</SelectValue>
               </SelectTrigger>

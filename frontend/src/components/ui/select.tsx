@@ -6,7 +6,31 @@ import { Select as SelectPrimitive } from '@base-ui/react/select';
 import { cn } from '@/lib/utils';
 import { ChevronDownIcon, CheckIcon, ChevronUpIcon } from 'lucide-react';
 
-const Select = SelectPrimitive.Root;
+// A select's name is given once, on the Select, and both the trigger and the
+// open list take it. Base UI names neither, and the list can't borrow the
+// trigger's name by pointing aria-labelledby at it: a combobox reached that way
+// contributes its selected value, not its name, so the list would be called
+// "Backlog" rather than "Lane".
+type SelectName = {
+  'aria-label'?: string;
+  'aria-labelledby'?: string;
+};
+
+const SelectNameContext = React.createContext<SelectName>({});
+
+function Select<Value, Multiple extends boolean | undefined = false>({
+  'aria-label': ariaLabel,
+  'aria-labelledby': ariaLabelledBy,
+  ...props
+}: SelectPrimitive.Root.Props<Value, Multiple> & SelectName) {
+  return (
+    <SelectNameContext.Provider
+      value={{ 'aria-label': ariaLabel, 'aria-labelledby': ariaLabelledBy }}
+    >
+      <SelectPrimitive.Root {...props} />
+    </SelectNameContext.Provider>
+  );
+}
 
 function SelectGroup({ className, ...props }: SelectPrimitive.Group.Props) {
   return (
@@ -33,13 +57,19 @@ function SelectTrigger({
   size = 'default',
   children,
   ...props
-}: SelectPrimitive.Trigger.Props & {
+}: Omit<SelectPrimitive.Trigger.Props, 'aria-label' | 'aria-labelledby'> & {
+  // No name here: a name on the trigger alone would leave the open list
+  // unnamed. Name the Select.
   size?: 'sm' | 'default';
 }) {
+  const name = React.useContext(SelectNameContext);
+
   return (
     <SelectPrimitive.Trigger
       data-slot="select-trigger"
       data-size={size}
+      aria-label={name['aria-label']}
+      aria-labelledby={name['aria-labelledby']}
       className={cn(
         "flex w-fit items-center justify-between gap-1.5 rounded-lg border border-input bg-transparent py-2 pr-2 pl-2.5 text-sm whitespace-nowrap transition-colors outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 data-placeholder:text-muted-foreground data-[size=default]:h-8 data-[size=sm]:h-7 data-[size=sm]:rounded-[min(var(--radius-md),10px)] [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         className,
@@ -68,6 +98,8 @@ function SelectContent({
     SelectPrimitive.Positioner.Props,
     'align' | 'alignOffset' | 'side' | 'sideOffset' | 'alignItemWithTrigger'
   >) {
+  const name = React.useContext(SelectNameContext);
+
   return (
     <SelectPrimitive.Portal>
       <SelectPrimitive.Positioner
@@ -88,7 +120,12 @@ function SelectContent({
           {...props}
         >
           <SelectScrollUpButton />
-          <SelectPrimitive.List>{children}</SelectPrimitive.List>
+          <SelectPrimitive.List
+            aria-label={name['aria-label']}
+            aria-labelledby={name['aria-labelledby']}
+          >
+            {children}
+          </SelectPrimitive.List>
           <SelectScrollDownButton />
         </SelectPrimitive.Popup>
       </SelectPrimitive.Positioner>
