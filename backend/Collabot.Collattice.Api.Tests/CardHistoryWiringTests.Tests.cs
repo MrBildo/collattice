@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -187,6 +188,68 @@ public class CardHistoryWiringTests(RevisionRaceFactory factory) : IClassFixture
         revisions.ShouldBe(AllocatorRetryBudget.Attempts + 1);
     }
 
+    // A description edit that also moves the card to another lane. Every attempt re-saves the whole
+    // change, and the renumbering of both lanes is part of it, so the move lands with the edit on
+    // the attempt that wins and is never saved without it.
+    [Theory]
+    [InlineData(EntryPoint.RestPatch)]
+    [InlineData(EntryPoint.McpUpdateCard)]
+    public async Task DescriptionEditWithLaneMove_LosingEveryRetryButTheLast_MovesTheCardAndRenumbersBothLanes(EntryPoint entryPoint)
+    {
+        // Arrange
+        var board = await SeedTwoLaneBoardAsync(entryPoint);
+        var rival = await TestAuthHelper.CreateUserAsync(_client, _factory, $"Lane Move Rival {entryPoint}", UserRole.HumanUser);
+
+        _factory.Interceptor.Arm(board.MovingCardId, rival.Id, AllocatorRetryBudget.Attempts - 1);
+
+        try
+        {
+            // Act
+            var outcome = await EditDescriptionAndMoveAsync(entryPoint, board, "my wording");
+
+            // Assert
+            _factory.Interceptor.FiredCount.ShouldBe(AllocatorRetryBudget.Attempts - 1);
+            outcome.Succeeded.ShouldBeTrue();
+        }
+        finally
+        {
+            _factory.Interceptor.Disarm();
+        }
+
+        (await LanePositionsAsync(board.SourceLaneId)).ShouldBe(["A=0", "C=10"]);
+        (await LanePositionsAsync(board.TargetLaneId)).ShouldBe(["X=0", "B=10"]);
+    }
+
+    [Theory]
+    [InlineData(EntryPoint.RestPatch)]
+    [InlineData(EntryPoint.McpUpdateCard)]
+    public async Task DescriptionEditWithLaneMove_ExhaustingEveryRetryAttempt_MovesNothing(EntryPoint entryPoint)
+    {
+        // Arrange
+        var board = await SeedTwoLaneBoardAsync(entryPoint);
+        var rival = await TestAuthHelper.CreateUserAsync(_client, _factory, $"Lane Move Exhaustion Rival {entryPoint}", UserRole.HumanUser);
+
+        _factory.Interceptor.Arm(board.MovingCardId, rival.Id, AllocatorRetryBudget.Attempts);
+
+        try
+        {
+            // Act
+            var outcome = await EditDescriptionAndMoveAsync(entryPoint, board, "my wording");
+
+            // Assert
+            _factory.Interceptor.FiredCount.ShouldBe(AllocatorRetryBudget.Attempts);
+            outcome.Succeeded.ShouldBeFalse();
+            outcome.ShouldHaveAskedToTryAgain(_contendedReason);
+        }
+        finally
+        {
+            _factory.Interceptor.Disarm();
+        }
+
+        (await LanePositionsAsync(board.SourceLaneId)).ShouldBe(["A=0", "B=10", "C=20"]);
+        (await LanePositionsAsync(board.TargetLaneId)).ShouldBe(["X=0"]);
+    }
+
     public enum EntryPoint
     {
         RestPatch,
@@ -227,6 +290,65 @@ public class CardHistoryWiringTests(RevisionRaceFactory factory) : IClassFixture
         var card = await db.Cards.AsNoTracking().SingleAsync(c => c.Id == cardId);
         card.DescriptionMarkdown.ShouldBe(ownValue);
     }
+
+    private async Task<WriteOutcome> EditDescriptionAndMoveAsync(EntryPoint entryPoint, LaneMoveBoard board, string descriptionMarkdown)
+    {
+        if (entryPoint == EntryPoint.RestPatch)
+        {
+            return await WriteOutcome.FromResponseAsync(await _client.PatchAsJsonAsync($"/api/v1/cards/{board.MovingCardId}", new { descriptionMarkdown, laneId = board.TargetLaneId }));
+        }
+
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<BoardDbContext>();
+        var broadcaster = scope.ServiceProvider.GetRequiredService<BoardEventBroadcaster>();
+        var tools = new CardTools(db, new McpAuthService(new UserResolver(db)), broadcaster);
+
+        return await WriteOutcome.FromToolAsync(() =>
+            tools.UpdateCardAsync(CollatticeApiFactory.TestAdminAuthKey, cardId: board.MovingCardId, descriptionMarkdown: descriptionMarkdown, laneId: board.TargetLaneId, index: 1));
+    }
+
+    // A fresh board: the source lane holds A, B, C at 0, 10, 20, with B the card that moves; the
+    // target lane holds X at 0.
+    private async Task<LaneMoveBoard> SeedTwoLaneBoardAsync(EntryPoint entryPoint)
+    {
+        TestAuthHelper.SetAdminAuth(_client, _factory);
+
+        var boardId = await PostForIdAsync("/api/v1/boards", new { name = $"Lane Move Race {entryPoint} {Guid.NewGuid():N}" });
+        var sourceLaneId = await PostForIdAsync($"/api/v1/boards/{boardId}/lanes", new { name = "Source" });
+        var targetLaneId = await PostForIdAsync($"/api/v1/boards/{boardId}/lanes", new { name = "Target" });
+
+        await PostForIdAsync($"/api/v1/boards/{boardId}/cards", new { name = "A", laneId = sourceLaneId });
+        var movingCardId = await PostForIdAsync($"/api/v1/boards/{boardId}/cards", new { name = "B", laneId = sourceLaneId, descriptionMarkdown = "start" });
+        await PostForIdAsync($"/api/v1/boards/{boardId}/cards", new { name = "C", laneId = sourceLaneId });
+        await PostForIdAsync($"/api/v1/boards/{boardId}/cards", new { name = "X", laneId = targetLaneId });
+
+        return new LaneMoveBoard(sourceLaneId, targetLaneId, movingCardId);
+    }
+
+    private async Task<Guid> PostForIdAsync(string path, object body)
+    {
+        var response = await _client.PostAsJsonAsync(path, body);
+        response.EnsureSuccessStatusCode();
+        var json = await response.Content.ReadFromJsonAsync<JsonElement>(TestAuthHelper.JsonOptions);
+        return json.GetProperty("id").GetGuid();
+    }
+
+    // The lane's saved cards in position order, as name=position.
+    private async Task<List<string>> LanePositionsAsync(Guid laneId)
+    {
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<BoardDbContext>();
+
+        var cards = await db.Cards
+            .Where(c => c.LaneId == laneId)
+            .OrderBy(c => c.Position)
+                .Select(c => new { c.Name, c.Position })
+                    .ToListAsync();
+
+        return [.. cards.Select(c => $"{c.Name}={c.Position.ToString(CultureInfo.InvariantCulture)}")];
+    }
+
+    private sealed record LaneMoveBoard(Guid SourceLaneId, Guid TargetLaneId, Guid MovingCardId);
 
     private async Task<Guid> CreateCardAsync(string name, string descriptionMarkdown)
     {
