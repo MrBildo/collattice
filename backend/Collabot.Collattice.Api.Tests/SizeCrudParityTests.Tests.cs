@@ -102,6 +102,79 @@ public class SizeCrudParityTests(CollatticeApiFactory factory) : IClassFixture<C
         mcpSize.GetProperty("ordinal").GetInt32().ShouldBe(4);
     }
 
+    // ── create_size: a taken ordinal or name is a conflict, never a save failure ──
+    // The unique (BoardId, Ordinal) and (BoardId, Name) indexes would otherwise answer a 500.
+
+    [Fact]
+    public async Task CreateSize_TakenOrdinal_ConflictsOnBothSurfacesWithTheUpdateMessage()
+    {
+        // Arrange — the seeded S holds ordinal 0 on both boards
+        var restBoardId = await SeedBoardAsync();
+        var mcpBoardId = await SeedBoardAsync();
+        var (db, tools, authKey) = CreateMcpTools();
+
+        // Act
+        TestAuthHelper.SetAdminAuth(_client, _factory);
+        var restResponse = await _client.PostAsJsonAsync($"/api/v1/boards/{restBoardId}/sizes", new { name = "Huge", ordinal = 0 });
+        var mcpResult = await tools.CreateSizeAsync(authKey, mcpBoardId, "Huge", 0);
+
+        // Assert — 409 on REST, "Error: ..." on MCP, the message the update paths use
+        restResponse.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        (await restResponse.Content.ReadAsStringAsync()).ShouldContain("Ordinal already taken by another size");
+
+        mcpResult.ShouldContain("Error: Ordinal already taken by another size");
+
+        (await db.CardSizes.AnyAsync(s => s.BoardId == restBoardId && s.Name == "Huge")).ShouldBeFalse();
+        (await db.CardSizes.AnyAsync(s => s.BoardId == mcpBoardId && s.Name == "Huge")).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task CreateSize_TakenName_ConflictsOnBothSurfaces()
+    {
+        // Arrange — the seeded M exists on both boards; a free ordinal isolates the name rule
+        var restBoardId = await SeedBoardAsync();
+        var mcpBoardId = await SeedBoardAsync();
+        var (db, tools, authKey) = CreateMcpTools();
+
+        // Act
+        TestAuthHelper.SetAdminAuth(_client, _factory);
+        var restResponse = await _client.PostAsJsonAsync($"/api/v1/boards/{restBoardId}/sizes", new { name = "M", ordinal = 40 });
+        var mcpResult = await tools.CreateSizeAsync(authKey, mcpBoardId, "M", 40);
+
+        // Assert
+        restResponse.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        (await restResponse.Content.ReadAsStringAsync()).ShouldContain("A size with that name already exists on this board");
+
+        mcpResult.ShouldContain("Error: A size with that name already exists on this board");
+
+        (await db.CardSizes.CountAsync(s => s.BoardId == restBoardId && s.Name == "M")).ShouldBe(1);
+        (await db.CardSizes.CountAsync(s => s.BoardId == mcpBoardId && s.Name == "M")).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task CreateSize_NoOrdinalAfterTheHighestPossible_RejectedOnBothSurfaces()
+    {
+        // Arrange — one past int.MaxValue would wrap to int.MinValue and sort the new size first
+        var restBoardId = await SeedBoardAsync();
+        var mcpBoardId = await SeedBoardAsync();
+        await CreateSizeAsync(restBoardId, "Top", int.MaxValue);
+        await CreateSizeAsync(mcpBoardId, "Top", int.MaxValue);
+        var (db, tools, authKey) = CreateMcpTools();
+
+        // Act
+        TestAuthHelper.SetAdminAuth(_client, _factory);
+        var restResponse = await _client.PostAsJsonAsync($"/api/v1/boards/{restBoardId}/sizes", new { name = "Beyond" });
+        var mcpResult = await tools.CreateSizeAsync(authKey, mcpBoardId, "Beyond");
+
+        // Assert — 400, not a conflict: no rival holds the slot, there is no slot
+        restResponse.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        (await restResponse.Content.ReadAsStringAsync()).ShouldContain("No ordinal is free after the board's highest size");
+
+        mcpResult.ShouldContain("Error: No ordinal is free after the board's highest size");
+
+        (await db.CardSizes.AnyAsync(s => (s.BoardId == restBoardId || s.BoardId == mcpBoardId) && s.Name == "Beyond")).ShouldBeFalse();
+    }
+
     // ── update_size: ordinal collision rejected on both surfaces ──────────────
     // REST categorizes this as 409 Conflict; MCP returns the "Error: ..." string.
 
