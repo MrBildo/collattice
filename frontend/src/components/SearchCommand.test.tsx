@@ -26,7 +26,7 @@ const mockSearchAllCards = vi.mocked(searchAllCards);
 function makeSearchResult(
   overrides: {
     boardSlug?: string;
-    cards?: Array<{ id: string; number: number; name: string }>;
+    cards?: Array<{ id: string; number: number; name: string; descriptionMarkdown?: string }>;
   } = {},
 ) {
   return {
@@ -38,7 +38,7 @@ function makeSearchResult(
       laneId: 'lane-1',
       position: 0,
       isArchived: false,
-      descriptionMarkdown: '',
+      descriptionMarkdown: c.descriptionMarkdown ?? '',
       labels: [],
       sizeName: 'S',
       sizeId: 'size-1',
@@ -178,5 +178,32 @@ describe('SearchCommand — boardId wiring', () => {
     // populated boardId, so the backend priority sort received null.
     const lastCall = mockSearchAllCards.mock.calls.at(-1);
     expect(lastCall?.[2]).toBe('board-uuid-1');
+  });
+});
+
+describe('SearchCommand — result snippets', () => {
+  test('shows the description of a result as plain text, without its Markdown', async () => {
+    // Arrange
+    const user = userEvent.setup();
+    mockSearchAllCards.mockResolvedValue([
+      makeSearchResult({
+        cards: [
+          {
+            id: 'card-1',
+            number: 1,
+            name: 'Welcome',
+            descriptionMarkdown: '**This is a sample card.** See [the guide](https://example.com).',
+          },
+        ],
+      }),
+    ]);
+    renderSearch();
+
+    // Act
+    await user.type(screen.getByRole('textbox'), 'welcome');
+
+    // Assert
+    expect(await screen.findByText('This is a sample card. See the guide.')).toBeInTheDocument();
+    expect(screen.queryByText(/\*\*/)).not.toBeInTheDocument();
   });
 });

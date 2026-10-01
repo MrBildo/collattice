@@ -13,6 +13,7 @@ export type DuplicateFields = {
 
 export type CardPrefill = DuplicateFields & {
   source: {
+    id: string;
     number: number;
     isArchived: boolean;
   };
@@ -47,6 +48,6 @@ export function buildCardPrefill(
   return {
     ...fields,
     laneId: resolveDuplicateLaneId(fields.laneId, source.isArchived, lanes),
-    source: { number: source.number, isArchived: source.isArchived },
+    source: { id: source.id, number: source.number, isArchived: source.isArchived },
   };
 }

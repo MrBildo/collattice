@@ -1,9 +1,11 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import type { ReactNode } from 'react';
 import { App } from './App';
+import type { CardPrefill } from '@/lib/duplicate-card';
 
 // useAuth is the route-level gate. Mock it so each test drives the logged-in flag
 // directly rather than through localStorage + the auth library.
@@ -49,7 +51,30 @@ vi.mock('@/lib/api', () => ({
   }),
   fetchMe: vi.fn().mockResolvedValue({ id: 'user-1', name: 'Test User', role: 1 }),
   fetchUsers: vi.fn().mockResolvedValue([]),
+  // Read by the new-card dialog.
+  fetchLabels: vi.fn().mockResolvedValue([]),
+  fetchBoardData: vi.fn().mockResolvedValue({ lanes: [], cards: [], sizes: [] }),
 }));
+
+// The card dialog has its own suites. Stand in for it with the one thing the
+// duplicate test needs from it: a Duplicate button that hands App a prefill.
+vi.mock('@/components/CardDetailSheet', () => ({
+  CardDetailSheet: ({ onDuplicate }: { onDuplicate?: (prefill: CardPrefill) => void }) => (
+    <button type="button" onClick={() => onDuplicate?.(duplicatePrefill)}>
+      Duplicate #12
+    </button>
+  ),
+}));
+vi.mock('mermaid', () => ({ default: { initialize: vi.fn(), render: vi.fn() } }));
+
+const duplicatePrefill: CardPrefill = {
+  name: 'Fix login',
+  descriptionMarkdown: 'Steps to reproduce',
+  sizeId: '',
+  labelIds: [],
+  laneId: '',
+  source: { id: 'card-12', number: 12, isArchived: false },
+};
 
 function renderApp() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -105,5 +130,29 @@ describe('App route-level login gate', () => {
     expect(screen.getByRole('region', { name: /kanban board/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /new card/i })).toBeInTheDocument();
     expect(screen.queryByText(/enter your auth key to continue/i)).not.toBeInTheDocument();
+  });
+});
+
+describe('App new-card dialog after a duplicate', () => {
+  test('New Card opens a blank dialog after a duplicate was started and cancelled', async () => {
+    // Arrange
+    const user = userEvent.setup();
+    mockUseAuth.mockReturnValue({ loggedIn: true, handleLogin: vi.fn(), handleLogout: vi.fn() });
+    renderApp();
+    await user.click(screen.getByRole('button', { name: 'Duplicate #12' }));
+    expect(await screen.findByRole('heading', { name: 'Duplicate Card' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Name *')).toHaveValue('Fix login');
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    await waitFor(() =>
+      expect(screen.queryByRole('heading', { name: 'Duplicate Card' })).not.toBeInTheDocument(),
+    );
+
+    // Act
+    await user.click(screen.getByRole('button', { name: /new card/i }));
+
+    // Assert
+    expect(await screen.findByRole('heading', { name: 'Create Card' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Name *')).toHaveValue('');
+    expect(screen.getByLabelText('Description')).toHaveValue('');
   });
 });

@@ -51,6 +51,9 @@ type CreateCardDialogProps = {
   defaultLaneId?: string;
   // Starting values when the dialog is opened to duplicate an existing card.
   prefill?: CardPrefill;
+  // Where focus goes when the dialog closes, given the card it created (null if
+  // none). Returning null keeps the default: back to what opened the dialog.
+  findReturnFocus?: (createdCardId: string | null) => HTMLElement | null;
 };
 
 export function CreateCardDialog({
@@ -61,9 +64,10 @@ export function CreateCardDialog({
   onOpenChange,
   defaultLaneId,
   prefill,
+  findReturnFocus,
 }: CreateCardDialogProps) {
   const queryClient = useQueryClient();
-  const dialogContentRef = useRef<HTMLDivElement>(null);
+  const createdCardIdRef = useRef<string | null>(null);
   const { boardSlug, cardNumbers, cardPreviews } = useCardLinkContext(boardId);
 
   const defaultSizeId =
@@ -119,6 +123,7 @@ export function CreateCardDialog({
       });
     },
     onSuccess: (newCard) => {
+      createdCardIdRef.current = newCard.id;
       queryClient.cancelQueries({ queryKey: queryKeys.boards.data(boardId) });
       queryClient.setQueryData<BoardData>(queryKeys.boards.data(boardId), (old) =>
         old
@@ -153,10 +158,11 @@ export function CreateCardDialog({
     [addFiles],
   );
 
+  // Listens on the whole document, but only while this dialog is open. The dialog
+  // is modal and holds focus, so a paste can only come from inside it.
   usePasteAttachment({
     onFile: handlePasteFile,
     enabled: open && !isCreating,
-    containerRef: dialogContentRef,
   });
 
   const resetState = () => {
@@ -284,6 +290,7 @@ export function CreateCardDialog({
 
       // Step 3: All uploads succeeded — finalize
       await finalizeCard(cardId);
+      createdCardIdRef.current = cardId;
 
       queryClient.invalidateQueries({ queryKey: queryKeys.boards.data(boardId) });
       handleClose();
@@ -311,7 +318,9 @@ export function CreateCardDialog({
       }}
     >
       <DialogContent
-        ref={dialogContentRef}
+        finalFocus={
+          findReturnFocus ? () => findReturnFocus(createdCardIdRef.current) ?? true : undefined
+        }
         data-mobile-fullscreen
         className="flex flex-col p-0 md:max-h-[85vh] md:max-w-[60vw]"
       >

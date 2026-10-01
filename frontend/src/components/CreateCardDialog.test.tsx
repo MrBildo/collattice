@@ -3,6 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
+import { useState } from 'react';
 import { CreateCardDialog } from './CreateCardDialog';
 import { createCard, fetchBoardData, fetchLabels } from '@/lib/api';
 import type { CardPrefill } from '@/lib/duplicate-card';
@@ -46,7 +47,7 @@ function makePrefill(overrides: Partial<CardPrefill> = {}): CardPrefill {
     sizeId: 'size-l',
     labelIds: ['label-bug'],
     laneId: 'lane-2',
-    source: { number: 12, isArchived: false },
+    source: { id: 'card-12', number: 12, isArchived: false },
     ...overrides,
   };
 }
@@ -127,12 +128,71 @@ describe('CreateCardDialog prefilled from a duplicate', () => {
   });
 
   test('a duplicate of an archived card has no lane and cannot be created until one is chosen', async () => {
-    setup(makePrefill({ laneId: '', source: { number: 12, isArchived: true } }));
+    setup(makePrefill({ laneId: '', source: { id: 'card-12', number: 12, isArchived: true } }));
     await screen.findByText('Bug');
 
     expect(screen.getByText('#12 is archived, so choose a lane for the copy.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Create' })).toBeDisabled();
     expect(screen.getByLabelText('Lane')).toHaveTextContent('Select lane');
+  });
+
+  test('after creating, focus goes where findReturnFocus points for the card just created', async () => {
+    // Arrange
+    const user = userEvent.setup();
+    vi.mocked(createCard).mockResolvedValue({
+      id: 'card-new',
+      number: 13,
+      name: 'Fix login',
+      descriptionMarkdown: 'Steps to reproduce',
+      laneId: 'lane-2',
+      position: 1,
+      sizeId: 'size-l',
+      sizeName: 'L',
+      labels: [labels[0]],
+      commentCount: 0,
+      attachmentCount: 0,
+      isArchived: false,
+      createdByUserId: 'me',
+      createdAtUtc: '2026-09-29T10:00:00.000Z',
+      lastUpdatedByUserId: 'me',
+      lastUpdatedAtUtc: '2026-09-29T10:00:00.000Z',
+    });
+    const findReturnFocus = vi.fn(() => document.getElementById('new-tile'));
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    function Harness() {
+      const [isOpen, setIsOpen] = useState(true);
+      return (
+        <>
+          <button type="button" id="new-tile">
+            #13
+          </button>
+          <CreateCardDialog
+            boardId="board-1"
+            lanes={lanes}
+            sizes={sizes}
+            open={isOpen}
+            onOpenChange={setIsOpen}
+            prefill={makePrefill()}
+            findReturnFocus={findReturnFocus}
+          />
+        </>
+      );
+    }
+    render(
+      <MemoryRouter>
+        <QueryClientProvider client={queryClient}>
+          <Harness />
+        </QueryClientProvider>
+      </MemoryRouter>,
+    );
+    await screen.findByText('Bug');
+
+    // Act
+    await user.click(screen.getByRole('button', { name: 'Create' }));
+
+    // Assert
+    await waitFor(() => expect(document.activeElement).toBe(document.getElementById('new-tile')));
+    expect(findReturnFocus).toHaveBeenCalledWith('card-new');
   });
 
   test('a plain new card keeps its usual title and first-lane default', () => {

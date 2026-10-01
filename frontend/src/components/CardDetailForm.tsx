@@ -2,6 +2,7 @@ import {
   forwardRef,
   useCallback,
   useEffect,
+  useId,
   useImperativeHandle,
   useMemo,
   useRef,
@@ -332,6 +333,7 @@ export const CardDetailForm = forwardRef<CardDetailFormHandle, CardDetailFormPro
       queryFn: () => fetchCardLabels(card.id),
       ...QUERY_DEFAULTS.labels,
     });
+    const labelsErrorId = useId();
 
     const allLabelsQuery = useQuery({
       queryKey: queryKeys.labels.all(boardId as string),
@@ -722,7 +724,13 @@ export const CardDetailForm = forwardRef<CardDetailFormHandle, CardDetailFormPro
     };
 
     const duplicateButton = onDuplicate && (
-      <Button variant="outline" size="sm" onClick={handleDuplicate} disabled={!canDuplicate}>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={handleDuplicate}
+        disabled={!canDuplicate}
+        aria-describedby={labelsQuery.isLoadingError ? labelsErrorId : undefined}
+      >
         <Copy className="mr-1 h-4 w-4" />
         Duplicate
       </Button>
@@ -895,7 +903,26 @@ export const CardDetailForm = forwardRef<CardDetailFormHandle, CardDetailFormPro
                 )}
               </div>
             )}
-            {!isArchived && (
+            {/* Without the card's own labels the picker would start from none, and
+                a save after one click would drop every label the card has; a
+                duplicate would silently lose them too. Say so instead. Only when
+                they never loaded: a failed refresh still has the last good list. */}
+            {labelsQuery.isLoadingError && (
+              <div className="flex items-center gap-2">
+                <div id={labelsErrorId}>
+                  <InlineError message="Couldn't load this card's labels, so they can't be edited and the card can't be duplicated." />
+                </div>
+                <Button
+                  variant="outline"
+                  size="xs"
+                  onClick={() => labelsQuery.refetch()}
+                  disabled={labelsQuery.isFetching}
+                >
+                  {labelsQuery.isFetching ? 'Retrying...' : 'Retry'}
+                </Button>
+              </div>
+            )}
+            {!isArchived && !labelsQuery.isLoadingError && (
               <div className="flex items-center gap-1">
                 <LabelPicker
                   allLabels={allLabelsQuery.data ?? []}

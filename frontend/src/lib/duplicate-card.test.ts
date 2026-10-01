@@ -61,7 +61,7 @@ describe('buildCardPrefill', () => {
       sizeId: 'size-m',
       labelIds: ['label-bug'],
       laneId: 'lane-doing',
-      source: { number: 12, isArchived: false },
+      source: { id: 'card-1', number: 12, isArchived: false },
     });
   });
 

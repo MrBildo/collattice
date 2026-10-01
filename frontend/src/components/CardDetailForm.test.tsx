@@ -1,5 +1,5 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
@@ -12,6 +12,7 @@ import {
   fetchLabels,
   fetchUserDirectory,
 } from '@/lib/api';
+import { queryKeys } from '@/lib/query-keys';
 import { ROLES } from '@/lib/roles';
 import type { BoardData, CardHistoryTrail, CardItem } from '@/types';
 
@@ -279,7 +280,7 @@ describe('CardDetailForm duplicate', () => {
         </QueryClientProvider>
       </MemoryRouter>,
     );
-    return { onDuplicate };
+    return { onDuplicate, queryClient };
   }
 
   test('offers the source card as both draft and saved when nothing is edited', async () => {
@@ -297,7 +298,7 @@ describe('CardDetailForm duplicate', () => {
       sizeId: 'size-1',
       labelIds: ['label-bug'],
       laneId: 'lane-2',
-      source: { number: 7, isArchived: false },
+      source: { id: 'card-1', number: 7, isArchived: false },
     };
     expect(onDuplicate).toHaveBeenCalledWith({ draft: expected, saved: expected });
   });
@@ -330,7 +331,7 @@ describe('CardDetailForm duplicate', () => {
     const request = onDuplicate.mock.calls[0][0];
     expect(request.draft.laneId).toBe('');
     expect(request.saved.laneId).toBe('');
-    expect(request.saved.source).toEqual({ number: 7, isArchived: true });
+    expect(request.saved.source).toEqual({ id: 'card-1', number: 7, isArchived: true });
   });
 
   test('Duplicate waits for the card labels so a copy never silently drops them', async () => {
@@ -338,5 +339,61 @@ describe('CardDetailForm duplicate', () => {
     setupDuplicate(makeCard());
 
     expect(await screen.findByRole('button', { name: 'Duplicate' })).toBeDisabled();
+  });
+
+  test('a failed refresh of labels already loaded keeps the picker and Duplicate, with no error', async () => {
+    // Arrange
+    const user = userEvent.setup();
+    vi.mocked(fetchCardLabels).mockResolvedValueOnce([bug]);
+    const { onDuplicate, queryClient } = setupDuplicate(makeCard());
+    const button = await screen.findByRole('button', { name: 'Duplicate' });
+    await waitFor(() => expect(button).toBeEnabled());
+    vi.mocked(fetchCardLabels).mockRejectedValue(new Error('network down'));
+
+    // Act — the refetch fails, and so does its one retry
+    await act(async () => {
+      await queryClient.refetchQueries({ queryKey: queryKeys.cards.labels('card-1') });
+    });
+    await waitFor(() => expect(fetchCardLabels).toHaveBeenCalledTimes(3), { timeout: 3000 });
+
+    // Assert
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(button).toBeEnabled();
+    expect(button).not.toHaveAttribute('aria-describedby');
+    expect(screen.getByRole('button', { name: /Labels|Bug/ })).toBeInTheDocument();
+    await user.click(button);
+    expect(onDuplicate.mock.calls[0][0].saved.labelIds).toEqual(['label-bug']);
+  });
+
+  test('when the card labels fail to load, the dialog says why Duplicate is off and can retry', async () => {
+    // Arrange
+    const user = userEvent.setup();
+    // Twice: the labels query retries once on its own before it reports an error.
+    vi.mocked(fetchCardLabels)
+      .mockRejectedValueOnce(new Error('network down'))
+      .mockRejectedValueOnce(new Error('network down'))
+      .mockResolvedValue([bug]);
+    const { onDuplicate } = setupDuplicate(makeCard());
+
+    // Act
+    const alert = await screen.findByRole('alert', undefined, { timeout: 3000 });
+
+    // Assert — the reason is visible, tied to the button, and the picker that
+    // would start from no labels is not offered
+    expect(alert).toHaveTextContent(
+      "Couldn't load this card's labels, so they can't be edited and the card can't be duplicated.",
+    );
+    const button = screen.getByRole('button', { name: 'Duplicate' });
+    expect(button).toBeDisabled();
+    expect(button).toHaveAccessibleDescription(
+      "Couldn't load this card's labels, so they can't be edited and the card can't be duplicated.",
+    );
+    expect(screen.queryByRole('button', { name: 'Labels' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Retry' }));
+    await waitFor(() => expect(button).toBeEnabled());
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    await user.click(button);
+    expect(onDuplicate.mock.calls[0][0].saved.labelIds).toEqual(['label-bug']);
   });
 });
