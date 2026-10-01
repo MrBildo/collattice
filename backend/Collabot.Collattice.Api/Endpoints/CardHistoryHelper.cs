@@ -19,7 +19,7 @@ internal static class CardHistoryHelper
 
     // The number of attempts SaveWithRevisionRetryAsync makes before giving up on a revision-ordinal
     // collision. Named rather than a local literal so a test can drive exactly one collision past it.
-    public const int MaxRevisionRetryAttempts = 5;
+    public const int MaxRevisionRetryAttempts = 8;
 
     // The store is field-general, but only description is captured today. An unrecognised field is
     // rejected rather than answered with an empty trail: on an audit surface, a typo that reads as
@@ -133,14 +133,18 @@ internal static class CardHistoryHelper
             return;
         }
 
-        // Five rather than the three the card-number allocator uses, and with a pause of a
-        // randomized 2 to 14 milliseconds between them. That allocator contends over a whole
-        // board's card creations; this one contends over repeated edits of a single card's
-        // description, where every loser of a collision otherwise wakes at the same instant,
-        // re-reads the same head, and collides again in lockstep. Measured under sustained
-        // eight-way concurrent editing of one description: no retry at all loses most of the
-        // edits, immediate lockstep retries still lose a couple of percent, and pausing first
-        // clears them — through thirty-two-way, with no loss.
+        // Eight attempts, retried at once with no pause between them: the card-number allocator's
+        // shape, for the same reason. Both allocate max+1 against a unique index through SQLite's
+        // single writer, and the wait that matters is already below this loop: a save that finds
+        // the write lock held is retried by the SQLite provider itself after a fixed 150 ms sleep,
+        // still holding the head it read before sleeping. A loser that retries at once re-reads the
+        // head while the lock is free and the sleepers are still asleep, so it usually lands next.
+        // A loser that pauses first hands the lock to someone else, then sleeps those 150 ms on a
+        // head that goes stale meanwhile, and collides again. Measured on this helper with writers
+        // released together on one card, 8- to 128-way, a fresh card per round, 9,600 edits per
+        // shape: five attempts with a random 2 to 14 ms pause lost about one edit in forty, five
+        // immediate attempts about one in six hundred, and eight immediate attempts none. Only at
+        // 128-way did an edit ever need all eight; at eight-way none needed more than four.
         for (var attempt = 0; attempt < MaxRevisionRetryAttempts; attempt++)
         {
             try
@@ -157,7 +161,6 @@ internal static class CardHistoryHelper
                 // re-asks whether there is anything left to record at all, which is the question
                 // the winner's commit may just have changed the answer to.
                 DetachStagedRows(db, change);
-                await Task.Delay(Random.Shared.Next(2, 15), ct);
                 await StageRowsAsync(db, change, ct);
             }
         }
