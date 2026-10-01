@@ -67,7 +67,7 @@ dotnet run --project backend/Collabot.Collattice.AppHost
 
 The API gets a dynamic port (no more hardcoded 58343). The frontend gets a dynamic port. Aspire handles service discovery between them.
 
-Optionally configure `Admin:AuthKey` in `appsettings.Development.json` in `backend/Collabot.Collattice.Api/` — otherwise a random key is generated and logged on first run.
+Optionally pin `Admin:AuthKey` in `appsettings.Development.json` in `backend/Collabot.Collattice.Api/` (gitignored, so create it) before the first run — it is read only while the database has no users. Otherwise a random key is generated and logged on first run.
 
 Aspire does NOT run workloads natively on Linux. Use standalone `dotnet run` for Linux testing — the API start under [Frontend Only](#frontend-only-no-aspire) below sets what it needs.
 
@@ -96,7 +96,7 @@ $env:ASPNETCORE_URLS = "http://localhost:58343"
 $env:ConnectionStrings__Board = "Data Source=$PWD\data\collattice.db"
 dotnet run --project backend/Collabot.Collattice.Api --no-launch-profile
 
-# Terminal 2: the dev server
+# Terminal 2, from the repo root: the dev server
 cd frontend
 npm install
 npm run dev
@@ -111,7 +111,7 @@ ConnectionStrings__Board="Data Source=$PWD/data/collattice.db" \
 dotnet run --project backend/Collabot.Collattice.Api --no-launch-profile
 ```
 
-Open `http://localhost:5173`. The admin auth key is logged at API startup (`Admin auth key: …`); to pin it, set `Admin:AuthKey` in `appsettings.Development.json` (read because the environment is Development).
+Open `http://localhost:5173`. The admin auth key is logged at API startup (`Admin auth key: …`). To choose the key yourself, set it before the **first** start, alongside the variables above: `$env:Admin__AuthKey = "<your key>"` (bash: `Admin__AuthKey=<your key>`). It is read only while the database has no users, so setting it later does nothing; to change it, stop the API and delete `data/`, which also deletes your local boards.
 
 What each setting is for:
 - `ConnectionStrings__Board` — required, absolute path, no fallback by design. `data/` is gitignored, so the dev database stays out of the tree.
