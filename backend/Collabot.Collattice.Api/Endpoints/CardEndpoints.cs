@@ -210,8 +210,7 @@ internal static class CardEndpoints
                 }
                 else if (request.Position is null)
                 {
-                    var maxPosition = await db.Cards.Where(c => c.LaneId == newLaneId && c.Id != id).MaxAsync(c => (int?)c.Position, ct) ?? -10;
-                    card.Position = maxPosition + 10;
+                    card.Position = await CardReorderHelper.EndOfLanePositionAsync(db, newLaneId, id, ct);
                 }
             }
 
@@ -536,6 +535,9 @@ internal static class CardEndpoints
                 return Results.StatusCode(StatusCodes.Status403Forbidden);
             }
 
+            // A draft has no place in its lane's order, so the card goes to the end of the lane.
+            card.Position = await CardReorderHelper.EndOfLanePositionAsync(db, card.LaneId, ct: ct);
+
             card.LastUpdatedAtUtc = DateTimeOffset.UtcNow;
             card.LastUpdatedByUserId = http.CurrentUser().Id;
 
@@ -649,10 +651,11 @@ internal static class CardEndpoints
     // PATCH's position is a stored position number, while the shared move helper places a card at an
     // index. With no position the card goes to the end of the target lane. With one, it goes where
     // that number sorts: ahead of the first card whose number is not below it, so the target lane's
-    // order is the one the number asked for, and the lane is then renumbered.
+    // order is the one the number asked for, and the lane is then renumbered. Drafts are not counted,
+    // because the helper's index is a place among the lane's saved cards.
     private static async Task<int> ResolveLaneMoveIndexAsync(BoardDbContext db, Guid targetLaneId, int? position, CancellationToken ct)
     {
-        var targetCards = db.Cards.Where(c => c.LaneId == targetLaneId);
+        var targetCards = db.Cards.Where(c => c.LaneId == targetLaneId && !c.IsTemp);
 
         return position is null
             ? await targetCards.CountAsync(ct)
