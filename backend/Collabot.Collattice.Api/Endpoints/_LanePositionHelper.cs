@@ -18,9 +18,11 @@ internal static class LanePositionHelper
 
     // Attempts for an omitted position. The read of the last lane and the insert are separate
     // statements, so concurrent creates on one board can resolve the same slot and all but one lose
-    // the unique index. A loser re-reads and takes the next slot. This is the same max+1 shape as
-    // card numbers, so it follows their measured choice: immediate retries, no pause, because a
-    // pause stops the max advancing and wakes the losers into re-colliding clusters.
+    // the unique index. A loser re-reads and takes the next slot. Eight immediate attempts, the shape
+    // the card-number allocator uses. Measured here with immediate retries only: no create was lost
+    // at eight at once on one board, and one in 160 got the contended 409 at sixteen. Whether a pause
+    // between attempts would help or hurt is not measured on this allocator, and the two sibling
+    // allocators with this max+1 shape measured it in opposite directions.
     private const int _maxAttempts = 8;
 
     public static async Task<LaneCreateResult> CreateAsync
