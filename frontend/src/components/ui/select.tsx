@@ -116,7 +116,10 @@ function SelectItem({ className, children, ...props }: SelectPrimitive.Item.Prop
       )}
       {...props}
     >
-      <SelectPrimitive.ItemText className="flex flex-1 shrink-0 gap-2 whitespace-nowrap">
+      {/* The popup is only as wide as its trigger and clips sideways, so an item
+          too long for one line wraps (breaking inside a word only when the word
+          alone is wider than the line) rather than running past its own edge. */}
+      <SelectPrimitive.ItemText className="flex min-w-0 flex-1 gap-2 wrap-anywhere">
         {children}
       </SelectPrimitive.ItemText>
       <SelectPrimitive.ItemIndicator
