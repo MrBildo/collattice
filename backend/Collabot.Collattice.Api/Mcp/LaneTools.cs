@@ -41,15 +41,11 @@ public sealed class LaneTools(BoardDbContext db, McpAuthService auth, BoardEvent
             return "Error: Name is required.";
         }
 
-        var resolved = await LanePositionHelper.ResolveForCreateAsync(db, boardId, position, ct);
-        if (resolved.Error is not null)
+        var created = await LanePositionHelper.CreateAsync(db, boardId, name, position, ct);
+        if (created.Lane is not Lane lane)
         {
-            return $"Error: {resolved.Error}";
+            return $"Error: {created.Error}";
         }
-
-        var lane = new Lane { Id = Guid.NewGuid(), BoardId = boardId, Name = name, Position = resolved.Position };
-        db.Lanes.Add(lane);
-        await db.SaveChangesAsync(ct);
 
         // lane.created — REST/MCP emit the identical event through the shared factory.
         await WebhookEventFactory.PublishLaneCreatedAsync(db, broadcaster, lane, user!, ct);
