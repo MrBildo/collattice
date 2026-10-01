@@ -23,7 +23,7 @@ All endpoints are under `/api/v1/`, with one exception: the card-detail read als
 | GET | /boards/{boardId}/cards | All | List cards (enriched: labels, sizes, comment/attachment counts). Returns a `{ items, totalCount, offset, limit }` paged envelope. Query params: `since`, `labelId`, `laneId`, `search`, `includeArchived` (default `false`), `offset` (default `0`), `limit` |
 | POST | /boards/{boardId}/cards | All | Create card |
 | GET | /boards/{boardId}/sizes | All | List card sizes (ordered by ordinal) |
-| POST | /boards/{boardId}/sizes | Admin | Create size |
+| POST | /boards/{boardId}/sizes | Admin | Create size. Body `{ name, ordinal? }` — omit `ordinal` to place it one past the board's highest; a taken ordinal or name returns 409; 400 when `ordinal` is omitted and no ordinal is free after the highest |
 | GET | /boards/{boardId}/labels | All | List labels for a board |
 | POST | /boards/{boardId}/labels | Admin | Create label |
 | PATCH | /boards/{boardId}/labels/{id} | Admin | Update label name/color |

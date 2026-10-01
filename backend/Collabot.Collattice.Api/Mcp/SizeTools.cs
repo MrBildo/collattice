@@ -16,7 +16,7 @@ namespace Collabot.Collattice.Api.Mcp;
 public sealed class SizeTools(BoardDbContext db, McpAuthService auth, BoardEventBroadcaster broadcaster)
 {
     [McpServerTool(Name = "create_size", Destructive = false)]
-    [Description("Create a card size on a board. Requires Administrator or AgentAdministrator role. If ordinal is omitted, it is auto-assigned to one greater than the board's current highest ordinal.")]
+    [Description("Create a card size on a board. Requires Administrator or AgentAdministrator role. If ordinal is omitted, it is auto-assigned to one greater than the board's current highest ordinal. An ordinal or name already taken by another size on the board is a conflict.")]
     public async Task<string> CreateSizeAsync
     (
         [Description("Your auth key")] string authKey,
@@ -42,15 +42,11 @@ public sealed class SizeTools(BoardDbContext db, McpAuthService auth, BoardEvent
             return "Error: Name is required.";
         }
 
-        var resolvedOrdinal = ordinal ?? 0;
-        if (!ordinal.HasValue && await db.CardSizes.AnyAsync(s => s.BoardId == boardId, ct))
+        var created = await SizeCreateHelper.CreateAsync(db, boardId, name, ordinal, ct);
+        if (created.Size is not CardSize size)
         {
-            resolvedOrdinal = await db.CardSizes.Where(s => s.BoardId == boardId).MaxAsync(s => s.Ordinal, ct) + 1;
+            return $"Error: {created.Error}";
         }
-
-        var size = new CardSize { Id = Guid.NewGuid(), BoardId = boardId, Name = name, Ordinal = resolvedOrdinal };
-        db.CardSizes.Add(size);
-        await db.SaveChangesAsync(ct);
 
         // size.created — REST/MCP emit the identical event through the shared factory.
         await WebhookEventFactory.PublishSizeCreatedAsync(db, broadcaster, size, user!, ct);
@@ -99,7 +95,7 @@ public sealed class SizeTools(BoardDbContext db, McpAuthService auth, BoardEvent
             var newOrd = ordinal.Value;
             if (await db.CardSizes.AnyAsync(s => s.BoardId == size.BoardId && s.Ordinal == newOrd && s.Id != sizeId, ct))
             {
-                return "Error: Ordinal already taken by another size.";
+                return $"Error: {SizeCreateHelper.TakenMessage}";
             }
 
             size.Ordinal = newOrd;

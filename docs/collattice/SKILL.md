@@ -587,7 +587,8 @@ Delete a lane. The lane must be empty (no cards) first.
 
 #### `create_size` *(admin-level)*
 Create a card size on a board. If you omit `ordinal`, it is auto-assigned to one
-greater than the board's current highest.
+greater than the board's current highest. An ordinal or a name already held by another
+size on the board is a conflict and is rejected.
 - **Params:** `authKey`, `boardId` (GUID), `name`. Optional: `ordinal`.
 
 #### `update_size` *(admin-level)*

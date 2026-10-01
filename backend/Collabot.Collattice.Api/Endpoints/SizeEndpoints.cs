@@ -28,15 +28,13 @@ internal static class SizeEndpoints
                 return Results.BadRequest("Name is required.");
             }
 
-            var ordinal = request.Ordinal ?? 0;
-            if (!request.Ordinal.HasValue && await db.CardSizes.AnyAsync(x => x.BoardId == boardId, ct))
+            var created = await SizeCreateHelper.CreateAsync(db, boardId, request.Name, request.Ordinal, ct);
+            if (created.Size is not CardSize size)
             {
-                ordinal = await db.CardSizes.Where(x => x.BoardId == boardId).MaxAsync(x => x.Ordinal, ct) + 1;
+                return created.IsConflict
+                    ? Results.Conflict(created.Error)
+                    : Results.BadRequest(created.Error);
             }
-
-            var size = new CardSize { Id = Guid.NewGuid(), BoardId = boardId, Name = request.Name, Ordinal = ordinal };
-            db.CardSizes.Add(size);
-            await db.SaveChangesAsync(ct);
 
             // size.created — same single board bell, plus one webhook event.
             await WebhookEventFactory.PublishSizeCreatedAsync(db, broadcaster, size, http.CurrentUser(), ct);
@@ -124,7 +122,7 @@ internal static class SizeEndpoints
                 var newOrd = request.Ordinal.Value;
                 if (await db.CardSizes.AnyAsync(x => x.BoardId == size.BoardId && x.Ordinal == newOrd && x.Id != id, ct))
                 {
-                    return Results.Conflict("Ordinal already taken by another size.");
+                    return Results.Conflict(SizeCreateHelper.TakenMessage);
                 }
 
                 size.Ordinal = newOrd;
