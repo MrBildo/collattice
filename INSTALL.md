@@ -154,6 +154,7 @@ Notes:
 - `Hosting:ListenAddress=127.0.0.1` binds loopback only; the static-site host (or reverse proxy) is expected to be on the same machine. Use `0.0.0.0` if you need to reach the API across machines.
 - `Cors:AllowedOrigins` is an array of full origins (`scheme://host[:port]`). Empty list (the LAN default) disallows all cross-origin requests; populate it with every Portal origin that will call the API.
 - Behind a reverse proxy that injects `ASPNETCORE_URLS`, the API uses that and the structured `Hosting:ListenAddress`/`Hosting:ListenPort` pair is ignored. `Cors:AllowedOrigins` is unaffected by this — set it regardless.
+- **TLS at the proxy.** When the proxy terminates HTTPS and talks to the API over plain HTTP, the API reads the original scheme from the proxy's `X-Forwarded-Proto` header, so the base URL that the MCP tool `get_api_info` reports is `https://`. The header is only honored when the proxy connects from the same machine (a loopback address). Requests from any other address keep the scheme they arrived with, and the `X-Forwarded-For` and `X-Forwarded-Host` headers are not used. A proxy on a different machine therefore gets the scheme its own connection uses. Caddy's `reverse_proxy` sends `X-Forwarded-Proto` by default. nginx does not, so add `proxy_set_header X-Forwarded-Proto $scheme;` to the location block.
 
 ### Portal — static-file host + runtime `config.json`
 
