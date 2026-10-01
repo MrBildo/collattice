@@ -46,7 +46,7 @@ export function LaneColumn({
     data: { type: 'lane' },
   });
   const cardIds = useMemo(() => cards.map((c) => c.id), [cards]);
-  const addCardLabel = `Add card to ${lane.name}`;
+  const addCardButtonLabel = `Add card to ${lane.name}`;
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -98,7 +98,7 @@ export function LaneColumn({
               <Button
                 variant="ghost"
                 size="icon-xs"
-                aria-label={addCardLabel}
+                aria-label={addCardButtonLabel}
                 // Stop the press from reaching the header's drag listeners so a
                 // press on the add button never starts a lane drag. The board's
                 // sensors listen for mousedown and touchstart, so those are the
@@ -116,7 +116,7 @@ export function LaneColumn({
           >
             <Plus className="h-3.5 w-3.5" />
           </TooltipTrigger>
-          <TooltipContent>{addCardLabel}</TooltipContent>
+          <TooltipContent>{addCardButtonLabel}</TooltipContent>
         </Tooltip>
       </div>
       <SortableContext items={cardIds} strategy={verticalListSortingStrategy}>
