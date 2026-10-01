@@ -7,7 +7,7 @@ using ModelContextProtocol.Server;
 namespace Collabot.Collattice.Api.Mcp;
 
 [McpServerToolType]
-public sealed class CardTools(BoardDbContext db, McpAuthService auth, BoardEventBroadcaster broadcaster)
+public class CardTools(BoardDbContext db, McpAuthService auth, BoardEventBroadcaster broadcaster)
 {
     [McpServerTool(Name = "create_card", Destructive = false)]
     [Description("Create a new card on the kanban board.")]

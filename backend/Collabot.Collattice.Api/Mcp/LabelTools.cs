@@ -6,7 +6,7 @@ using ModelContextProtocol.Server;
 namespace Collabot.Collattice.Api.Mcp;
 
 [McpServerToolType]
-public sealed class LabelTools(BoardDbContext db, McpAuthService auth, BoardEventBroadcaster broadcaster)
+public class LabelTools(BoardDbContext db, McpAuthService auth, BoardEventBroadcaster broadcaster)
 {
     [McpServerTool(Name = "get_labels", ReadOnly = true, Destructive = false)]
     [Description("Get all labels for a specific board.")]

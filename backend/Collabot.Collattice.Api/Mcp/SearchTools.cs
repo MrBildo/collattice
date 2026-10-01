@@ -5,7 +5,7 @@ using ModelContextProtocol.Server;
 namespace Collabot.Collattice.Api.Mcp;
 
 [McpServerToolType]
-public sealed class SearchTools(BoardDbContext db, McpAuthService auth)
+public class SearchTools(BoardDbContext db, McpAuthService auth)
 {
     [McpServerTool(Name = "search_cards", ReadOnly = true, Destructive = false)]
     [Description("Search cards across ALL boards by free text, card number (prefix with # for exact, e.g. '#42'), name, or description. Mirrors REST GET /search/cards. Results are grouped by board and each card carries the enriched CardSummary shape (labels, sizeName, commentCount, attachmentCount, isArchived, latestComment). Use get_cards when you only need a single board. Archived cards are excluded unless archiveBoardId names their board.")]
