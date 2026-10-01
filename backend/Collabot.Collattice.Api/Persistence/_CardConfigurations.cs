@@ -19,6 +19,14 @@ internal sealed class CardItemConfiguration : IEntityTypeConfiguration<CardItem>
 
         builder.Property(x => x.Name).HasMaxLength(120);
 
+        // Every tracked update or delete of a card saves only if the card is still the draft or
+        // non-draft it was when loaded. A finalize and a cancel each check "still a draft?" when they
+        // load the card, so two of them for one draft at once could both pass; this makes the second
+        // save fail instead of announcing the card twice, renumbering it, or deleting a card that was
+        // just finalized. Only a finalize ever changes the flag, and only from draft to card, so a save
+        // of any card loaded as a non-draft always passes.
+        builder.Property(x => x.IsTemp).IsConcurrencyToken();
+
         builder.Property(x => x.CreatedAtUtc).HasConversion(ValueConverters.SortableUtc);
         builder.Property(x => x.LastUpdatedAtUtc).HasConversion(ValueConverters.SortableUtc);
 
