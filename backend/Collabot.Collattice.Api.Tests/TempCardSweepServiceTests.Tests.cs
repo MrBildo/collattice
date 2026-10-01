@@ -158,4 +158,136 @@ public class TempCardSweepServiceTests(CollatticeApiFactory factory) : IClassFix
         firstDeleted.ShouldBe(1);
         secondDeleted.ShouldBe(0);
     }
+
+    [Fact]
+    public async Task HostedSweep_AfterRestart_LeavesOrphanUntilFirstTick()
+    {
+        // Arrange — a draft orphaned before a restart, and a restarted host whose first tick is an
+        // hour away.
+        var databasePath = PersistentDatabaseFactory.NewDatabasePath();
+
+        try
+        {
+            var draftId = await LeaveAgedDraftAsync(databasePath);
+
+            var restarted = new PersistentDatabaseFactory(databasePath)
+            {
+                ConfigOverrides = SweepEvery("01:00:00"),
+            };
+
+            try
+            {
+                await restarted.InitializeAsync();
+
+                // Act — a sweep at startup completes within milliseconds of the host starting, so two
+                // seconds is ample time for one to have run, and far short of the first tick.
+                await Task.Delay(TimeSpan.FromSeconds(2));
+
+                // Assert
+                (await DraftExistsAsync(restarted, draftId)).ShouldBeTrue();
+            }
+            finally
+            {
+                await restarted.DisposeAsync();
+            }
+        }
+        finally
+        {
+            PersistentDatabaseFactory.DeleteDatabaseFiles(databasePath);
+        }
+    }
+
+    [Fact]
+    public async Task HostedSweep_AfterRestart_RemovesOrphanOnFirstTick()
+    {
+        // Arrange — the same orphan, and a restarted host that ticks every second. This is also what
+        // keeps the test above honest: it proves the restarted host runs the sweep at all.
+        var databasePath = PersistentDatabaseFactory.NewDatabasePath();
+
+        try
+        {
+            var draftId = await LeaveAgedDraftAsync(databasePath);
+
+            var restarted = new PersistentDatabaseFactory(databasePath)
+            {
+                ConfigOverrides = SweepEvery("00:00:01"),
+            };
+
+            try
+            {
+                await restarted.InitializeAsync();
+
+                // Act — wait for the first tick to remove it, with a generous bound for a loaded box.
+                var deadline = DateTimeOffset.UtcNow + TimeSpan.FromSeconds(30);
+
+                while (await DraftExistsAsync(restarted, draftId) && DateTimeOffset.UtcNow < deadline)
+                {
+                    await Task.Delay(TimeSpan.FromMilliseconds(100));
+                }
+
+                // Assert
+                (await DraftExistsAsync(restarted, draftId)).ShouldBeFalse();
+            }
+            finally
+            {
+                await restarted.DisposeAsync();
+            }
+        }
+        finally
+        {
+            PersistentDatabaseFactory.DeleteDatabaseFiles(databasePath);
+        }
+    }
+
+    private static Dictionary<string, string?> SweepEvery(string interval) =>
+        new(StringComparer.Ordinal) { ["TempCardSweep:SweepInterval"] = interval };
+
+    // Creates a draft on a first host, ages it past the one-hour TTL and stops that host: a browser
+    // that closed mid-create before the API restarted.
+    private static async Task<Guid> LeaveAgedDraftAsync(string databasePath)
+    {
+        var host = new PersistentDatabaseFactory(databasePath);
+
+        try
+        {
+            await host.InitializeAsync();
+
+            var client = host.CreateClient();
+            TestAuthHelper.SetAdminAuth(client, host);
+
+            var laneId = await TestDataHelper.GetFirstLaneIdAsync(client, host.DefaultBoardId);
+
+            var response = await client.PostAsJsonAsync
+            (
+                $"/api/v1/boards/{host.DefaultBoardId}/cards/temp",
+                new { name = "Orphaned draft", descriptionMarkdown = "", laneId, position = 10 }
+            );
+            response.EnsureSuccessStatusCode();
+
+            var json = await response.Content.ReadFromJsonAsync<JsonElement>(TestAuthHelper.JsonOptions);
+            var draftId = json.GetProperty("id").GetGuid();
+
+            await using var scope = host.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<BoardDbContext>();
+
+            var draft = await db.Cards.SingleAsync(c => c.Id == draftId);
+            draft.CreatedAtUtc = DateTimeOffset.UtcNow.AddHours(-3);
+
+            await db.SaveChangesAsync();
+
+            return draftId;
+        }
+        finally
+        {
+            await host.DisposeAsync();
+        }
+    }
+
+    private static async Task<bool> DraftExistsAsync(PersistentDatabaseFactory host, Guid draftId)
+    {
+        await using var scope = host.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<BoardDbContext>();
+
+        return await db.Cards.AnyAsync(c => c.Id == draftId);
+    }
 }

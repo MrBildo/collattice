@@ -82,6 +82,13 @@ public class CollatticeApiFactory : WebApplicationFactory<Program>, IAsyncLifeti
             config.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["Admin:AuthKey"] = TestAdminAuthKey,
+
+                // The temp-card and delivery-log sweeps run in every test host, and neither touches
+                // the database until its first timer tick. Pinning the temp-card interval to a day
+                // keeps that tick out of reach of any test host whatever the production default
+                // becomes. The delivery-log sweep's interval is a fixed day in code. A test that
+                // needs the running temp-card loop overrides this and brings a database of its own.
+                ["TempCardSweep:SweepInterval"] = "1.00:00:00",
             });
 
             if (ConfigOverrides is not null)
@@ -120,20 +127,6 @@ public class CollatticeApiFactory : WebApplicationFactory<Program>, IAsyncLifeti
             if (dispatcher is not null)
             {
                 services.Remove(dispatcher);
-            }
-
-            // Same hazard, second source: the temp-card sweep runs an immediate startup sweep
-            // (a DB query) before entering its timer loop, so under suite load that startup query
-            // races a test thread's query on the single shared in-memory connection. WebhookDeliveryLogSweep
-            // avoids this by deferring its first sweep one interval; the temp-card sweep does not, so
-            // remove its hosted service here. Its logic is exercised directly through the static
-            // TempCardSweepService.SweepAsync in its own tests, so this costs no coverage.
-            var tempSweep = services.SingleOrDefault(d =>
-                d.ServiceType == typeof(IHostedService) &&
-                d.ImplementationType == typeof(TempCardSweepService));
-            if (tempSweep is not null)
-            {
-                services.Remove(tempSweep);
             }
 
             // Keep every test host off the real GitHub API. The update-check hosted service still

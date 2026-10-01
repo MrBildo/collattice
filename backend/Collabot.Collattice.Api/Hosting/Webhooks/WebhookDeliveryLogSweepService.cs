@@ -49,10 +49,10 @@ internal sealed class WebhookDeliveryLogSweepService
             _sweepInterval
         );
 
-        // No startup sweep: retention is not time-urgent (unlike temp-card orphan cleanup), and a
-        // startup DB sweep would add a needless collision surface with the WAF's shared in-memory
-        // connection in tests (a BackgroundService should do no startup DB work the test thread can
-        // race). The first sweep is one interval after boot.
+        // No startup sweep: retention is not time-urgent, and a startup DB sweep would add a needless
+        // collision surface with the WAF's shared in-memory connection in tests (a BackgroundService
+        // should do no startup DB work the test thread can race). The first sweep is one interval
+        // after boot, the same shape as the temp-card sweep.
         using var timer = new PeriodicTimer(_sweepInterval);
         while (await timer.WaitForNextTickAsync(stoppingToken))
         {
