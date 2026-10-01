@@ -57,7 +57,10 @@ public sealed class CardTools(BoardDbContext db, McpAuthService auth, BoardEvent
             return $"Error: {buildError}";
         }
 
-        await CardNumberHelper.InsertCardWithAutoNumberAsync(db, card!, lane.BoardId, ct);
+        if (!await CardNumberHelper.TryInsertCardWithAutoNumberAsync(db, card!, lane.BoardId, ct))
+        {
+            return $"Error: {CardNumberHelper.ContendedMessage}";
+        }
 
         // The webhook fan-out already rings the SSE bell (the typed event downsamples to the
         // same "board-updated" signal), so a separate board broadcast here would double-ring

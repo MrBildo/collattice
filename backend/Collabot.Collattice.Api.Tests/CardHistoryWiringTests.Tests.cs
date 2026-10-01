@@ -184,7 +184,7 @@ public class CardHistoryWiringTests(RevisionRaceFactory factory) : IClassFixture
     {
         if (entryPoint == EntryPoint.RestPatch)
         {
-            return WriteOutcome.FromResponse(await _client.PatchAsJsonAsync($"/api/v1/cards/{cardId}", new { descriptionMarkdown }));
+            return await WriteOutcome.FromResponseAsync(await _client.PatchAsJsonAsync($"/api/v1/cards/{cardId}", new { descriptionMarkdown }));
         }
 
         await using var scope = _factory.Services.CreateAsyncScope();

@@ -21,7 +21,7 @@ namespace Collabot.Collattice.Api.Tests;
 // point, so a retry removed from any one of them reds that entry point's test.
 public class CardNumberWiringTests(CardNumberRaceFactory factory) : IClassFixture<CardNumberRaceFactory>
 {
-    private const string _contendedIndex = "Cards.BoardId, Cards.Number";
+    private const string _contendedReason = "being created on this board at the same time; try again";
 
     private readonly CardNumberRaceFactory _factory = factory;
     private readonly HttpClient _client = factory.CreateClient();
@@ -76,7 +76,7 @@ public class CardNumberWiringTests(CardNumberRaceFactory factory) : IClassFixtur
     [InlineData(EntryPoint.RestFinalize)]
     [InlineData(EntryPoint.McpCreateCard)]
     [InlineData(EntryPoint.McpDuplicateCard)]
-    public async Task NumberingACard_LosingEveryAttempt_FailsTheRequestOnTheCollision(EntryPoint entryPoint)
+    public async Task NumberingACard_LosingEveryAttempt_AsksTheCallerToTryAgain(EntryPoint entryPoint)
     {
         // Arrange
         var name = $"Exhaustion {entryPoint}";
@@ -93,7 +93,7 @@ public class CardNumberWiringTests(CardNumberRaceFactory factory) : IClassFixtur
             // an entry point that never retried at all; both fail the request.
             _factory.Interceptor.FiredCount.ShouldBe(AllocatorRetryBudget.Attempts);
             outcome.Succeeded.ShouldBeFalse();
-            outcome.ShouldHaveFailedOnCollision(_contendedIndex);
+            outcome.ShouldHaveAskedToTryAgain(_contendedReason);
         }
         finally
         {
@@ -195,11 +195,11 @@ public class CardNumberWiringTests(CardNumberRaceFactory factory) : IClassFixtur
             new { name = numbering.Name, laneId = numbering.LaneId }
         );
 
-        return WriteOutcome.FromResponse(response);
+        return await WriteOutcome.FromResponseAsync(response);
     }
 
     private async Task<WriteOutcome> FinalizeOverRestAsync(Numbering numbering) =>
-        WriteOutcome.FromResponse(await _client.PostAsync($"/api/v1/cards/{numbering.ExistingCardId}/finalize", null));
+        await WriteOutcome.FromResponseAsync(await _client.PostAsync($"/api/v1/cards/{numbering.ExistingCardId}/finalize", null));
 
     private async Task<WriteOutcome> CreateOverMcpAsync(Numbering numbering)
     {
