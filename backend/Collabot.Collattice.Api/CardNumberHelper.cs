@@ -54,9 +54,9 @@ internal static class CardNumberHelper
     }
 
     // Assigns a board-scoped card number to an existing temp card and clears the IsTemp
-    // flag, retrying on unique-constraint collisions (SQLite error 19). The caller is
-    // responsible for setting LastUpdatedAtUtc / LastUpdatedByUserId before calling.
-    // If the retries are exhausted the collision surfaces to the caller.
+    // flag, retrying on unique-constraint collisions (SQLite error 19). The caller sets
+    // LastUpdatedAtUtc / LastUpdatedByUserId before calling, and every attempt saves them
+    // along with the number. If the retries are exhausted the collision surfaces to the caller.
     public static async Task FinalizeCardNumberAsync
     (
         BoardDbContext db,
@@ -65,10 +65,11 @@ internal static class CardNumberHelper
         CancellationToken ct = default
     )
     {
+        card.IsTemp = false;
+
         for (var attempt = 1; attempt < _maxRetries; attempt++)
         {
             card.Number = await NextNumberAsync(db, boardId, ct);
-            card.IsTemp = false;
             try
             {
                 await db.SaveChangesAsync(ct);
@@ -76,13 +77,15 @@ internal static class CardNumberHelper
             }
             catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
             {
-                await db.Entry(card).ReloadAsync(ct);
+                // Nothing to undo before the next attempt: a failed save leaves the card's pending
+                // changes tracked, so the retry only claims a new number. Reloading the card here
+                // would also discard the caller's last-updated stamp, leaving a draft finalized under
+                // contention dated from when it was started and invisible to an activity poll.
             }
         }
 
         // The last attempt runs outside the catch, as in InsertCardWithAutoNumberAsync.
         card.Number = await NextNumberAsync(db, boardId, ct);
-        card.IsTemp = false;
 
         await db.SaveChangesAsync(ct);
     }
