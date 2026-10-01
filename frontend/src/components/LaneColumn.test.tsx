@@ -65,11 +65,19 @@ function renderLanes(
 }
 
 // A press followed by a move well past the mouse sensor's 8px activation distance.
-function pressAndMove(target: HTMLElement) {
+//
+// Once a drag starts, dnd-kit blocks clicks on the document (so the click that
+// ends a drag does nothing) and removes that blocker 50ms after the drag ends.
+// Every test in this file shares one document, so without waiting it out a later
+// test's first click can land inside that window and never reach React, which
+// only shows up on a loaded machine. A timer set after dnd-kit's always fires
+// after it.
+async function pressAndMove(target: HTMLElement) {
   fireEvent.mouseDown(target, { button: 0, clientX: 10, clientY: 10 });
   fireEvent.mouseMove(document, { clientX: 60, clientY: 10 });
   fireEvent.mouseMove(document, { clientX: 120, clientY: 10 });
   fireEvent.mouseUp(document, { clientX: 120, clientY: 10 });
+  await new Promise((resolve) => setTimeout(resolve, 60));
 }
 
 describe('LaneColumn add-card button', () => {
@@ -110,18 +118,18 @@ describe('LaneColumn add-card button', () => {
     expect(onAddCard).toHaveBeenCalledWith('Backlog');
   });
 
-  test('a press and drag that starts on the header starts a lane drag', () => {
+  test('a press and drag that starts on the header starts a lane drag', async () => {
     const { onDragStart } = renderLanes([makeLane()]);
 
-    pressAndMove(screen.getByRole('heading', { name: 'Backlog' }));
+    await pressAndMove(screen.getByRole('heading', { name: 'Backlog' }));
 
     expect(onDragStart).toHaveBeenCalledTimes(1);
   });
 
-  test('a press and drag that starts on the add-card button does not start a lane drag', () => {
+  test('a press and drag that starts on the add-card button does not start a lane drag', async () => {
     const { onDragStart } = renderLanes([makeLane()]);
 
-    pressAndMove(screen.getByRole('button', { name: 'Add card to Backlog' }));
+    await pressAndMove(screen.getByRole('button', { name: 'Add card to Backlog' }));
 
     expect(onDragStart).not.toHaveBeenCalled();
   });
