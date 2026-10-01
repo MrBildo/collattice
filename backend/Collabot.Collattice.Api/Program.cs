@@ -168,12 +168,9 @@ if (!isSpecialDataSource)
     }
 }
 
-builder.Services.AddDbContext<BoardDbContext>
-(
-    options => options
-        .UseSqlite(connectionString)
-        .AddInterceptors(SqliteBusyTimeoutInterceptor.Instance)
-);
+builder.Services.AddDbContext<BoardDbContext>(options => options
+    .UseSqlite(connectionString)
+    .AddInterceptors(SqliteBusyTimeoutInterceptor.Instance));
 
 builder.Services.Configure<AttachmentSettings>(builder.Configuration.GetSection(AttachmentSettings.SectionName));
 builder.Services.Configure<TempCardSweepSettings>(builder.Configuration.GetSection(TempCardSweepSettings.SectionName));

@@ -12,9 +12,10 @@ namespace Collabot.Collattice.Api.Persistence;
 // What it changes: a save that finds the write lock held now waits inside SQLite, which re-checks
 // the lock within milliseconds, instead of in the SQLite provider's own loop, which re-checks it
 // only every 150 ms. Correctness does not depend on it: the provider keeps retrying until its
-// command timeout (30 s by default) either way, so a held lock never fails a save early. If
-// SQLite's own wait runs out, the provider's loop takes over again, so the overall bound is
-// unchanged.
+// command timeout (30 s by default) either way, so a held lock never fails a save early. The
+// provider checks that limit only between its attempts, and each attempt can now wait up to the
+// busy timeout inside SQLite, so the longest a save can wait on a held lock is the command timeout
+// plus up to one busy timeout.
 //
 // Measured through the API with requests released together on one board or card, 8 to 32 at once:
 // contended writes got several times faster (32 description edits of one card at once, median:
@@ -40,6 +41,7 @@ internal sealed class SqliteBusyTimeoutInterceptor : DbConnectionInterceptor
     {
         using var command = connection.CreateCommand();
         command.CommandText = _pragma;
+
         command.ExecuteNonQuery();
     }
 
@@ -52,6 +54,7 @@ internal sealed class SqliteBusyTimeoutInterceptor : DbConnectionInterceptor
     {
         await using var command = connection.CreateCommand();
         command.CommandText = _pragma;
+
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 }
