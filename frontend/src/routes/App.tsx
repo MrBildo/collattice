@@ -283,6 +283,8 @@ export function App() {
     [slug, navigate],
   );
 
+  const findCardTile = (cardId: string) => findCardTileRef.current?.(cardId) ?? null;
+
   // A duplicate's dialog opens from a card dialog that has already closed, so by
   // default focus would fall back to the page. Put it on the new card instead, or
   // back on the card it was copied from if nothing was created.
@@ -443,6 +445,7 @@ export function App() {
         cardsInLane={selectedCard ? (byLane.get(selectedCard.laneId) ?? []) : []}
         onNavigateCard={handleNavigateCard}
         onDuplicate={handleDuplicate}
+        findReturnFocus={findCardTile}
       />
 
       {boardId && (

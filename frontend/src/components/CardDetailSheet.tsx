@@ -56,6 +56,10 @@ type CardDetailSheetProps = {
   cardsInLane?: CardItem[];
   onNavigateCard?: (cardNumber: number) => void;
   onDuplicate?: (prefill: CardPrefill) => void;
+  // Where focus goes when the dialog closes: the board's control for the card
+  // that is open at that moment, or null when the board has none (an archived
+  // card, say).
+  findReturnFocus?: (cardId: string) => HTMLElement | null;
 };
 
 export function CardDetailSheet({
@@ -70,10 +74,21 @@ export function CardDetailSheet({
   cardsInLane,
   onNavigateCard,
   onDuplicate,
+  findReturnFocus,
 }: CardDetailSheetProps) {
   const isDirtyRef = useRef(false);
   const formRef = useRef<CardDetailFormHandle>(null);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+  // Duplicating closes this dialog to open the new-card dialog, which takes
+  // focus itself. Returning focus to the board on that close would pull it out
+  // from behind the new dialog, so that one close leaves focus alone.
+  const isFocusHandedOffRef = useRef(false);
+
+  useEffect(() => {
+    if (open) {
+      isFocusHandedOffRef.current = false;
+    }
+  }, [open]);
 
   const navSnapshot = useNavSnapshot(card, cardsInLane);
 
@@ -94,6 +109,7 @@ export function CardDetailSheet({
       } else if (action.type === 'navigate' && onNavigateCard) {
         onNavigateCard(action.cardNumber);
       } else if (action.type === 'duplicate' && onDuplicate) {
+        isFocusHandedOffRef.current = true;
         // Discarding the unsaved edits means the copy starts from the card as
         // stored; saving them (or having none) means it starts from the form.
         onDuplicate(isDiscarding ? action.request.saved : action.request.draft);
@@ -199,6 +215,16 @@ export function CardDetailSheet({
     <>
       <Dialog open={open} onOpenChange={handleDialogOpenChange}>
         <DialogContent
+          // The dialog opens from the URL rather than from a trigger, so it has
+          // nothing of its own to return focus to and would leave it on the
+          // page. It goes to the card that is open when the dialog closes: after
+          // moving with previous/next, that is the card just read, not the one
+          // first opened. With no such element, the dialog's default applies.
+          finalFocus={
+            findReturnFocus
+              ? () => (isFocusHandedOffRef.current ? false : (findReturnFocus(card.id) ?? true))
+              : undefined
+          }
           data-mobile-fullscreen
           className="flex flex-col p-0 md:max-h-[85vh] md:!w-[80vw] md:!max-w-[80vw]"
           style={{ overflow: 'visible' }}

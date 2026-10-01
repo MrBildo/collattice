@@ -3,6 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
 import { CardDetailSheet } from './CardDetailSheet';
 import {
   fetchBoardData,
@@ -209,5 +210,131 @@ describe('CardDetailSheet save failure', () => {
     expect(await screen.findByText('Saved')).toBeInTheDocument();
     expect(updateCard).toHaveBeenCalledTimes(2);
     expect(onOpenChange).not.toHaveBeenCalled();
+  });
+});
+
+describe('CardDetailSheet focus on close', () => {
+  const firstCard = makeCard();
+  const secondCard = makeCard({ id: 'card-2', number: 8, name: 'Second card', position: 1 });
+  const laneCards = [firstCard, secondCard];
+
+  // Stands in for the new-card dialog that a duplicate opens: it takes focus
+  // once it mounts.
+  function NextDialogInput() {
+    const inputRef = useRef<HTMLInputElement>(null);
+    useEffect(() => {
+      inputRef.current?.focus();
+    }, []);
+    return <input ref={inputRef} aria-label="New card name" />;
+  }
+
+  // Drives the sheet the way the board does: the open card comes from the URL,
+  // so closing drops the card (unmounting the dialog) and next swaps it.
+  function Board({ findTile }: { findTile: (cardId: string) => HTMLElement | null }) {
+    const [openCardId, setOpenCardId] = useState<string | null>(firstCard.id);
+    const [isCopying, setIsCopying] = useState(false);
+    const card = laneCards.find((c) => c.id === openCardId) ?? null;
+
+    return (
+      <>
+        {laneCards.map((c) => (
+          <button key={c.id} type="button" id={`tile-${c.id}`}>
+            {c.name} tile
+          </button>
+        ))}
+        {isCopying && <NextDialogInput />}
+        <CardDetailSheet
+          card={card}
+          cardsInLane={laneCards}
+          open={card !== null}
+          onOpenChange={(isOpen) => {
+            if (!isOpen) setOpenCardId(null);
+          }}
+          onNavigateCard={(number) =>
+            setOpenCardId(laneCards.find((c) => c.number === number)?.id ?? null)
+          }
+          onDuplicate={() => {
+            setOpenCardId(null);
+            setIsCopying(true);
+          }}
+          findReturnFocus={findTile}
+          currentUserId="me"
+          currentUserRole={ROLES.Human}
+          lanes={lanes}
+          boardId="board-1"
+        />
+      </>
+    );
+  }
+
+  function renderBoard(findTile = (cardId: string) => document.getElementById(`tile-${cardId}`)) {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <MemoryRouter>
+        <QueryClientProvider client={queryClient}>
+          <Board findTile={findTile} />
+        </QueryClientProvider>
+      </MemoryRouter>,
+    );
+  }
+
+  test('closing with Escape puts focus on the open card’s tile', async () => {
+    const user = userEvent.setup();
+    renderBoard();
+    await screen.findByDisplayValue('Original name');
+
+    await user.keyboard('{Escape}');
+
+    await waitFor(() =>
+      expect(document.activeElement).toBe(document.getElementById('tile-card-1')),
+    );
+  });
+
+  test('after moving to the next card, closing returns focus to that card’s tile', async () => {
+    // Arrange
+    const user = userEvent.setup();
+    renderBoard();
+    await screen.findByDisplayValue('Original name');
+
+    // Act
+    await user.click(screen.getAllByRole('button', { name: 'Next card' })[0]);
+    await screen.findByDisplayValue('Second card');
+    await user.click(screen.getAllByRole('button', { name: 'Close' })[0]);
+
+    // Assert
+    await waitFor(() =>
+      expect(document.activeElement).toBe(document.getElementById('tile-card-2')),
+    );
+  });
+
+  test('duplicating leaves focus in the dialog that opens next', async () => {
+    // Arrange
+    const user = userEvent.setup();
+    renderBoard();
+    const duplicate = await screen.findByRole('button', { name: 'Duplicate' });
+    await waitFor(() => expect(duplicate).toBeEnabled());
+
+    // Act
+    await user.click(duplicate);
+    const nextInput = await screen.findByRole('textbox', { name: 'New card name' });
+    await waitFor(() => expect(document.activeElement).toBe(nextInput));
+    // Let any focus the closed dialog queued run before checking it held.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    // Assert
+    expect(document.activeElement).toBe(nextInput);
+  });
+
+  test('with no tile to return to, the card still closes', async () => {
+    const user = userEvent.setup();
+    renderBoard(() => null);
+    await screen.findByDisplayValue('Original name');
+
+    await user.keyboard('{Escape}');
+
+    await waitFor(() =>
+      expect(screen.queryByDisplayValue('Original name')).not.toBeInTheDocument(),
+    );
+    expect(document.activeElement?.id ?? '').not.toMatch(/^tile-/);
   });
 });
