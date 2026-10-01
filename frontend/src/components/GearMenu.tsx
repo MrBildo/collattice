@@ -127,15 +127,25 @@ export function GearMenu({
     }
   };
 
+  // The trigger is icon-only, so it needs a name of its own; on a phone it is the whole main
+  // menu. The update dot's message is spoken as part of that name. A label on the dot itself
+  // is not reliable: ARIA does not allow naming a plain span, so whether it is read, and as
+  // what, varies by browser and screen reader (Chrome read it as the whole button's name).
+  const triggerLabel = updateShowable ? 'Main menu, update available' : 'Main menu';
+
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger className="relative inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground">
+      <DropdownMenuTrigger
+        aria-label={triggerLabel}
+        className="relative inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground"
+      >
         <Settings className="h-4 w-4" />
         {/* Update-available dot — rides the always-visible gear icon so it shows on every
             tier (mobile included) without opening the menu. */}
         {updateShowable && (
           <span
-            aria-label="Update available"
+            aria-hidden="true"
+            data-update-dot
             className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-accent ring-2 ring-background"
           />
         )}

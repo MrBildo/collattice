@@ -158,6 +158,31 @@ describe('SearchCommand — clear on selection', () => {
   });
 });
 
+describe('SearchCommand — accessible names', () => {
+  test('the search field keeps its name while focused, after its placeholder clears', async () => {
+    const user = userEvent.setup();
+    renderSearch();
+
+    await user.click(screen.getByRole('textbox'));
+
+    // The placeholder is emptied on focus, so it cannot be what names the field here.
+    const input = screen.getByRole('textbox', { name: 'Search cards' });
+    expect(input).toHaveFocus();
+    expect(input).toHaveAttribute('placeholder', '');
+  });
+
+  test('the clear button has a name once there is a query', async () => {
+    const user = userEvent.setup();
+    renderSearch();
+
+    const input = screen.getByRole('textbox');
+    await user.type(input, 'fix');
+    await user.click(screen.getByRole('button', { name: 'Clear search' }));
+
+    expect(input).toHaveValue('');
+  });
+});
+
 describe('SearchCommand — boardId wiring', () => {
   test('passes the current board id as the priority boardId arg', async () => {
     const user = userEvent.setup();
