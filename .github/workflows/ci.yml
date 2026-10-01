@@ -14,7 +14,7 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: '10.0.x'
+          global-json-file: global.json
       - name: Restore
         run: dotnet restore backend/Collabot.Collattice.slnx
       # Known security advisories against the backend's NuGet packages, direct and
@@ -99,7 +99,7 @@ jobs:
 
       - uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: '10.0.x'
+          global-json-file: global.json
 
       - uses: actions/setup-node@v5
         with:
