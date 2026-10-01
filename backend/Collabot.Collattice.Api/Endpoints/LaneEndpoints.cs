@@ -108,43 +108,17 @@ internal static class LaneEndpoints
                 return Results.NotFound();
             }
 
-            if (lane.IsArchiveLane)
-            {
-                return Results.BadRequest("Archive lanes cannot be modified.");
-            }
-
             // Capture the pre-mutation values for the per-axis no-op guard.
             var oldName = lane.Name;
             var oldPosition = lane.Position;
 
-            if (request.Name is not null)
+            var (error, isConflict) = await LaneUpdateHelper.UpdateAsync(db, lane, request.Name, request.Position, ct);
+            if (error is not null)
             {
-                if (string.IsNullOrWhiteSpace(request.Name))
-                {
-                    return Results.BadRequest("Name cannot be empty.");
-                }
-
-                lane.Name = request.Name;
+                return isConflict
+                    ? Results.Conflict(error)
+                    : Results.BadRequest(error);
             }
-
-            if (request.Position is not null)
-            {
-                var newPos = request.Position.Value;
-
-                if (newPos == int.MaxValue)
-                {
-                    return Results.BadRequest("Position value is reserved.");
-                }
-
-                if (await db.Lanes.AnyAsync(x => x.BoardId == lane.BoardId && x.Position == newPos && x.Id != id, ct))
-                {
-                    return Results.Conflict("Position already taken by another lane.");
-                }
-
-                lane.Position = newPos;
-            }
-
-            await db.SaveChangesAsync(ct);
 
             // Split by axis: a name change → lane.renamed; a position change → lane.reordered
             // (the board's full new order). Both can co-fire from one PATCH; PublishCoalesced rings

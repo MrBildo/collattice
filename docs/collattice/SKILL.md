@@ -569,7 +569,7 @@ explicit one.
 
 #### `update_lane` *(admin-level)*
 Update a lane's name and/or position. A position already held by another lane on
-the board is a conflict and is rejected.
+the board is a conflict, and nothing in the call is saved.
 - **Params:** `authKey`, `laneId` (GUID). Optional: `name`, `position`.
 - The archive lane cannot be modified.
 

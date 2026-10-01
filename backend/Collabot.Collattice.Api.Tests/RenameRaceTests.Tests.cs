@@ -10,8 +10,8 @@ using Shouldly;
 
 namespace Collabot.Collattice.Api.Tests;
 
-// A size or label update checks that its new name (or ordinal) is free and then saves, so a concurrent
-// create or rename can take the value in between. The interceptor commits that rival deterministically,
+// A size, label or lane update checks that its new name, ordinal or position is free and then saves,
+// so a concurrent create, rename or move can take the value in between. The interceptor commits that rival deterministically,
 // inside the real request, on REST and MCP alike. The update that loses answers 409 with the same
 // message as a value taken before the call, never a 500, and leaves the row as it was.
 public class RenameRaceTests(RenameRaceFactory factory) : IClassFixture<RenameRaceFactory>, IDisposable
@@ -68,6 +68,25 @@ public class RenameRaceTests(RenameRaceFactory factory) : IClassFixture<RenameRa
         var labelId = await PostForIdAsync($"/api/v1/boards/{boardId}/labels", new { name = "Original", color = "#111111" });
 
         return (boardId, labelId);
+    }
+
+    // A fresh board ships with only its archive lane; the lane under test sits at 3.
+    private async Task<(Guid BoardId, Guid LaneId)> SeedLaneAsync()
+    {
+        var boardId = await PostForIdAsync("/api/v1/boards", new { name = $"Rename Race {Guid.NewGuid():N}" });
+        var laneId = await PostForIdAsync($"/api/v1/boards/{boardId}/lanes", new { name = "Original", position = 3 });
+
+        return (boardId, laneId);
+    }
+
+    private async Task<(string Name, int Position)> ReadLaneAsync(Guid laneId)
+    {
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<BoardDbContext>();
+
+        var lane = await db.Lanes.SingleAsync(l => l.Id == laneId);
+
+        return (lane.Name, lane.Position);
     }
 
     private async Task<(string Name, int Ordinal)> ReadSizeAsync(Guid sizeId)
@@ -236,5 +255,80 @@ public class RenameRaceTests(RenameRaceFactory factory) : IClassFixture<RenameRa
 
         labelResult.ShouldBe("Error: Another change to this board's labels landed at the same time; try again.");
         (await ReadLabelAsync(labelId)).ShouldBe(("Original", "#111111"));
+    }
+
+    [Fact]
+    public async Task UpdateLane_PositionTakenDuringTheMove_ConflictsOnBothSurfaces()
+    {
+        // Arrange
+        var (restBoardId, restLaneId) = await SeedLaneAsync();
+        var (mcpBoardId, mcpLaneId) = await SeedLaneAsync();
+        var tools = CreateMcpTools((db, auth, broadcaster) => new LaneTools(db, auth, broadcaster));
+
+        // Act — 7 is free when checked, then a rival lane commits it before the save; the name rides the
+        // same save, so it must not land either
+        _factory.Interceptor.Arm(restBoardId, RenameRivalCollision.LanePosition);
+        TestAuthHelper.SetAdminAuth(_client, _factory);
+        var restResponse = await _client.PatchAsJsonAsync($"/api/v1/lanes/{restLaneId}", new { name = "Moved", position = 7 });
+        var restFired = _factory.Interceptor.FiredCount;
+
+        _factory.Interceptor.Arm(mcpBoardId, RenameRivalCollision.LanePosition);
+        var mcpResult = await tools.UpdateLaneAsync(_factory.AdminAuthKey, mcpLaneId, name: "Moved", position: 7);
+        var mcpFired = _factory.Interceptor.FiredCount;
+
+        // Assert — the same answer as a position taken before the call, and the lane unchanged
+        restFired.ShouldBe(1);
+        restResponse.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        (await restResponse.Content.ReadAsStringAsync()).ShouldContain("Position already taken by another lane");
+        (await ReadLaneAsync(restLaneId)).ShouldBe(("Original", 3));
+
+        mcpFired.ShouldBe(1);
+        mcpResult.ShouldBe("Error: Position already taken by another lane.");
+        (await ReadLaneAsync(mcpLaneId)).ShouldBe(("Original", 3));
+    }
+
+    [Fact]
+    public async Task UpdateLane_AfterLosingTheRace_TheNextUpdateOnTheSameContextSavesOnlyItsOwnChange()
+    {
+        // Arrange — one MCP tools instance, so both calls share a DbContext, as calls in one scope do
+        var (boardId, laneId) = await SeedLaneAsync();
+        var tools = CreateMcpTools((db, auth, broadcaster) => new LaneTools(db, auth, broadcaster));
+
+        _factory.Interceptor.Arm(boardId, RenameRivalCollision.LanePosition);
+        var lost = await tools.UpdateLaneAsync(_factory.AdminAuthKey, laneId, name: "Moved", position: 7);
+
+        // Act — the lost move and name must not still be pending on the tracked lane
+        var next = await tools.UpdateLaneAsync(_factory.AdminAuthKey, laneId, name: "Renamed");
+
+        // Assert
+        lost.ShouldStartWith("Error: Position already taken");
+        next.ShouldNotStartWith("Error:");
+        (await ReadLaneAsync(laneId)).ShouldBe(("Renamed", 3));
+    }
+
+    [Fact]
+    public async Task UpdateLane_PositionFreeAgainByTheReread_ConflictsWithTryAgainOnBothSurfaces()
+    {
+        // Arrange — the rival takes the position for the save and is gone again before the re-read, so
+        // the move cannot name what it collided with
+        var (restBoardId, restLaneId) = await SeedLaneAsync();
+        var (mcpBoardId, mcpLaneId) = await SeedLaneAsync();
+        var tools = CreateMcpTools((db, auth, broadcaster) => new LaneTools(db, auth, broadcaster));
+
+        // Act
+        _factory.Interceptor.Arm(restBoardId, RenameRivalCollision.LanePosition, transient: true);
+        TestAuthHelper.SetAdminAuth(_client, _factory);
+        var restResponse = await _client.PatchAsJsonAsync($"/api/v1/lanes/{restLaneId}", new { position = 7 });
+
+        _factory.Interceptor.Arm(mcpBoardId, RenameRivalCollision.LanePosition, transient: true);
+        var mcpResult = await tools.UpdateLaneAsync(_factory.AdminAuthKey, mcpLaneId, position: 7);
+
+        // Assert — a 409 that says to retry, and nothing written
+        restResponse.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        (await restResponse.Content.ReadAsStringAsync()).ShouldContain("landed at the same time; try again");
+        (await ReadLaneAsync(restLaneId)).ShouldBe(("Original", 3));
+
+        mcpResult.ShouldBe("Error: Another change to this board's lanes landed at the same time; try again.");
+        (await ReadLaneAsync(mcpLaneId)).ShouldBe(("Original", 3));
     }
 }

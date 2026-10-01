@@ -6,18 +6,19 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Collabot.Collattice.Api.Tests.Infrastructure;
 
-// Which unique value the injected rival takes from the size or label being updated.
+// Which unique value the injected rival takes from the size, label or lane being updated.
 public enum RenameRivalCollision
 {
     SizeName,
     SizeOrdinal,
     LabelName,
+    LanePosition,
 }
 
-// Forces a size or label update to collide from inside the real request, the update counterpart of
-// the size-create race interceptor. When an armed board's size or label is about to save a changed
-// name or ordinal, a rival size or label commits that same value first, so the update meets the
-// unique index exactly as it would behind a concurrent create or rename. A transient rival is removed
+// Forces a size, label or lane update to collide from inside the real request, the update counterpart
+// of the create race interceptors. When an armed board's size, label or lane is about to save a changed
+// name, ordinal or position, a rival commits that same value first, so the update meets the unique
+// index exactly as it would behind a concurrent create, rename or move. A transient rival is removed
 // again as soon as the update's save fails, which is the rare case of a value that moved on before the
 // update could re-read it.
 public class RenameRaceInterceptor(IServiceScopeFactory scopeFactory) : SaveChangesInterceptor
@@ -95,8 +96,11 @@ public class RenameRaceInterceptor(IServiceScopeFactory scopeFactory) : SaveChan
             RenameRivalCollision.SizeOrdinal => StagedSize(context) is CardSize size
                 ? new CardSize { Id = Guid.NewGuid(), BoardId = _armedBoardId, Name = "Rival", Ordinal = size.Ordinal }
                 : null,
-            _ => StagedLabel(context) is Label label
+            RenameRivalCollision.LabelName => StagedLabel(context) is Label label
                 ? new Label { Id = Guid.NewGuid(), BoardId = _armedBoardId, Name = label.Name }
+                : null,
+            _ => StagedLane(context) is Lane lane
+                ? new Lane { Id = Guid.NewGuid(), BoardId = _armedBoardId, Name = "Rival", Position = lane.Position }
                 : null,
         };
 
@@ -118,6 +122,13 @@ public class RenameRaceInterceptor(IServiceScopeFactory scopeFactory) : SaveChan
     private Label? StagedLabel(DbContext context) =>
         context.ChangeTracker
             .Entries<Label>()
+            .Where(e => e.State == EntityState.Modified && e.Entity.BoardId == _armedBoardId)
+                .Select(e => e.Entity)
+                    .FirstOrDefault();
+
+    private Lane? StagedLane(DbContext context) =>
+        context.ChangeTracker
+            .Entries<Lane>()
             .Where(e => e.State == EntityState.Modified && e.Entity.BoardId == _armedBoardId)
                 .Select(e => e.Entity)
                     .FirstOrDefault();
@@ -149,7 +160,7 @@ public class RenameRaceInterceptor(IServiceScopeFactory scopeFactory) : SaveChan
 }
 
 // Adds the rename race interceptor to the standard harness and changes nothing else; it commits rival
-// sizes and labels mid-save, which no other test has reason to pay for.
+// sizes, labels and lanes mid-save, which no other test has reason to pay for.
 public class RenameRaceFactory : CollatticeApiFactory
 {
     public RenameRaceInterceptor Interceptor => Services.GetRequiredService<RenameRaceInterceptor>();
