@@ -111,7 +111,7 @@ ConnectionStrings__Board="Data Source=$PWD/data/collattice.db" \
 dotnet run --project backend/Collabot.Collattice.Api --no-launch-profile
 ```
 
-Open `http://localhost:5173`. The admin auth key is logged at API startup (`Admin auth key: …`). To choose the key yourself, set it before the **first** start, alongside the variables above: `$env:Admin__AuthKey = "<your key>"` (bash: `Admin__AuthKey=<your key>`). It is read only while the database has no users, so setting it later does nothing; to change it, stop the API and delete `data/`, which also deletes your local boards.
+Open `http://localhost:5173`. The admin auth key is logged at the first API start on an empty database (`Admin auth key: …`), and never on a later start; to get a new one, run the API project with `--reset-admin-key` (the same environment variables, so it finds the same database). To choose the key yourself, set it before the **first** start, alongside the variables above: `$env:Admin__AuthKey = "<your key>"` (bash: `Admin__AuthKey=<your key>`). It is read only while the database has no users, so setting it later does nothing; to change it, stop the API and delete `data/`, which also deletes your local boards.
 
 What each setting is for:
 - `ConnectionStrings__Board` — required, absolute path, no fallback by design. `data/` is gitignored, so the dev database stays out of the tree.
@@ -127,7 +127,7 @@ Header-based authentication — no ASP.NET auth middleware:
 - `X-User-Key` — per-user ULID auth key (stored in `BoardUser` entity), sole auth header
 - Roles: `Administrator`, `HumanUser`, `AgentUser`
 - `IsActive` flag on `BoardUser` — deactivated users get 401
-- Admin seed: uses `Admin:AuthKey` from config if set, else generates ULID and logs it
+- Admin seed: uses `Admin:AuthKey` from config if set, else generates ULID and logs it. That first-seed log line is the only time a key is logged; a later start logs none. `--reset-admin-key [<user-id>]` (`Installation/AdminKeyResetCli.cs`) gives an active Administrator a new key and prints it to the operator's terminal only: it runs before the host is built, with a logger-free DbContext, never creates a database, and refuses when several Administrators exist and no id is given. `StartupAuthKeyLoggingTests` fails if a key reaches any log entry on a later start
 - **Use `Results.StatusCode(403)` not `Results.Forbid()`** (no auth middleware registered)
 - `AgentUser` cannot delete cards; can delete own comments and attachments
 - All users see all boards — no board-level membership

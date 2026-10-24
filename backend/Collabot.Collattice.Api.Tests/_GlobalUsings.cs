@@ -10,4 +10,6 @@ global using Collabot.Collattice.Api.Mcp;
 global using Collabot.Collattice.Api.Models;
 global using Collabot.Collattice.Api.Persistence;
 global using Collabot.Collattice.Api.Tests.Infrastructure;
+global using Microsoft.AspNetCore.Mvc.Testing;
+global using Microsoft.Extensions.Configuration;
 global using Microsoft.Extensions.Logging;

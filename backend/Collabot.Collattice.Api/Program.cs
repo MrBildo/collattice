@@ -23,6 +23,17 @@ if (args.Length > 0 && args[0] == "--merge-appsettings")
     Environment.Exit(AppSettingsMergeCli.Run(args[1..], Console.Out, Console.Error));
 }
 
+// Operator-invoked subcommand: give an Administrator a new auth key, printed once to this terminal.
+// It reads the configuration the app reads (appsettings.json and environment variables, in the same
+// order) but never builds the host, so the key does not pass through the app's logging.
+if (args.Length > 0 && args[0] == "--reset-admin-key")
+{
+    var resetConfiguration = WebApplication.CreateBuilder().Configuration;
+    resetConfiguration.AddEnvironmentVariables();
+
+    Environment.Exit(await AdminKeyResetCli.RunAsync(args[1..], resetConfiguration, Console.Out, Console.Error));
+}
+
 var builder = WebApplication.CreateBuilder(args);
 
 // WebApplication.CreateBuilder adds an env-var provider at builder-construction time. The
@@ -329,8 +340,8 @@ await using (var scope = app.Services.CreateAsyncScope())
 
     if (!await db.Users.AnyAsync())
     {
-        var adminAuthKey = app.Configuration.GetValue<string>("Admin:AuthKey")
-            ?? Ulid.NewUlid().ToString();
+        var configuredAdminAuthKey = app.Configuration.GetValue<string>("Admin:AuthKey");
+        var adminAuthKey = configuredAdminAuthKey ?? Ulid.NewUlid().ToString(null, CultureInfo.InvariantCulture);
 
         var adminUser = new BoardUser
         {
@@ -412,13 +423,19 @@ await using (var scope = app.Services.CreateAsyncScope())
         db.CardLabels.Add(new CardLabel { CardId = welcomeCard.Id, LabelId = featureLabel.Id });
 
         await db.SaveChangesAsync();
-    }
 
-    // Always log the admin auth key at startup
-    var admin = await db.Users.FirstOrDefaultAsync(u => u.Role == UserRole.Administrator);
-    if (admin is not null)
+        // The one time a key is logged: it was just generated, and the log is the only place the
+        // operator can learn it. A key set through Admin:AuthKey is already known to whoever set it.
+        // An existing administrator's key is never logged, because the app log is often readable by
+        // people who should not hold full control of the board.
+        if (configuredAdminAuthKey is null)
+        {
+            app.Logger.LogInformation("Admin auth key: {AuthKey}", adminAuthKey);
+        }
+    }
+    else
     {
-        app.Logger.LogInformation("Admin auth key: {AuthKey}", admin.AuthKey);
+        app.Logger.LogInformation("Auth keys are not logged on an ordinary start. To give an administrator a new key, run the executable with --reset-admin-key.");
     }
 
     // Migrate the v1 single configured webhook endpoint into the subscription registry on

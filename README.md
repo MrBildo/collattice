@@ -69,7 +69,7 @@ irm https://raw.githubusercontent.com/MrBildo/collattice/main/install.ps1 | iex
 & "$env:LOCALAPPDATA\Collattice\Collabot.Collattice.Api.exe"
 ```
 
-Open **http://localhost:8080** in your browser. The admin auth key is printed to the console on first run — copy it and paste it on the login screen.
+Open **http://localhost:8080** in your browser. The admin auth key is printed to the console on first run, and only then — copy it and paste it on the login screen. (Lost it later? See [Recovering the Admin Key](#recovering-the-admin-key).)
 
 ```
 [INF] Admin auth key: 01JQXYZ...
@@ -160,7 +160,7 @@ export Urls=http://0.0.0.0:9090
 
 ### Admin Auth Key
 
-By default, a random auth key is generated on first run and printed to the console. To set a known key:
+By default, a random auth key is generated on first run and printed to the console that one time. Later starts never log it. To choose the key yourself, set it before the first run:
 
 ```jsonc
 // appsettings.json
@@ -170,6 +170,18 @@ By default, a random auth key is generated on first run and printed to the conso
   }
 }
 ```
+
+`Admin:AuthKey` is read only while the database has no users. A key set this way is not printed, since you already know it, and changing the setting later has no effect.
+
+### Recovering the Admin Key
+
+If the admin key is lost, or you want to replace it, run the executable with `--reset-admin-key` on the machine the app runs on, from the install directory and with the same configuration the app uses:
+
+```bash
+./Collabot.Collattice.Api --reset-admin-key
+```
+
+It gives the Administrator a new key, prints it once to your terminal (never to the app's log), and the old key stops working at once; the app can stay running. See [Recovering the Admin Key](INSTALL.md#recovering-the-admin-key) in the setup guide for the details: more than one Administrator, and the exit codes.
 
 ### Database Location
 
@@ -206,7 +218,7 @@ the next upgrade:
 | `Hosting:ServeSpa` | `true` | When `true`, the API also serves the embedded React Portal from `wwwroot/` (LAN single-process shape). Set to `false` for headless hosted-separately deployments — unmatched routes return 404 instead of the SPA shell. |
 | `Cors:AllowedOrigins` | `[]` (empty) | List of allowed cross-origin Portal hosts. Empty disallows all cross-origin requests; same-origin LAN deployments do not need this. Set to the Portal's origin(s) for hosted-separately deployments (e.g. `["https://collattice.example.com"]`). |
 | `ConnectionStrings:Board` | *(required — no default)* | SQLite database path. Must be an **absolute** path; the installer writes this into `appsettings.json`. Startup fails loud if unset or unwritable. |
-| `Admin:AuthKey` | *(auto-generated)* | Override the admin auth key. |
+| `Admin:AuthKey` | *(auto-generated)* | The admin auth key to create on first run. Read only while the database has no users; to change the key later, see [Recovering the Admin Key](#recovering-the-admin-key). |
 | `Webhooks:Endpoint` | *(unset)* | **Deprecated — migration seed only.** The single delivery URL from earlier versions. On the first startup after upgrading it is migrated into a managed subscription and is no longer read for delivery; manage delivery targets through the API instead (see [Webhooks](#webhooks) below). Unset it once the upgrade is done so it can't seed again. |
 | `Webhooks:Secret` | *(unset)* | **Deprecated — migration seed only.** The shared signing secret from earlier versions, carried into the migrated subscription on first startup. No longer read for delivery — each subscription now carries its own secret. |
 | `Webhooks:Enabled` | `true` | Global master switch for **all** webhook delivery. Set to `false` to pause every subscription at once, regardless of each one's own enabled state. |
@@ -282,7 +294,7 @@ anything that creates cards, and a step-by-step walkthrough, see the
 
 On first run, Collattice creates:
 
-- An **Admin** user (auth key printed to the console — save this!)
+- An **Admin** user (auth key printed to the console on this first run only — save this!)
 - A **Default** board with three lanes: Backlog, In Progress, Done
 - Four card sizes: S, M, L, XL
 - Three starter labels: Feature, Bug, Chore

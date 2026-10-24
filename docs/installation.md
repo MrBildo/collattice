@@ -99,7 +99,7 @@ xattr -d com.apple.quarantine ./Collabot.Collattice.Api
 3. Copy the admin auth key from the console output
 4. Enter the key on the login screen
 
-The admin key is printed once on first startup. To set a persistent key, see [Host Configuration](../README.md#host-configuration).
+The admin key is printed once on first startup and never logged again. To choose the key yourself, see [Host Configuration](../README.md#host-configuration). If you lose it, see [Recovering the Admin Key](../INSTALL.md#recovering-the-admin-key).
 
 ## Updating
 
