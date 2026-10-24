@@ -1,7 +1,6 @@
 using System.Globalization;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 using Shouldly;
 
 namespace Collabot.Collattice.Api.Tests;

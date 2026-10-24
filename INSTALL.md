@@ -208,6 +208,12 @@ runs on:
 .\Collabot.Collattice.Api.exe --reset-admin-key
 ```
 
+- **Check the version first.** The command arrived in the release that stopped logging the key; run
+  `--version` and compare it with the release notes. An older build does not know the command and
+  starts the whole app instead, on whatever database its configuration names. If you see startup
+  log lines rather than a key, stop it with Ctrl+C.
+- **Run it in your own terminal,** not through the process supervisor or a job whose output is
+  recorded, or the new key lands in that log.
 - **Run it with the configuration the app runs with.** Run it from the install directory. It reads
   `ConnectionStrings:Board` from `appsettings.json` and environment variables the same way the app
   does, so if your process supervisor sets the database path through an environment variable
@@ -215,7 +221,9 @@ runs on:
   database it changed. It never creates a database: a wrong or missing path is an error.
 - **The new key is printed once, to your terminal.** It is never written to the app's log. Store it
   straight away.
-- **The old key stops working at once.** The app can stay running; no restart is needed.
+- **The old key stops working at once.** The app can stay running; no restart is needed. Sign in
+  with the new key to confirm it: if the app refuses it, the command changed a different database
+  from the one the app uses (compare the path it printed).
 - **It needs no current key and no network,** only write access to the database file, which already
   holds every user's key.
 - **More than one Administrator?** The command changes nothing and lists the active Administrators
