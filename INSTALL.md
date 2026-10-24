@@ -58,7 +58,7 @@ If you used the one-line installer (see [Installation Guide](docs/installation.m
 
 3. Open **http://localhost:8080** in your browser.
 
-4. Copy the **admin auth key** from the console output — you'll need it to create users and manage boards.
+4. Copy the **admin auth key** from the console output — you'll need it to create users and manage boards. It is printed on this first run only; later starts never log it. If you lose it, see [Recovering the Admin Key](#recovering-the-admin-key).
 
 ## Configuration
 
@@ -74,7 +74,7 @@ performed by the installer.
 | `Hosting:ServeSpa` | `true` | Serve the embedded React Portal from `wwwroot/`. Set to `false` for headless hosted-separately deployments. See [Hosted separately (Portal + API)](#hosted-separately-portal--api). |
 | `Cors:AllowedOrigins` | `[]` (empty) | Allowed cross-origin Portal hosts. Empty disallows all cross-origin requests; required for hosted-separately deployments. |
 | `ConnectionStrings:Board` | *(required — no default)* | SQLite database path. Must be an **absolute** path; the app does not derive a path from the working or binary directory. The installer writes this into `appsettings.json`. |
-| `Admin:AuthKey` | *(auto-generated)* | Override the admin auth key |
+| `Admin:AuthKey` | *(auto-generated)* | The admin auth key to create on first run. Read only while the database has no users; to change the key later, see [Recovering the Admin Key](#recovering-the-admin-key). |
 
 ### Environment Variables
 
@@ -190,6 +190,40 @@ If `/config.json` is absent, malformed, or returns a non-2xx status, the Portal 
    `./Collabot.Collattice.Api --merge-appsettings <shipped-appsettings.json> ./appsettings.json --baseline ./appsettings.shipped.json`
    from the install directory.
 4. Start the app — migrations run automatically.
+
+## Recovering the Admin Key
+
+The admin auth key is written to the console once, on the first run, when it is generated. Later
+starts never log it, so the app's log does not expose it. If the key is lost, or you want to replace
+it (because it was exposed, for example), give the administrator a new key from the machine the app
+runs on:
+
+**macOS / Linux:**
+```bash
+./Collabot.Collattice.Api --reset-admin-key
+```
+
+**Windows:**
+```powershell
+.\Collabot.Collattice.Api.exe --reset-admin-key
+```
+
+- **Run it with the configuration the app runs with.** Run it from the install directory. It reads
+  `ConnectionStrings:Board` from `appsettings.json` and environment variables the same way the app
+  does, so if your process supervisor sets the database path through an environment variable
+  (`ConnectionStrings__Board`), set the same variable for the command. The command prints the
+  database it changed. It never creates a database: a wrong or missing path is an error.
+- **The new key is printed once, to your terminal.** It is never written to the app's log. Store it
+  straight away.
+- **The old key stops working at once.** The app can stay running; no restart is needed.
+- **It needs no current key and no network,** only write access to the database file, which already
+  holds every user's key.
+- **More than one Administrator?** The command changes nothing and lists the active Administrators
+  with their ids. Run it again with the id of the one to reset:
+  `--reset-admin-key <user-id>`.
+- **Exit codes:** `0` done; `2` bad arguments; `3` the database is not configured, not found, or
+  could not be read; `4` no matching active Administrator; `5` more than one active Administrator
+  and no id given. Codes `2` to `5` all mean no key was changed.
 
 ## Version
 
