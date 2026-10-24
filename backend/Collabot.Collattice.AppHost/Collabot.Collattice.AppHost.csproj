@@ -4,6 +4,14 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Aspire.Hosting.JavaScript" Version="13.6.0" />
+    <!-- Aspire 13.6.0 asks for MessagePack 2.5.302, which is inside the affected
+         range of GHSA-qhrr-8q5h-9q3h (CVE-2026-92707, patched in 2.5.303). 2.5.307
+         is the newest 2.5 release and the version Aspire itself moved to in 13.6.2,
+         so this is the same MessagePack the same Aspire line is built against.
+         The AppHost is the local development launcher and is not in the release
+         archive. Remove this line when Aspire moves to 13.6.2 or later, whose own
+         dependency brings 2.5.307 in. -->
+    <PackageReference Include="MessagePack" Version="2.5.307" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Collabot.Collattice.Api\Collabot.Collattice.Api.csproj" />
