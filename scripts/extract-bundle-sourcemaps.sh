@@ -9,10 +9,10 @@
 #   reached the bundle). The archive must not contain them. Those two facts used
 #   to be reconciled by building the frontend twice -- once plain to ship, once
 #   with sourcemaps to read -- and asserting the two builds were byte-identical.
-#   They are not required to be: repeated builds of an unchanged tree draw one of
-#   two variants of one shared chunk, so the assertion failed on a healthy tree
-#   often enough to teach people to re-run it. Building once removes the question
-#   instead of answering it.
+#   They are not required to be: under Vite 5, repeated builds of an unchanged
+#   tree drew one of two variants of one shared chunk, so the assertion failed on
+#   a healthy tree often enough to teach people to re-run it. Building once
+#   removes the question instead of answering it.
 #
 #   That makes the removal load-bearing in a way it never was before. A build
 #   that emitted no sourcemaps at all, or a removal that quietly matched nothing,

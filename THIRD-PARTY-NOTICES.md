@@ -77,9 +77,8 @@ By construction, these are identical across all five:
 
 - The **browser bundle** and the **CSS toolchain** contribute the same set of
   third-party components on every platform. The frontend is built the same way for
-  each archive; two independent builds of an unchanged tree are not byte-for-byte
-  identical — they can differ in how modules are initialized — but they bundle the
-  same set of source modules, which is exactly what this inventory records.
+  each archive, and every build bundles the same set of source modules, which is
+  exactly what this inventory records.
 - The **.NET runtime packs** and the **native SQLite library** are normalized to a
   platform-neutral identity when this inventory is generated. Only their file
   *names* differ between platforms (`.so` / `.dylib` / `.dll`, and the launcher
@@ -217,6 +216,7 @@ Compiled into the JavaScript served from `wwwroot`.
 - `d3-array` 3.2.4 — ISC — Copyright 2010-2023 Mike Bostock
 - `d3-array` 2.12.1 — BSD-3-Clause — Copyright 2010-2020 Mike Bostock
 - `d3-axis` 3.0.0 — ISC — Copyright 2010-2021 Mike Bostock
+- `d3-brush` 3.0.0 — ISC — Copyright 2010-2021 Mike Bostock
 - `d3-color` 3.1.0 — ISC — Copyright 2010-2022 Mike Bostock
 - `d3-dispatch` 3.0.1 — ISC — Copyright 2010-2021 Mike Bostock
 - `d3-ease` 3.0.1 — BSD-3-Clause — Copyright 2010-2021 Mike Bostock
@@ -239,7 +239,7 @@ Compiled into the JavaScript served from `wwwroot`.
 - `dagre-d3-es` 7.0.14 — MIT — Copyright (c) 2022-2024 Thibaut Lassalle, David Newell, Alois Klink, Sidharth Vinod and dagre-es contributors
 - `dayjs` 1.11.23 — MIT — Copyright (c) 2018-present, iamkun
 - `decode-named-character-reference` 1.3.0 — MIT — Copyright (c) Titus Wormer <tituswormer@gmail.com>
-- `dompurify` 3.4.16 — (MPL-2.0 OR Apache-2.0) — Copyright [yyyy] [name of copyright owner]
+- `dompurify` 3.4.17 — (MPL-2.0 OR Apache-2.0) — Copyright [yyyy] [name of copyright owner]
 - `emojilib` 2.4.0 — MIT — Copyright (c) 2014 Mu-An Chiou
 - `emoticon` 4.1.0 — MIT — Copyright (c) 2014 Titus Wormer <tituswormer@gmail.com>
 - `entities` 6.0.1 — BSD-2-Clause — Copyright (c) Felix Böhm
@@ -265,7 +265,7 @@ Compiled into the JavaScript served from `wwwroot`.
 - `internmap` 2.0.3 — ISC — Copyright 2021 Mike Bostock
 - `is-absolute-url` 4.0.1 — MIT — Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (https://sindresorhus.com)
 - `is-plain-obj` 4.1.0 — MIT — Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (https://sindresorhus.com)
-- `katex` 0.16.47 — MIT — Copyright (c) 2013-2020 Khan Academy and other contributors
+- `katex` 0.18.10 — MIT — Copyright (c) 2013-2020 Khan Academy and other contributors
 - `khroma` 2.1.0 — MIT — Copyright (c) 2019-present Fabio Spampinato, Andrew Maney
 - `layout-base` 2.0.1 — MIT — Copyright (c) 2019 iVis@Bilkent
 - `layout-base` 1.0.2 — MIT — Copyright (c) 2019 iVis@Bilkent
@@ -330,6 +330,7 @@ Compiled into the JavaScript served from `wwwroot`.
 - `remark-rehype` 11.1.2 — MIT — Copyright (c) Titus Wormer <tituswormer@gmail.com>
 - `roughjs` 4.6.6 — MIT — Copyright (c) 2019 Preet Shihn
 - `scheduler` 0.23.2 — MIT — Copyright (c) Facebook, Inc. and its affiliates.
+- `skin-tone` 2.0.0 — MIT — Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)
 - `sonner` 2.0.8 — MIT — Copyright (c) 2023 Emil Kowalski
 - `space-separated-tokens` 2.0.2 — MIT — Copyright (c) 2016 Titus Wormer <tituswormer@gmail.com>
 - `style-to-js` 1.1.21 — MIT — Copyright (c) 2020 Menglin "Mark" Xu <mark@remarkablemark.org>
@@ -339,6 +340,7 @@ Compiled into the JavaScript served from `wwwroot`.
 - `trim-lines` 3.0.1 — MIT — Copyright (c) 2015 Titus Wormer <mailto:tituswormer@gmail.com>
 - `trough` 2.2.0 — MIT — Copyright (c) 2016 Titus Wormer <tituswormer@gmail.com>
 - `ts-dedent` 2.3.0 — MIT — Copyright (c) 2018 Tamino Martinius
+- `unicode-emoji-modifier-base` 1.0.0 — MIT — Copyright Mathias Bynens <https://mathiasbynens.be/>
 - `unified` 11.0.5 — MIT — Copyright (c) 2015 Titus Wormer <tituswormer@gmail.com>
 - `unist-util-find-after` 5.0.0 — MIT — Copyright (c) 2015 Titus Wormer <tituswormer@gmail.com>
 - `unist-util-is` 6.0.1 — MIT — Copyright (c) 2015 Titus Wormer <tituswormer@gmail.com>
@@ -352,7 +354,7 @@ Compiled into the JavaScript served from `wwwroot`.
 - `vfile-location` 5.0.3 — MIT — Copyright (c) 2016 Titus Wormer <tituswormer@gmail.com>
 - `vfile-message` 4.0.3 — MIT — Copyright (c) Titus Wormer <tituswormer@gmail.com>
 - `web-namespaces` 2.0.1 — MIT — Copyright (c) 2016 Titus Wormer <tituswormer@gmail.com>
-- `zod` 4.6.5 — MIT — Copyright (c) 2025 Colin McDonnell
+- `zod` 4.6.7 — MIT — Copyright (c) 2025 Colin McDonnell
 - `zwitch` 2.0.4 — MIT — Copyright (c) 2016 Titus Wormer <tituswormer@gmail.com>
 
 ### CSS toolchain (browser bundle)

@@ -1,4 +1,4 @@
-import '@testing-library/jest-dom';
+import '@testing-library/jest-dom/vitest';
 
 // jsdom does not implement ResizeObserver. Shim it so any component that uses
 // ResizeObserver (SearchCommand, use-lane-resize, use-label-layout, etc.) can

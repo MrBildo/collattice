@@ -124,23 +124,23 @@ jobs:
       # ONE build, with sourcemaps written as sidecar files. `hidden` emits the
       # .map files without appending a sourceMappingURL trailer to the code, so
       # the emitted JavaScript is exactly what a plain `vite build` produces --
-      # measured over alternating builds of both modes rather than assumed:
-      # whenever both drew the same chunk variant (below), the .js/.css came
-      # out byte-identical between the two, filenames included, and the flag's
-      # entire effect was the extra .map files beside them. That is what lets
-      # publish.yml keep building without sourcemaps while the inventory
-      # checked here still describes the bundle a release ships.
+      # measured rather than assumed, and re-measured on Vite 8: the .js/.css/.html
+      # came out byte-identical between the two modes, filenames included, and
+      # the flag's entire effect was the extra .map files beside them. That is
+      # what lets publish.yml keep building without sourcemaps while the
+      # inventory checked here still describes the bundle a release ships.
       #
       # This used to be two builds -- one to ship, one with sourcemaps to read --
       # asserted byte-identical to each other. They are not required to be.
-      # Repeated builds of an unchanged tree draw one of two variants of a single
-      # shared chunk, so two independent builds disagree often enough that the
-      # assertion went red on healthy pull requests. Both variants bundle an
-      # identical set of source modules, which is the only thing the notices file
-      # claims: the comparison was strictly stronger than the obligation, and a
-      # gate that fails on differences its own claim does not care about teaches
-      # people to re-run until it passes. Building once makes the audited bundle
-      # the shipped bundle by construction, so there is nothing left to compare.
+      # Under Vite 5, repeated builds of an unchanged tree drew one of two
+      # variants of a single shared chunk, so two independent builds disagreed
+      # often enough that the assertion went red on healthy pull requests. Both
+      # variants bundled an identical set of source modules, which is the only
+      # thing the notices file claims: the comparison was strictly stronger than
+      # the obligation, and a gate that fails on differences its own claim does
+      # not care about teaches people to re-run until it passes. Building once
+      # makes the audited bundle the shipped bundle by construction, so there is
+      # nothing left to compare, whatever the bundler does between runs.
       - name: Build frontend
         run: npx vite build --sourcemap hidden
         working-directory: frontend

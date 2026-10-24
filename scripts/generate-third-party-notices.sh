@@ -91,6 +91,10 @@ NUGET_ROOT="${NUGET_PACKAGES:-${HOME}/.nuget/packages}"
 #   fastdom      -- ships no LICENSE file; its package.json says MIT, and the
 #                   package's own README.md carries the MIT text under its
 #                   "License" heading, with this copyright line.
+#   unicode-emoji-modifier-base
+#                -- its license file is named LICENSE-MIT.txt, which the
+#                   LICENSE / LICENSE.* lookup below does not match. Read from
+#                   the first line of that file.
 override_copyright() {
   case "$1" in
     @radix-ui/number|@radix-ui/react-compose-refs|@radix-ui/react-context|\
@@ -98,6 +102,7 @@ override_copyright() {
 @radix-ui/react-use-previous|@radix-ui/react-use-size)
       echo "Copyright (c) 2022 WorkOS" ;;
     fastdom) echo "Copyright (c) 2016 Wilson Page <wilsonpage@me.com>" ;;
+    unicode-emoji-modifier-base) echo "Copyright Mathias Bynens <https://mathiasbynens.be/>" ;;
     *) echo "" ;;
   esac
 }
