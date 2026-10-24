@@ -50,7 +50,9 @@ box and select **Log In**.
 
 - **Where your key comes from.** If you're the person who installed Collattice, your
   admin key is printed to the console the first time the app starts — copy it from
-  there. If someone else runs the board, ask them to create an account for you; they
+  there, because it is not printed again. If it's lost, the
+  [setup guide](../INSTALL.md#recovering-the-admin-key) shows how to issue a new one.
+  If someone else runs the board, ask them to create an account for you; they
   hand you a key to paste in.
 - **Your key is remembered.** Once you sign in, the browser keeps you signed in — you
   won't be asked again on that browser until you sign out.
