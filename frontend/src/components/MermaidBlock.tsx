@@ -7,15 +7,6 @@ function ensureMermaidInitialized() {
   if (!mermaidInitialized) {
     mermaid.initialize({
       startOnLoad: false,
-      // Mermaid 12 changed the defaults to the ELK layout and the 'neo' look, and
-      // widened every short flowchart and state label to a 120px minimum while
-      // wrapping long ones sooner. Pin the earlier layout, look and label sizing
-      // so diagrams already written in cards keep rendering the way their
-      // authors saw them.
-      layout: 'dagre',
-      look: 'classic',
-      flowchart: { wrappingWidth: 200, minNodeWidth: 0 },
-      state: { wrappingWidth: 200, minNodeWidth: 0 },
       theme: 'base',
       themeVariables: {
         // Background — match code block bg

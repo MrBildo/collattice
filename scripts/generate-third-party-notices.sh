@@ -91,9 +91,6 @@ NUGET_ROOT="${NUGET_PACKAGES:-${HOME}/.nuget/packages}"
 #   fastdom      -- ships no LICENSE file; its package.json says MIT, and the
 #                   package's own README.md carries the MIT text under its
 #                   "License" heading, with this copyright line.
-#   elkjs        -- its LICENSE.md is the bare EPL-2.0 text, which names no
-#                   holder. Read from the header comment of lib/elk.bundled.js,
-#                   the file that reaches the bundle.
 #   unicode-emoji-modifier-base
 #                -- its license file is named LICENSE-MIT.txt, which the
 #                   LICENSE / LICENSE.* lookup below does not match. Read from
@@ -105,7 +102,6 @@ override_copyright() {
 @radix-ui/react-use-previous|@radix-ui/react-use-size)
       echo "Copyright (c) 2022 WorkOS" ;;
     fastdom) echo "Copyright (c) 2016 Wilson Page <wilsonpage@me.com>" ;;
-    elkjs) echo "Copyright (c) 2017 Kiel University and others." ;;
     unicode-emoji-modifier-base) echo "Copyright Mathias Bynens <https://mathiasbynens.be/>" ;;
     *) echo "" ;;
   esac
@@ -484,13 +480,6 @@ license_text_sections() {
     "(MPL-2.0 OR Apache-2.0)")
       echo "Dual-licensed component: DOMPurify"
       echo "Apache License 2.0" ;;
-    # EPL-2.0 asks anyone distributing a program in compiled form to say that
-    # its source is available and how to obtain it, so the document owes the
-    # section saying so as well as the license text. elkjs is the only EPL-2.0
-    # component today; a second one needs its own source statement there too.
-    EPL-2.0)
-      echo "Compiled component: elkjs"
-      echo "Eclipse Public License 2.0" ;;
     *) return 1 ;;
   esac
 }

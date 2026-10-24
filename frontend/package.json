@@ -26,7 +26,7 @@
     "clsx": "^2.1.1",
     "lucide-react": "^0.577.0",
     "mdast-util-find-and-replace": "^3.0.2",
-    "mermaid": "^12.2.0",
+    "mermaid": "^11.17.2",
     "radix-ui": "^1.6.7",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
@@ -71,6 +71,9 @@
     "vitest": "^5.0.5"
   },
   "overrides": {
+    "mermaid": {
+      "katex": "^0.18.10"
+    },
     "@tailwindcss/typography": {
       "postcss-selector-parser": "^7.1.6"
     }
