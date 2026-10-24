@@ -7,6 +7,11 @@ function ensureMermaidInitialized() {
   if (!mermaidInitialized) {
     mermaid.initialize({
       startOnLoad: false,
+      // Mermaid 12 changed the defaults to the ELK layout and the 'neo' look.
+      // Pin the earlier dagre layout and classic look so diagrams already written
+      // in cards keep rendering the way their authors saw them.
+      layout: 'dagre',
+      look: 'classic',
       theme: 'base',
       themeVariables: {
         // Background — match code block bg
