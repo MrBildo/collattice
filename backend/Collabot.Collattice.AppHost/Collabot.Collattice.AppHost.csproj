@@ -3,7 +3,7 @@
     <OutputType>Exe</OutputType>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Aspire.Hosting.JavaScript" Version="13.6.0" />
+    <PackageReference Include="Aspire.Hosting.JavaScript" Version="13.6.4" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Collabot.Collattice.Api\Collabot.Collattice.Api.csproj" />
