@@ -132,8 +132,8 @@ public static class AdminKeyResetCli
         // The same requirements the app enforces at startup: an absolute path to a database file.
         // Run with different configuration than the app's and this names the wrong database, so it
         // prints the one it used.
-        const string sameConfiguration = "Run the command with the configuration the app runs with: from its install directory, "
-            + "with the environment variables its service sets (ConnectionStrings__Board in particular).";
+        const string sameConfiguration = "Run the command with the configuration the app runs with: "
+            + "the environment variables its service sets (ConnectionStrings__Board in particular).";
 
         var configured = configuration.GetConnectionString("Board");
         if (string.IsNullOrWhiteSpace(configured))

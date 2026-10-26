@@ -175,7 +175,7 @@ By default, a random auth key is generated on first run and printed to the conso
 
 ### Recovering the Admin Key
 
-If the admin key is lost, or you want to replace it, run the executable with `--reset-admin-key` on the machine the app runs on, from the install directory and with the same configuration the app uses:
+If the admin key is lost, or you want to replace it, run the executable with `--reset-admin-key` on the machine the app runs on, with the same configuration the app uses:
 
 ```bash
 ./Collabot.Collattice.Api --reset-admin-key
