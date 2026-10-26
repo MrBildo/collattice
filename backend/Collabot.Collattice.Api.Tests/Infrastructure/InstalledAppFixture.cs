@@ -26,7 +26,9 @@ public class InstalledAppFixture : IDisposable
         // What the installer does on a first install: the shipped settings, plus the database path.
         var appsettingsPath = Path.Combine(ProgramFolder, "appsettings.json");
         var appsettings = JsonNode.Parse(File.ReadAllText(appsettingsPath))!.AsObject();
+
         appsettings["ConnectionStrings"] = new JsonObject { ["Board"] = $"Data Source={DatabasePath}" };
+
         File.WriteAllText(appsettingsPath, appsettings.ToJsonString());
 
         // The key-reset test runs under its own environment name, so it reads its own database from
@@ -45,6 +47,7 @@ public class InstalledAppFixture : IDisposable
     public string NewFolder(string name)
     {
         var folder = Path.Combine(_root, $"{name}-{Guid.NewGuid():N}");
+
         Directory.CreateDirectory(folder);
 
         return folder;

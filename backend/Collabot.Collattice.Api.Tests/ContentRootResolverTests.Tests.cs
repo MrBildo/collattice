@@ -76,7 +76,19 @@ public class ContentRootResolverTests(InstalledAppFixture installed) : IClassFix
         var output = process.StandardOutput.ReadToEndAsync(cts.Token);
         var errors = process.StandardError.ReadToEndAsync(cts.Token);
 
-        await process.WaitForExitAsync(cts.Token);
+        try
+        {
+            await process.WaitForExitAsync(cts.Token);
+        }
+        finally
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+            }
+
+            await process.WaitForExitAsync(CancellationToken.None);
+        }
 
         var observed = (process.ExitCode, (await output).Contains($"reset-admin-key: database {_installed.KeyResetDatabasePath}", StringComparison.Ordinal));
 

@@ -222,8 +222,10 @@ runs on:
 - **Run it with the configuration the app runs with.** It reads `ConnectionStrings:Board` from the
   `appsettings.json` beside the executable and from environment variables, the same way the app
   does, so if your process supervisor sets the database path through an environment variable
-  (`ConnectionStrings__Board`), set the same variable for the command. The command prints the
-  database it changed. It never creates a database: a wrong or missing path is an error.
+  (`ConnectionStrings__Board`), set the same variable for the command. If the app reads its
+  settings from another folder, name that folder with `ASPNETCORE_CONTENTROOT` for the command:
+  it does not accept `--contentRoot`. The command prints the database it changed. It never creates
+  a database: a wrong or missing path is an error.
 - **The new key is printed once, to your terminal.** It is never written to the app's log. Store it
   straight away.
 - **The old key stops working at once.** The app can stay running; no restart is needed. Sign in

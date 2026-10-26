@@ -26,7 +26,7 @@ internal static class ContentRootResolver
             .AddEnvironmentVariables(prefix: "ASPNETCORE_")
             .AddEnvironmentVariables(prefix: "DOTNET_")
             .AddCommandLine(args)
-            .Build();
+                .Build();
 
         return configuration[HostDefaults.ContentRootKey] is not null;
     }
