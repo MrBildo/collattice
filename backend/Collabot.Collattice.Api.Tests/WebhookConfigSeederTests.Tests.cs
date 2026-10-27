@@ -20,7 +20,7 @@ public class WebhookConfigSeederTests
         var seeded = await WebhookConfigSeeder.SeedAsync(db, "https://n8n.example/hook", "shared-secret", CancellationToken.None);
 
         seeded.ShouldNotBeNull();
-        seeded!.Url.ShouldBe("https://n8n.example/hook");
+        seeded.Url.ShouldBe("https://n8n.example/hook");
         seeded.Secret.ShouldBe("shared-secret");
         seeded.Name.ShouldBe("Migrated from configuration");
         seeded.Enabled.ShouldBeTrue();

@@ -5,8 +5,13 @@
     VSTHRD200 — xUnit [Fact] / [Theory] methods conventionally don't carry an `Async`
                 suffix (community norm predates the analyzer). Suppressing project-wide
                 avoids per-class #pragma noise on test classes with async methods.
+    MA0002 — test assertions and config fixtures compare strings for equality, where the
+             default comparer is already ordinal, so naming one changes nothing. Sorting is
+             the exception: the default string sort is culture-sensitive and the database's
+             is ordinal, so a test that sorts strings must pass StringComparer.Ordinal itself.
+             Product code keeps MA0002 as an error.
   -->
   <PropertyGroup Condition="'$(IsTestProject)' == 'true'">
-    <NoWarn>$(NoWarn);CA1707;VSTHRD200</NoWarn>
+    <NoWarn>$(NoWarn);CA1707;VSTHRD200;MA0002</NoWarn>
   </PropertyGroup>
 </Project>

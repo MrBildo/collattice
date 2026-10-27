@@ -127,7 +127,10 @@ public sealed class WebhookCardCatalogTests(WebhookTestFactory factory) : IClass
             );
             result.ShouldNotContain("Error");
 
-            sink.Captured.Select(e => e.EventType).Order().ShouldBe(["card.labeled", "card.moved", "card.updated"]);
+            sink.Captured
+                .Select(e => e.EventType)
+                .Order(StringComparer.Ordinal)
+                .ShouldBe(["card.labeled", "card.moved", "card.updated"]);
 
             var signals = DrainChannel(reader);
             signals.Count.ShouldBe(1);
@@ -156,7 +159,10 @@ public sealed class WebhookCardCatalogTests(WebhookTestFactory factory) : IClass
         });
         response.EnsureSuccessStatusCode();
 
-        sink.Captured.Select(e => e.EventType).Order().ShouldBe(["card.labeled", "card.moved", "card.updated"]);
+        sink.Captured
+            .Select(e => e.EventType)
+            .Order(StringComparer.Ordinal)
+            .ShouldBe(["card.labeled", "card.moved", "card.updated"]);
     }
 
     [Fact]
@@ -175,7 +181,10 @@ public sealed class WebhookCardCatalogTests(WebhookTestFactory factory) : IClass
         var result = await tools.UpdateCardAsync(CollatticeApiFactory.TestAdminAuthKey, cardId: cardId, labelIds: newLabel.ToString());
         result.ShouldNotContain("Error");
 
-        var byType = sink.Captured.Select(e => e.EventType).Order().ToList();
+        var byType = sink.Captured
+            .Select(e => e.EventType)
+            .Order(StringComparer.Ordinal)
+                .ToList();
         byType.ShouldBe(["card.labeled", "card.unlabeled"]);
         sink.Captured.ShouldNotContain(e => e.EventType == "card.updated");
     }

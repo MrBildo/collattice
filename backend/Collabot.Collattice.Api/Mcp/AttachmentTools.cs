@@ -80,7 +80,7 @@ public class AttachmentTools
         await db.SaveChangesAsync(ct);
 
         // attachment.deleted — published from the captured attachment after the row is gone.
-        await WebhookEventFactory.PublishAttachmentDeletedAsync(db, broadcaster, attachment, user!, ct);
+        await WebhookEventFactory.PublishAttachmentDeletedAsync(db, broadcaster, attachment, user, ct);
         return $"Attachment '{attachment.FileName}' deleted.";
     }
 
@@ -154,7 +154,7 @@ public class AttachmentTools
         await db.SaveChangesAsync(ct);
 
         // attachment.created — REST/MCP emit the identical event through the shared factory.
-        await WebhookEventFactory.PublishAttachmentCreatedAsync(db, broadcaster, attachment, user!, ct);
+        await WebhookEventFactory.PublishAttachmentCreatedAsync(db, broadcaster, attachment, user, ct);
         return JsonSerializer.Serialize(new { attachment.Id, attachment.FileName }, JsonSerializerOptions.Web);
     }
 }

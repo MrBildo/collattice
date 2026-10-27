@@ -23,6 +23,11 @@ internal static class HostingBindResolver
             .GetSection(HostingSettings.SectionName)
             .Get<HostingSettings>() ?? new HostingSettings();
 
+        // The default listen address is plain HTTP by design: the app ships no certificate, so a
+        // deployment that wants TLS terminates it in front of the app, or sets its own https URL
+        // through `urls` / `ASPNETCORE_URLS`, in which case this method returns above, before here.
+#pragma warning disable S5332 // Using clear-text protocols is security-sensitive
         return $"http://{hosting.ListenAddress}:{hosting.ListenPort.ToString(CultureInfo.InvariantCulture)}";
+#pragma warning restore S5332
     }
 }

@@ -38,7 +38,7 @@ public class VersionEndpointTests(CollatticeApiFactory factory) : IClassFixture<
         // Assert
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         response.Headers.CacheControl.ShouldNotBeNull();
-        response.Headers.CacheControl!.NoCache.ShouldBeTrue();
-        response.Headers.CacheControl!.NoStore.ShouldBeTrue();
+        response.Headers.CacheControl.NoCache.ShouldBeTrue();
+        response.Headers.CacheControl.NoStore.ShouldBeTrue();
     }
 }
