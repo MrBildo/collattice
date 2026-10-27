@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Shouldly;
@@ -10,8 +9,6 @@ namespace Collabot.Collattice.Api.Tests;
 // path, and an explicitly named content root must still win over that default.
 public class ContentRootResolverTests(InstalledAppFixture installed) : IClassFixture<InstalledAppFixture>
 {
-    private static readonly TimeSpan _timeout = TimeSpan.FromSeconds(60);
-
     private readonly InstalledAppFixture _installed = installed;
 
     [Fact]
@@ -23,11 +20,21 @@ public class ContentRootResolverTests(InstalledAppFixture installed) : IClassFix
 
         InstalledAppFixture.WriteSettings(Path.Combine(startFolder, "appsettings.json"), startFolderDatabasePath);
 
-        var startup = await StartAsync(_installed.StartInfo(startFolder, "Production"));
+        var startup = await InstalledAppFixture.StartAsync(_installed.StartInfo(startFolder, "Production"));
 
-        var observed = (Normalize(startup.ContentRoot), File.Exists(_installed.DatabasePath), File.Exists(startFolderDatabasePath));
+        // The configured path is the one used, and the per-user default is never created beside it. On
+        // macOS and Linux the default would be under the home folder the fixture gives the program. A new
+        // database has nothing to back up before its first migration, so no backup is left beside it.
+        var observed =
+        (
+            Normalize(startup.ContentRoot),
+            File.Exists(_installed.DatabasePath),
+            File.Exists(startFolderDatabasePath),
+            Directory.Exists(Path.Combine(_installed.HomeFolder, ".collattice")),
+            Directory.GetFiles(Path.GetDirectoryName(_installed.DatabasePath)!, "collattice.db.bak-*").Length
+        );
 
-        observed.ShouldBe((Normalize(_installed.ProgramFolder), true, false), startup.Errors);
+        observed.ShouldBe((Normalize(_installed.ProgramFolder), true, false, false, 0), startup.Errors);
     }
 
     [Theory]
@@ -55,7 +62,7 @@ public class ContentRootResolverTests(InstalledAppFixture installed) : IClassFix
             startInfo.Environment[form] = namedFolder;
         }
 
-        var startup = await StartAsync(startInfo);
+        var startup = await InstalledAppFixture.StartAsync(startInfo);
 
         var observed = (Normalize(startup.ContentRoot), File.Exists(namedDatabasePath));
 
@@ -70,68 +77,11 @@ public class ContentRootResolverTests(InstalledAppFixture installed) : IClassFix
         var startFolder = _installed.NewFolder("start");
         var startInfo = _installed.StartInfo(startFolder, InstalledAppFixture.KeyResetEnvironment, "--reset-admin-key");
 
-        using var cts = new CancellationTokenSource(_timeout);
-        using var process = Process.Start(startInfo)!;
+        var run = await InstalledAppFixture.RunToExitAsync(startInfo);
 
-        var output = process.StandardOutput.ReadToEndAsync(cts.Token);
-        var errors = process.StandardError.ReadToEndAsync(cts.Token);
+        var observed = (run.ExitCode, run.Output.Contains($"reset-admin-key: database {_installed.KeyResetDatabasePath}", StringComparison.Ordinal));
 
-        try
-        {
-            await process.WaitForExitAsync(cts.Token);
-        }
-        finally
-        {
-            if (!process.HasExited)
-            {
-                process.Kill(entireProcessTree: true);
-            }
-
-            await process.WaitForExitAsync(CancellationToken.None);
-        }
-
-        var observed = (process.ExitCode, (await output).Contains($"reset-admin-key: database {_installed.KeyResetDatabasePath}", StringComparison.Ordinal));
-
-        observed.ShouldBe((AdminKeyResetCli.ExitOk, true), await errors);
-    }
-
-    // Starts the program, waits for the host's "Content root path:" line (written once the database is
-    // migrated and the server is listening), then stops it. A program that stops at startup instead
-    // reports no content root, and its error output says why.
-    private static async Task<Startup> StartAsync(ProcessStartInfo startInfo)
-    {
-        using var cts = new CancellationTokenSource(_timeout);
-        using var process = Process.Start(startInfo)!;
-
-        var errors = process.StandardError.ReadToEndAsync(cts.Token);
-
-        string? contentRoot = null;
-
-        try
-        {
-            while (await process.StandardOutput.ReadLineAsync(cts.Token) is { } line)
-            {
-                const string marker = "Content root path:";
-                var index = line.IndexOf(marker, StringComparison.Ordinal);
-
-                if (index >= 0)
-                {
-                    contentRoot = line[(index + marker.Length)..].Trim();
-                    break;
-                }
-            }
-        }
-        finally
-        {
-            if (!process.HasExited)
-            {
-                process.Kill(entireProcessTree: true);
-            }
-
-            await process.WaitForExitAsync(CancellationToken.None);
-        }
-
-        return new Startup(contentRoot, await errors);
+        observed.ShouldBe((AdminKeyResetCli.ExitOk, true), run.Errors);
     }
 
     private static async Task CreateDatabaseWithAdministratorAsync(string databasePath)
@@ -164,6 +114,4 @@ public class ContentRootResolverTests(InstalledAppFixture installed) : IClassFix
 
         return OperatingSystem.IsWindows() ? full.ToUpperInvariant() : full;
     }
-
-    private sealed record Startup(string? ContentRoot, string Errors);
 }

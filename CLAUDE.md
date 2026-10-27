@@ -87,7 +87,7 @@ Use the Aspire skill and MCP tools to manage the Aspire lifecycle (start, stop, 
 
 ### Frontend Only (no Aspire)
 
-The Vite dev server (port 5173) proxies `/api` to `http://localhost:58343`, so run the API yourself on that address first. A fresh clone gives it nothing to start from: the API's launch profile is a per-developer file git ignores, and the API refuses to start without a database path. Set these first — environment variables, the override channel in [Configuration Precedence](#configuration-precedence):
+The Vite dev server (port 5173) proxies `/api` to `http://localhost:58343`, so run the API yourself on that address first. A fresh clone gives it nothing to start from: the API's launch profile is a per-developer file git ignores, and without a database path the API would use your per-user default database rather than a dev one. Set these first — environment variables, the override channel in [Configuration Precedence](#configuration-precedence):
 
 ```powershell
 # Terminal 1, from the repo root: the API, on the address the dev server proxies to
@@ -114,7 +114,7 @@ dotnet run --project backend/Collabot.Collattice.Api --no-launch-profile
 Open `http://localhost:5173`. The admin auth key is logged at the first API start on an empty database (`Admin auth key: …`), and never on a later start; to get a new one, run the API project with `--reset-admin-key` (the same environment variables, so it finds the same database). To choose the key yourself, set it before the **first** start, alongside the variables above: `$env:Admin__AuthKey = "<your key>"` (bash: `Admin__AuthKey=<your key>`). It is read only while the database has no users, so setting it later does nothing; to change it, stop the API and delete `data/`, which also deletes your local boards.
 
 What each setting is for:
-- `ConnectionStrings__Board` — required, absolute path, no fallback by design. `data/` is gitignored, so the dev database stays out of the tree.
+- `ConnectionStrings__Board` — an absolute path. Unset, the API falls back to the per-user default (`~/.collattice/collattice.db`, `%LOCALAPPDATA%\Collattice\collattice.db`) and says so in a startup warning; that is where a downloaded build keeps its board, so set this for dev. `data/` is gitignored, so the dev database stays out of the tree. The resolver is `Persistence/_DatabaseLocation.cs`, shared with `--reset-admin-key`; tests never let it fall through to the real home folder (see `CollatticeApiFactory`).
 - `ASPNETCORE_URLS` — without it the API binds `Hosting:ListenPort` (8080, all interfaces: the production default). Use `localhost`, not `127.0.0.1`: Node resolves `localhost` to `::1` first, and Kestrel's `localhost` binds both loopbacks.
 - `ASPNETCORE_ENVIRONMENT=Development` — OpenAPI, open dev CORS, and `appsettings.Development.json`.
 - `--no-launch-profile` — a local `Properties/launchSettings.json`, if you have one, would otherwise replace the values above.
@@ -332,7 +332,7 @@ The repo is public and receives issues from outside integrators. Every issue is 
 - **Tag on first read:** one stock *type* label (`bug` / `enhancement` / `documentation` / `question`) **and** one `area:` label (`area: api` · `area: mcp` · `area: webhooks` · `area: frontend` · `area: install`). Type says *what kind*, area says *where*. Add an area label only when a new surface genuinely needs one.
 - **Assign** the repo owner (assignees must be collaborators) — the visible "someone owns this" signal.
 - **Track on the board:** a card in Triage whose description links the issue; the card carries the recon and rulings, the issue carries the reporter-facing conversation.
-- **Reply after recon, not before** — confirm or correct the premise from source, say what will change and whether the reporter's PR offer is taken, and sign as the bot with its role (*"Cora, Project Manager, Collattice · Collabot.dev"*) plus a line identifying it as an AI agent on the Collabot.dev team. Plain English, no internal card numbers.
+- **Reply after recon, not before** — confirm or correct the premise from source, say what will change and whether the reporter's PR offer is taken, and sign as the bot with its role (*"Cora, Project Manager, Collattice · Collabot.dev"*) plus a line identifying it as an AI bot on the Collabot.dev team. Plain English, no internal card numbers.
 - **Close via the fix PR** — the PR body carries `Fixes https://github.com/MrBildo/collattice/issues/<n>` and credits the reporter; GitHub closes the issue on merge.
 - **Follow up on release** — comment on the closed issue naming the version that ships the fix, so the reporter knows when to upgrade. Sibling findings from the same investigation get their own cards (and issues only if reporter-facing), never appended to the reporter's thread.
 - **Every public GitHub surface a bot writes is signed** *(operator rule, 2026-09-02)* — issue comments, PR comments, and PR reviews alike, not only issue replies. The `gh` account is the operator's, so the signature is the only thing that identifies the author. The block, verbatim shape:
@@ -340,7 +340,7 @@ The repo is public and receives issues from outside integrators. Every issue is 
   ```
   — <Bot>
   <Role>, Collattice · Collabot.dev
-  *(I'm an AI agent on the Collabot.dev team.)*
+  *(I'm an AI bot on the Collabot.dev team.)*
   ```
 
 #### Branch strategy — trunk-based by default

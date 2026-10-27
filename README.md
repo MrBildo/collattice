@@ -31,7 +31,7 @@
 
 Most kanban tools are either too heavy (Jira), too locked-in (Trello), or don't speak the same language as AI agents. Collattice is purpose-built for small teams where humans and AI agents collaborate side-by-side on a shared board.
 
-Download a single binary, run it, and open your browser. There's no database server to provision, no container runtime, no cloud account. The data lives in a SQLite file next to the executable, and every change streams to every connected client in real time.
+Download a single binary, run it, and open your browser. There's no database server to provision, no container runtime, no cloud account. The data lives in a single SQLite file, in your user folder unless you choose another place, and every change streams to every connected client in real time.
 
 **Two primary audiences.** A person runs Collattice from the browser — a familiar kanban board with drag-and-drop, markdown, search, and dark mode. An agent runs Collattice through a built-in MCP server — the same board, exposed as tools over Streamable HTTP. Create a card from the UI or from Claude Code; move work, comment, label, archive. Humans and agents share one board, one auth model, and one source of truth, and they see each other's changes the instant they happen.
 
@@ -129,7 +129,7 @@ Open **http://localhost:8080** in your browser. The admin auth key is printed to
 
 Collattice supports two production deployment shapes. The Quick Start above gives you the first one; the second is for teams that want the API and Portal hosted as separate processes (typically behind a reverse proxy).
 
-- **LAN single-process (default).** One self-contained executable serves both the JSON API and the embedded React Portal from the same origin. The SQLite database file lives next to the binary. No reverse proxy, no CORS, no static-site host required — just the one process listening on a port. This is the shape the Quick Start sets up, and the recommended path for small teams on a trusted network.
+- **LAN single-process (default).** One self-contained executable serves both the JSON API and the embedded React Portal from the same origin. The data is one SQLite file on the same machine. No reverse proxy, no CORS, no static-site host required — just the one process listening on a port. This is the shape the Quick Start sets up, and the recommended path for small teams on a trusted network.
 
 - **Portal + API hosted separately.** The headless API (`Collabot.Collattice.Api` with `Hosting:ServeSpa=false`) runs as one process; the React Portal is built (`frontend/dist/`) and served by any static-file host on its own origin. The Portal reads a runtime `config.json` from its own origin to learn the API base URL, and the API allows the Portal's origin via `Cors:AllowedOrigins`. [Collabhost](https://github.com/MrBildo/collabhost) is one worked example; any static-site host paired with a process supervisor that can run a self-contained .NET binary works the same way.
 
@@ -185,20 +185,33 @@ It gives the Administrator a new key, prints it once to your terminal (never to 
 
 ### Database Location
 
-The database path is **required** configuration with no default — the app never
-derives a path from the working or binary directory. The installer writes an
-absolute path into `appsettings.json` for you; to relocate the database, edit
-it there (use an absolute path) — your edit is preserved by the smart-merge on
-the next upgrade:
+The board lives in one SQLite file.
 
-```jsonc
-// appsettings.json
-{
-  "ConnectionStrings": {
-    "Board": "Data Source=/srv/collattice/data/collattice.db"
+- **A path you set always wins.** Set `ConnectionStrings:Board` in `appsettings.json`,
+  or the `ConnectionStrings__Board` environment variable, to an absolute path. The
+  one-line installer writes one for you (`<install-dir>/data/collattice.db`); to move
+  the database, edit it there, and your edit is preserved by the smart-merge on the
+  next upgrade:
+
+  ```jsonc
+  // appsettings.json
+  {
+    "ConnectionStrings": {
+      "Board": "Data Source=/srv/collattice/data/collattice.db"
+    }
   }
-}
-```
+  ```
+
+- **With no path set, Collattice uses a per-user default:** `~/.collattice/collattice.db`
+  on macOS and Linux, `%LOCALAPPDATA%\Collattice\collattice.db` on Windows. That is what
+  happens when you download a release and run it. A warning at startup names the path,
+  and says so when it has just created a new, empty database there. On macOS and Linux
+  the folder and file it creates are readable by your user only. The default sits in the
+  installer's folder but is never the installer's database, so a downloaded build run on
+  the same machine doesn't open an installed board.
+- **If the location can't be used, the app stops at startup** with a message naming the
+  path and the setting to change: a relative path, a folder it can't create or write to,
+  a user with no home folder, or a default folder that other users can write to.
 
 > **Fresh installs use Collattice-named locations; existing installs keep their
 > earlier names.** A fresh install places the install directory and database under the
@@ -217,7 +230,7 @@ the next upgrade:
 | `Hosting:ListenPort` | `8080` | Bind port. Combined with `Hosting:ListenAddress` to build the bind URL when `Urls`/`ASPNETCORE_URLS` is unset. |
 | `Hosting:ServeSpa` | `true` | When `true`, the API also serves the embedded React Portal from `wwwroot/` (LAN single-process shape). Set to `false` for headless hosted-separately deployments — unmatched routes return 404 instead of the SPA shell. |
 | `Cors:AllowedOrigins` | `[]` (empty) | List of allowed cross-origin Portal hosts. Empty disallows all cross-origin requests; same-origin LAN deployments do not need this. Set to the Portal's origin(s) for hosted-separately deployments (e.g. `["https://collattice.example.com"]`). |
-| `ConnectionStrings:Board` | *(required — no default)* | SQLite database path. Must be an **absolute** path; the installer writes this into `appsettings.json`. Startup fails loud if unset or unwritable. |
+| `ConnectionStrings:Board` | `~/.collattice/collattice.db` (macOS/Linux), `%LOCALAPPDATA%\Collattice\collattice.db` (Windows) | SQLite database path. Must be an **absolute** path; the installer writes one into `appsettings.json`. With none set, the per-user default is used and named in a startup warning. Startup fails loud if the location can't be used. See [Database Location](#database-location). |
 | `Admin:AuthKey` | *(auto-generated)* | The admin auth key to create on first run. Read only while the database has no users; to change the key later, see [Recovering the Admin Key](#recovering-the-admin-key). |
 | `Webhooks:Endpoint` | *(unset)* | **Deprecated — migration seed only.** The single delivery URL from earlier versions. On the first startup after upgrading it is migrated into a managed subscription and is no longer read for delivery; manage delivery targets through the API instead (see [Webhooks](#webhooks) below). Unset it once the upgrade is done so it can't seed again. |
 | `Webhooks:Secret` | *(unset)* | **Deprecated — migration seed only.** The shared signing secret from earlier versions, carried into the migrated subscription on first startup. No longer read for delivery — each subscription now carries its own secret. |

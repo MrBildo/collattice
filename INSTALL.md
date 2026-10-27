@@ -4,7 +4,7 @@
 
 Collattice supports two production deployment shapes. Pick the one that matches your environment, then follow the matching section below.
 
-- **(a) LAN single-process.** One self-contained executable serves both the API and the embedded React Portal from the same origin. SQLite next to the binary, no reverse proxy, no CORS. Recommended for small teams on a trusted network. → **[Quick Start](#quick-start)** + **[Configuration](#configuration)** below.
+- **(a) LAN single-process.** One self-contained executable serves both the API and the embedded React Portal from the same origin. One SQLite file, no reverse proxy, no CORS. Recommended for small teams on a trusted network. → **[Quick Start](#quick-start)** + **[Configuration](#configuration)** below.
 - **(b) Portal + API hosted separately.** The headless API runs as one process (`Hosting:ServeSpa=false`); the React Portal is built and served by any static-file host on its own origin. [Collabhost](https://github.com/MrBildo/collabhost) is one worked example; any static-site host paired with any .NET process supervisor works. → **[Hosted separately (Portal + API)](#hosted-separately-portal--api)** below.
 
 The same executable serves both shapes — the difference is configuration (`Hosting:ServeSpa`, `Cors:AllowedOrigins`) and how the Portal is hosted, not which build you download.
@@ -14,10 +14,11 @@ The same executable serves both shapes — the difference is configuration (`Hos
 If you used the one-line installer (see [Installation Guide](docs/installation.md)),
 `appsettings.json` is already seeded with an absolute database path — skip to step 2.
 
-1. **Set the database path (required before first run).** Collattice requires
-   `ConnectionStrings:Board` to be an absolute path and does not derive one from
-   the working or binary directory — startup fails loud if it is unset. Edit
-   `appsettings.json` next to the executable to set an absolute path:
+1. **Choose where the database lives (optional).** With no path set, Collattice keeps
+   the board in a per-user folder, `~/.collattice/collattice.db` (macOS/Linux) or
+   `%LOCALAPPDATA%\Collattice\collattice.db` (Windows), and a warning at startup names
+   that path. To keep it somewhere else, set `ConnectionStrings:Board` to an absolute
+   path in `appsettings.json` next to the executable before the first run:
 
    ```jsonc
    // appsettings.json
@@ -78,7 +79,7 @@ name it with the standard `ASPNETCORE_CONTENTROOT` environment variable or the
 | `Hosting:ListenPort` | `8080` | Bind port. Used with `Hosting:ListenAddress` when `Urls`/`ASPNETCORE_URLS` is unset. |
 | `Hosting:ServeSpa` | `true` | Serve the embedded React Portal from `wwwroot/`. Set to `false` for headless hosted-separately deployments. See [Hosted separately (Portal + API)](#hosted-separately-portal--api). |
 | `Cors:AllowedOrigins` | `[]` (empty) | Allowed cross-origin Portal hosts. Empty disallows all cross-origin requests; required for hosted-separately deployments. |
-| `ConnectionStrings:Board` | *(required — no default)* | SQLite database path. Must be an **absolute** path; the app does not derive a path from the working or binary directory. The installer writes this into `appsettings.json`. |
+| `ConnectionStrings:Board` | `~/.collattice/collattice.db` (macOS/Linux), `%LOCALAPPDATA%\Collattice\collattice.db` (Windows) | SQLite database path. Must be an **absolute** path; the app never derives one from the working or binary directory. The installer writes one into `appsettings.json`. With none set, the per-user default is used and named in a startup warning. See [Database](#database). |
 | `Admin:AuthKey` | *(auto-generated)* | The admin auth key to create on first run. Read only while the database has no users; to change the key later, see [Recovering the Admin Key](#recovering-the-admin-key). |
 
 ### Environment Variables
@@ -96,12 +97,29 @@ Environment variables win over `appsettings.json`.
 
 ## Database
 
-- The SQLite database path is **required** configuration — `ConnectionStrings:Board`
-  must be set to an absolute path. The installer writes this into `appsettings.json`
-  (pointing at `<install-dir>/data/collattice.db` for a fresh install); if you run the binary without the
-  installer, set it yourself before first run or startup fails loud with the missing
-  key named.
-- The database file and its parent directory are created automatically on first run
+- The SQLite database path is `ConnectionStrings:Board`, an absolute path. The
+  installer writes it into `appsettings.json` (pointing at
+  `<install-dir>/data/collattice.db` for a fresh install). A path you set always wins.
+- With no path set, the app uses a per-user default: `~/.collattice/collattice.db`
+  (macOS/Linux) or `%LOCALAPPDATA%\Collattice\collattice.db` (Windows), from the
+  operating system's own record of the user's home folder. A warning at startup names
+  the path and the two ways to change it, and says when this start created a new, empty
+  database there, so an install that has lost its setting shows up in the log. The
+  default is in the installer's folder but is never the installer's database
+  (`data/collattice.db`), so a downloaded build of another version never opens or
+  upgrades an installed board. A service running as another account (a Windows service
+  as SYSTEM, for example) gets that account's folder, so set the path for services.
+- The database file and any folders it needs are created automatically on first run.
+  On macOS and Linux they are created readable by the owner only (folders `0700`, the
+  database file `0600`, and SQLite's `-wal`/`-shm` files and the pre-upgrade backups
+  follow the file's mode). An existing database keeps the mode it has.
+- The app stops at startup, naming the path and the setting to change, when it can't
+  use the location: a relative path, a folder it can't create or can't write to, a
+  database file it can't write, a user with no absolute home folder, or a default
+  folder that other users can write to (or a link to one).
+- The container image (`backend/Collabot.Collattice.Api/Dockerfile`) sets the path to
+  `/data/collattice.db` and declares `/data` a volume, so the board is not kept inside
+  the container's own layer.
 - Schema migrations run automatically on startup
 - The database file is backed up automatically before applying new migrations
 - Backups are saved next to the database as `<db-filename>.bak-{timestamp}` (e.g.
@@ -219,10 +237,11 @@ runs on:
   log lines rather than a key, stop it with Ctrl+C.
 - **Run it in your own terminal,** not through the process supervisor or a job whose output is
   recorded, or the new key lands in that log.
-- **Run it with the configuration the app runs with.** It reads `ConnectionStrings:Board` from the
-  `appsettings.json` beside the executable and from environment variables, the same way the app
-  does, so if your process supervisor sets the database path through an environment variable
-  (`ConnectionStrings__Board`), set the same variable for the command. If the app reads its
+- **Run it with the configuration the app runs with, as the user the app runs as.** It reads
+  `ConnectionStrings:Board` from the `appsettings.json` beside the executable and from environment
+  variables, the same way the app does, so if your process supervisor sets the database path
+  through an environment variable (`ConnectionStrings__Board`), set the same variable for the
+  command. With no path set it uses the same per-user default the app does, which is that user's. If the app reads its
   settings from another folder, name that folder with `ASPNETCORE_CONTENTROOT` for the command:
   it does not accept `--contentRoot`. The command prints the database it changed. It never creates
   a database: a wrong or missing path is an error.
@@ -236,8 +255,8 @@ runs on:
 - **More than one Administrator?** The command changes nothing and lists the active Administrators
   with their ids. Run it again with the id of the one to reset:
   `--reset-admin-key <user-id>`.
-- **Exit codes:** `0` done; `2` bad arguments; `3` the database is not configured, not found, or
-  could not be read; `4` no matching active Administrator; `5` more than one active Administrator
+- **Exit codes:** `0` done; `2` bad arguments; `3` the database is not found, could not be read,
+  or its location can't be used; `4` no matching active Administrator; `5` more than one active Administrator
   and no id given. Codes `2` to `5` all mean no key was changed.
 
 ## Version

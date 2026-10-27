@@ -1,10 +1,11 @@
 var builder = DistributedApplication.CreateBuilder(args);
 
-// ConnectionStrings:Board is required configuration with no fallback;
-// the API hard-fails at startup if it is unset. The orchestrator is the "told
-// input" for the dev run: an absolute path anchored on the AppHost's binary
-// directory (stable per build, independent of the cwd `aspire start` is invoked
-// from) so the dev database location does not depend on where the CLI was run.
+// Without ConnectionStrings:Board the API falls back to the per-user default
+// database, which is where a downloaded build keeps its board, not a dev
+// database. The orchestrator is the "told input" for the dev run: an absolute
+// path anchored on the AppHost's binary directory (stable per build, independent
+// of the cwd `aspire start` is invoked from) so the dev database location does not
+// depend on where the CLI was run.
 var devDataPath = Path.Combine(AppContext.BaseDirectory, "data", "collattice.db");
 
 // The API's endpoint and environment are declared here rather than read from its launch

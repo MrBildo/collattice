@@ -86,88 +86,13 @@ builder.Services.AddCors(options =>
     });
 });
 
-// The writable database location is a told input — never derived from the working
-// directory, the binary directory, or $HOME. ConnectionStrings:Board is required
-// configuration with no fallback; an absolute path is required. Misconfiguration
-// fails loud and early here, naming the key and the offending value, rather than
-// degrading to a cwd-relative guess that lands unpredictably under a hardened
-// deployment. Each actionable failure carries a copy-paste-ready remedy in
-// both forms a user might use — environment variable and appsettings.json — so a
-// manual-download user can fix it in one step.
-static string ExampleDbConnectionString() =>
-    OperatingSystem.IsWindows()
-        ? @"Data Source=C:\collattice\data\collattice.db"
-        : "Data Source=/var/lib/collattice/collattice.db";
-
-static string ConfigRemedy()
+// Where the database lives: the configured 'ConnectionStrings:Board', or a per-user default when none
+// is configured, decided by the same resolver --reset-admin-key uses. A location that can't be used
+// stops the app here, naming the path and the setting to change, before EF opens anything.
+if (!DatabaseLocation.TryResolve(builder.Configuration, out var database, out var databaseError)
+    || !DatabaseLocation.TryPrepare(database, out var createdNewDatabase, out databaseError))
 {
-    var example = ExampleDbConnectionString();
-    var jsonValue = example.Replace(@"\", @"\\", StringComparison.Ordinal);
-
-    return $$"""
-        To fix this, set 'ConnectionStrings:Board' to an absolute path in either form:
-
-          - Environment variable:
-              ConnectionStrings__Board={{example}}
-
-          - appsettings.json (next to the executable; edits survive upgrades via the smart-merge):
-              {
-                "ConnectionStrings": {
-                  "Board": "{{jsonValue}}"
-                }
-              }
-        """;
-}
-
-var connectionString = builder.Configuration.GetConnectionString("Board");
-if (string.IsNullOrWhiteSpace(connectionString))
-{
-    throw new InvalidOperationException
-    (
-        "Required configuration 'ConnectionStrings:Board' is not set. The application "
-        + "does not derive a database path from the working or binary directory.\n\n"
-        + ConfigRemedy()
-    );
-}
-
-var dbPath = new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder(connectionString).DataSource;
-
-// SQLite special data sources (`:memory:`, empty/temp) carry no filesystem path —
-// the in-memory test database relies on this. Real filesystem paths must be
-// absolute and writable; anything else fails loud here, before EF opens the DB.
-var isSpecialDataSource = string.IsNullOrEmpty(dbPath) || dbPath == ":memory:";
-if (!isSpecialDataSource)
-{
-    if (!Path.IsPathRooted(dbPath))
-    {
-        throw new InvalidOperationException
-        (
-            $"Configuration 'ConnectionStrings:Board' resolves to a relative data "
-            + $"source '{dbPath}'. An absolute path is required so the database "
-            + "location does not depend on the process working directory.\n\n"
-            + ConfigRemedy()
-        );
-    }
-
-    var dbDir = Path.GetDirectoryName(dbPath);
-    if (!string.IsNullOrEmpty(dbDir))
-    {
-        try
-        {
-            Directory.CreateDirectory(dbDir);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            throw new InvalidOperationException
-            (
-                $"The database directory '{dbDir}' (from 'ConnectionStrings:Board' "
-                + $"= '{dbPath}') could not be created or is not writable: {ex.Message}. "
-                + "Point 'ConnectionStrings:Board' at an absolute path the process "
-                + $"can write under this deployment's sandbox.\n\n{ConfigRemedy()}",
-                ex
-            );
-        }
-    }
+    throw new InvalidOperationException($"{databaseError}\n\n{DatabaseLocation.Remedy()}");
 }
 
 // EF Core logs through ExpectedSaveFailureLoggerFactory so a save failure the code declares it
@@ -175,7 +100,7 @@ if (!isSpecialDataSource)
 builder.Services.AddSingleton<ExpectedSaveFailureLoggerFactory>();
 
 builder.Services.AddDbContext<BoardDbContext>((serviceProvider, options) => options
-    .UseSqlite(connectionString)
+    .UseSqlite(database.ConnectionString)
     .AddInterceptors(SqliteBusyTimeoutInterceptor.Instance)
     .UseLoggerFactory(serviceProvider.GetRequiredService<ExpectedSaveFailureLoggerFactory>()));
 
@@ -312,17 +237,38 @@ builder.Services
 
 var app = builder.Build();
 
+// The default location is announced at warning level, so an operator whose service lost its configured
+// path can find out from the log why the board is empty, and where this start's data is going.
+if (database.IsDefault && createdNewDatabase)
+{
+    app.Logger.LogWarning
+    (
+        "Using the default database location {DatabasePath}, because no database path is configured. This start created a new, empty database there. To use a different database, set 'ConnectionStrings:Board' in appsettings.json or the 'ConnectionStrings__Board' environment variable.",
+        database.FilePath
+    );
+}
+else if (database.IsDefault)
+{
+    app.Logger.LogWarning
+    (
+        "Using the default database location {DatabasePath}, because no database path is configured. To use a different database, set 'ConnectionStrings:Board' in appsettings.json or the 'ConnectionStrings__Board' environment variable.",
+        database.FilePath
+    );
+}
+
 await using (var scope = app.Services.CreateAsyncScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<BoardDbContext>();
 
-    // Auto-backup SQLite DB before applying pending migrations
+    // Auto-backup SQLite DB before applying pending migrations. A new database is an empty file,
+    // created owner-only before SQLite opened it, and has nothing in it to back up.
     var pendingMigrations = await db.Database.GetPendingMigrationsAsync();
     if (pendingMigrations.Any())
     {
         var currentConnectionString = db.Database.GetConnectionString();
         var currentDbPath = new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder(currentConnectionString).DataSource;
-        if (File.Exists(currentDbPath))
+
+        if (File.Exists(currentDbPath) && new FileInfo(currentDbPath).Length > 0)
         {
             var backupPath = $"{currentDbPath}.bak-{DateTime.UtcNow.ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture)}";
             File.Copy(currentDbPath, backupPath);

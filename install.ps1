@@ -116,7 +116,8 @@ Get-ChildItem $sourceDir | ForEach-Object {
 # First install: copy the archive's shipped appsettings.json into place AND seed the
 # sidecar baseline (appsettings.shipped.json) so the next upgrade has a reference for
 # distinguishing operator-edited keys from untouched defaults. Then seed an absolute
-# ConnectionStrings:Board into appsettings.json (Collattice requires it; no default).
+# ConnectionStrings:Board into appsettings.json (the install's own data\ database, never
+# the app's per-user default).
 #
 # Upgrade: invoke `Collabot.Collattice.Api.exe --merge-appsettings <shipped> <ondisk> --baseline
 # <baseline>` to perform the three-way merge.
@@ -132,8 +133,8 @@ if (-not (Test-Path $appsettingsDst)) {
     Copy-Item -Path $shippedSrc -Destination $baselineDst -Force
     Write-Host "Seeded $appsettingsDst and $baselineDst from shipped defaults"
 
-    # Seed the absolute ConnectionStrings:Board into appsettings.json. Collattice requires
-    # this key with no default. PowerShell's native ConvertFrom-Json / ConvertTo-Json
+    # Seed the absolute ConnectionStrings:Board into appsettings.json, so the install uses
+    # its own data\ database rather than the app's per-user default. PowerShell's native ConvertFrom-Json / ConvertTo-Json
     # handles this without the python3/awk fallback chain the bash installer needs.
     try {
         $settings = Get-Content -Path $appsettingsDst -Raw | ConvertFrom-Json

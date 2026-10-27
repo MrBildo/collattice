@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Runtime.Versioning;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Shouldly;
@@ -19,6 +20,7 @@ public class AdminKeyResetCliTests : IAsyncLifetime
     public async Task InitializeAsync()
     {
         Directory.CreateDirectory(_scratchDir);
+        Directory.CreateDirectory(UserFolder);
         _databasePath = Path.Combine(_scratchDir, "collattice.db");
 
         await using var db = OpenDatabase();
@@ -50,7 +52,7 @@ public class AdminKeyResetCliTests : IAsyncLifetime
         var human = await AddUserAsync("Human", _humanKey, UserRole.HumanUser);
         var (stdout, stderr) = (new StringWriter(), new StringWriter());
 
-        var exit = await AdminKeyResetCli.RunAsync([], DatabaseConfiguration(), stdout, stderr);
+        var exit = await RunAsync([], DatabaseConfiguration(), stdout, stderr);
 
         exit.ShouldBe(AdminKeyResetCli.ExitOk);
         stderr.ToString().ShouldBeEmpty();
@@ -75,7 +77,7 @@ public class AdminKeyResetCliTests : IAsyncLifetime
         var second = await AddUserAsync("Second", _agentAdminKey, UserRole.Administrator);
         var (stdout, stderr) = (new StringWriter(), new StringWriter());
 
-        var exit = await AdminKeyResetCli.RunAsync([], DatabaseConfiguration(), stdout, stderr);
+        var exit = await RunAsync([], DatabaseConfiguration(), stdout, stderr);
 
         exit.ShouldBe(AdminKeyResetCli.ExitAdministratorAmbiguous);
         stdout.ToString().ShouldBeEmpty();
@@ -92,7 +94,7 @@ public class AdminKeyResetCliTests : IAsyncLifetime
         var second = await AddUserAsync("Second", _agentAdminKey, UserRole.Administrator);
         var (stdout, stderr) = (new StringWriter(), new StringWriter());
 
-        var exit = await AdminKeyResetCli.RunAsync([second.ToString()], DatabaseConfiguration(), stdout, stderr);
+        var exit = await RunAsync([second.ToString()], DatabaseConfiguration(), stdout, stderr);
 
         exit.ShouldBe(AdminKeyResetCli.ExitOk);
         (await KeyOfAsync(first)).ShouldBe(_adminKey);
@@ -107,7 +109,7 @@ public class AdminKeyResetCliTests : IAsyncLifetime
         var agentAdmin = await AddUserAsync("Agent", _agentAdminKey, UserRole.AgentAdministrator);
         var (stdout, stderr) = (new StringWriter(), new StringWriter());
 
-        var exit = await AdminKeyResetCli.RunAsync([agentAdmin.ToString()], DatabaseConfiguration(), stdout, stderr);
+        var exit = await RunAsync([agentAdmin.ToString()], DatabaseConfiguration(), stdout, stderr);
 
         exit.ShouldBe(AdminKeyResetCli.ExitNoAdministrator);
         stdout.ToString().ShouldBeEmpty();
@@ -120,7 +122,7 @@ public class AdminKeyResetCliTests : IAsyncLifetime
         var admin = await AddUserAsync("Admin", _adminKey, UserRole.Administrator, isActive: false);
         var (stdout, stderr) = (new StringWriter(), new StringWriter());
 
-        var exit = await AdminKeyResetCli.RunAsync([], DatabaseConfiguration(), stdout, stderr);
+        var exit = await RunAsync([], DatabaseConfiguration(), stdout, stderr);
 
         exit.ShouldBe(AdminKeyResetCli.ExitNoAdministrator);
         (await KeyOfAsync(admin)).ShouldBe(_adminKey);
@@ -132,7 +134,7 @@ public class AdminKeyResetCliTests : IAsyncLifetime
         var missingPath = Path.Combine(_scratchDir, "missing.db");
         var (stdout, stderr) = (new StringWriter(), new StringWriter());
 
-        var exit = await AdminKeyResetCli.RunAsync([], Configuration($"Data Source={missingPath}"), stdout, stderr);
+        var exit = await RunAsync([], Configuration($"Data Source={missingPath}"), stdout, stderr);
 
         exit.ShouldBe(AdminKeyResetCli.ExitDatabaseUnavailable);
         stderr.ToString().ShouldContain(missingPath);
@@ -140,17 +142,82 @@ public class AdminKeyResetCliTests : IAsyncLifetime
     }
 
     [Theory]
-    [InlineData(null)]
     [InlineData("Data Source=:memory:")]
     [InlineData("Data Source=relative/collattice.db")]
-    public async Task RunAsync_ConnectionStringUnsetOrNotAnAbsoluteFile_FailsBeforeOpeningAnything(string? connectionString)
+    public async Task RunAsync_ConnectionStringNotAnAbsoluteFile_FailsBeforeOpeningAnything(string connectionString)
     {
         var (stdout, stderr) = (new StringWriter(), new StringWriter());
 
-        var exit = await AdminKeyResetCli.RunAsync([], Configuration(connectionString), stdout, stderr);
+        var exit = await RunAsync([], Configuration(connectionString), stdout, stderr);
 
         exit.ShouldBe(AdminKeyResetCli.ExitDatabaseUnavailable);
         stderr.ToString().ShouldContain("ConnectionStrings");
+    }
+
+    [Fact]
+    public async Task RunAsync_NothingConfiguredAndNoDefaultDatabase_FailsWithoutCreatingTheFolder()
+    {
+        var (stdout, stderr) = (new StringWriter(), new StringWriter());
+
+        var exit = await RunAsync([], Configuration(null), stdout, stderr);
+
+        (exit, Directory.Exists(DefaultFolder)).ShouldBe((AdminKeyResetCli.ExitDatabaseUnavailable, false));
+        stderr.ToString().ShouldContain($"there is no default database '{DefaultPath}'", Case.Sensitive);
+    }
+
+    [Fact]
+    public async Task RunAsync_NothingConfiguredAndNoUserFolder_FailsNamingTheSetting()
+    {
+        var (stdout, stderr) = (new StringWriter(), new StringWriter());
+
+        var exit = await AdminKeyResetCli.RunAsync([], Configuration(null), () => string.Empty, stdout, stderr);
+
+        exit.ShouldBe(AdminKeyResetCli.ExitDatabaseUnavailable);
+        stderr.ToString().ShouldContain("'ConnectionStrings:Board' is not set", Case.Sensitive);
+    }
+
+    // The command opens the database the app would open, so with nothing configured that is the default.
+    [Fact]
+    public async Task RunAsync_NothingConfigured_ResetsTheKeyInTheDefaultDatabase()
+    {
+        _databasePath = DefaultPath;
+        Directory.CreateDirectory(DefaultFolder);
+
+        await using (var db = OpenDatabase())
+        {
+            await db.Database.MigrateAsync();
+        }
+
+        var admin = await AddUserAsync("Admin", _adminKey, UserRole.Administrator);
+        var (stdout, stderr) = (new StringWriter(), new StringWriter());
+
+        var exit = await RunAsync([], Configuration(null), stdout, stderr);
+
+        (exit, await KeyOfAsync(admin) != _adminKey).ShouldBe((AdminKeyResetCli.ExitOk, true), stderr.ToString());
+        stdout.ToString().ShouldContain($"reset-admin-key: database {DefaultPath}", Case.Sensitive);
+    }
+
+    [UnixFact]
+    [UnsupportedOSPlatform("windows")]
+    public async Task RunAsync_NothingConfiguredAndTheDefaultFolderOtherUsersCanWrite_ChangesNothing()
+    {
+        _databasePath = DefaultPath;
+        Directory.CreateDirectory(DefaultFolder);
+
+        await using (var db = OpenDatabase())
+        {
+            await db.Database.MigrateAsync();
+        }
+
+        var admin = await AddUserAsync("Admin", _adminKey, UserRole.Administrator);
+        File.SetUnixFileMode(DefaultFolder, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute | UnixFileMode.OtherRead | UnixFileMode.OtherWrite | UnixFileMode.OtherExecute);
+
+        var (stdout, stderr) = (new StringWriter(), new StringWriter());
+
+        var exit = await RunAsync([], Configuration(null), stdout, stderr);
+
+        (exit, await KeyOfAsync(admin)).ShouldBe((AdminKeyResetCli.ExitDatabaseUnavailable, _adminKey));
+        stderr.ToString().ShouldContain("can be written by other users", Case.Sensitive);
     }
 
     [Fact]
@@ -160,7 +227,7 @@ public class AdminKeyResetCliTests : IAsyncLifetime
         await File.WriteAllBytesAsync(otherPath, []);
         var (stdout, stderr) = (new StringWriter(), new StringWriter());
 
-        var exit = await AdminKeyResetCli.RunAsync([], Configuration($"Data Source={otherPath}"), stdout, stderr);
+        var exit = await RunAsync([], Configuration($"Data Source={otherPath}"), stdout, stderr);
 
         exit.ShouldBe(AdminKeyResetCli.ExitDatabaseUnavailable);
         stdout.ToString().ShouldBeEmpty();
@@ -174,12 +241,23 @@ public class AdminKeyResetCliTests : IAsyncLifetime
         var admin = await AddUserAsync("Admin", _adminKey, UserRole.Administrator);
         var (stdout, stderr) = (new StringWriter(), new StringWriter());
 
-        var exit = await AdminKeyResetCli.RunAsync([argument], DatabaseConfiguration(), stdout, stderr);
+        var exit = await RunAsync([argument], DatabaseConfiguration(), stdout, stderr);
 
         exit.ShouldBe(AdminKeyResetCli.ExitUsage);
         stderr.ToString().ShouldContain("usage:");
         (await KeyOfAsync(admin)).ShouldBe(_adminKey);
     }
+
+    // The default database would be in this folder, under the test's own temporary folder; the
+    // command is never handed the real user folder.
+    private string UserFolder => Path.Combine(_scratchDir, "user");
+
+    private string DefaultFolder => Path.Combine(UserFolder, OperatingSystem.IsWindows() ? "Collattice" : ".collattice");
+
+    private string DefaultPath => Path.Combine(DefaultFolder, "collattice.db");
+
+    private Task<int> RunAsync(string[] args, IConfiguration configuration, StringWriter stdout, StringWriter stderr) =>
+        AdminKeyResetCli.RunAsync(args, configuration, () => UserFolder, stdout, stderr);
 
     private BoardDbContext OpenDatabase() =>
         new(new DbContextOptionsBuilder<BoardDbContext>().UseSqlite($"Data Source={_databasePath}").Options);
