@@ -62,7 +62,7 @@ public class CommentTools(BoardDbContext db, McpAuthService auth, BoardEventBroa
         await db.SaveChangesAsync(ct);
 
         // comment.created — REST/MCP emit the identical event through the shared factory.
-        await WebhookEventFactory.PublishCommentCreatedAsync(db, broadcaster, comment, user!, ct);
+        await WebhookEventFactory.PublishCommentCreatedAsync(db, broadcaster, comment, user, ct);
         return JsonSerializer.Serialize(comment, JsonSerializerOptions.Web);
     }
 
@@ -110,7 +110,7 @@ public class CommentTools(BoardDbContext db, McpAuthService auth, BoardEventBroa
         await db.SaveChangesAsync(ct);
 
         // comment.updated — REST/MCP emit the identical event through the shared factory.
-        await WebhookEventFactory.PublishCommentUpdatedAsync(db, broadcaster, comment, user!, ct);
+        await WebhookEventFactory.PublishCommentUpdatedAsync(db, broadcaster, comment, user, ct);
         return JsonSerializer.Serialize(comment, JsonSerializerOptions.Web);
     }
 
@@ -151,7 +151,7 @@ public class CommentTools(BoardDbContext db, McpAuthService auth, BoardEventBroa
         await db.SaveChangesAsync(ct);
 
         // comment.deleted — published from the captured comment after the row is gone.
-        await WebhookEventFactory.PublishCommentDeletedAsync(db, broadcaster, comment, user!, ct);
+        await WebhookEventFactory.PublishCommentDeletedAsync(db, broadcaster, comment, user, ct);
         return "Comment deleted.";
     }
 }

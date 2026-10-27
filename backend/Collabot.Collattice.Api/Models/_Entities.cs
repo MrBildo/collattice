@@ -18,8 +18,12 @@ public class Board
     public string Slug { get; set; } = string.Empty;
     public DateTimeOffset CreatedAtUtc { get; set; }
 
+    // One negated character class under one quantifier matches in linear time, with nothing to
+    // backtrack into, so a timeout would add a failure mode and guard against nothing.
+#pragma warning disable S6444, MA0009 // Regular expressions should not be vulnerable to Denial of Service attacks
     public static string GenerateSlug(string name) =>
         Regex.Replace(name.ToLowerInvariant(), @"[^a-z0-9]+", "-").Trim('-');
+#pragma warning restore S6444, MA0009
 }
 
 public class BoardUser

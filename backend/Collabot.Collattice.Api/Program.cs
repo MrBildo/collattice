@@ -421,10 +421,15 @@ app.UseConcurrentDeleteConflict();
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
+
+    // The open policy applies only in the Development environment; every other environment
+    // takes the configured allow-list policy in the else branch.
+#pragma warning disable S5122 // Having a permissive Cross-Origin Resource Sharing policy is security-sensitive
     app.UseCors(policy => policy
         .AllowAnyOrigin()
         .AllowAnyMethod()
         .AllowAnyHeader());
+#pragma warning restore S5122
 }
 else
 {

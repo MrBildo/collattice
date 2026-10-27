@@ -317,9 +317,17 @@ dotnet_diagnostic.S3220.severity = none
 dotnet_diagnostic.S3267.severity = none
 dotnet_diagnostic.S3358.severity = none
 dotnet_diagnostic.S4487.severity = error
+# Every site of these is fixed, or narrowly suppressed beside its reason
+dotnet_diagnostic.S3241.severity = error
+dotnet_diagnostic.S5122.severity = error
+dotnet_diagnostic.S5332.severity = error
+dotnet_diagnostic.S6444.severity = error
+dotnet_diagnostic.S8969.severity = error
 
 # Meziantou
 dotnet_diagnostic.MA0001.severity = error
+dotnet_diagnostic.MA0002.severity = error
+dotnet_diagnostic.MA0009.severity = error
 dotnet_diagnostic.MA0004.severity = none
 dotnet_diagnostic.MA0006.severity = none
 dotnet_diagnostic.MA0003.severity = none

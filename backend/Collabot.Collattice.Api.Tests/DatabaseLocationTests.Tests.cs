@@ -85,9 +85,9 @@ public sealed class DatabaseLocationTests : IDisposable
     {
         DatabaseLocation.TryResolve(Configuration("Data Source=:memory:"), () => _userFolder, out var database, out _).ShouldBeTrue();
 
-        var prepared = DatabaseLocation.TryPrepare(database!, out var createdNew, out var error);
+        var prepared = DatabaseLocation.TryPrepare(database, out var createdNew, out var error);
 
-        (prepared, createdNew, database!.FilePath, error).ShouldBe((true, false, null, null));
+        (prepared, createdNew, database.FilePath, error).ShouldBe((true, false, null, null));
     }
 
     [Fact]
@@ -109,7 +109,7 @@ public sealed class DatabaseLocationTests : IDisposable
 
         DatabaseLocation.TryResolve(Configuration($"Data Source={configured}"), () => _userFolder, out var database, out _).ShouldBeTrue();
 
-        var prepared = DatabaseLocation.TryPrepare(database!, out var createdNew, out var error);
+        var prepared = DatabaseLocation.TryPrepare(database, out var createdNew, out var error);
 
         (prepared, createdNew, error, File.Exists(configured), Directory.Exists(DefaultFolder)).ShouldBe((true, true, null, true, false));
     }
@@ -176,7 +176,7 @@ public sealed class DatabaseLocationTests : IDisposable
         var dataFolder = Path.Combine(_root, "srv", "data");
 
         DatabaseLocation.TryResolve(Configuration($"Data Source={Path.Combine(dataFolder, "collattice.db")}"), () => _userFolder, out var database, out _).ShouldBeTrue();
-        DatabaseLocation.TryPrepare(database!, out _, out _).ShouldBeTrue();
+        DatabaseLocation.TryPrepare(database, out _, out _).ShouldBeTrue();
 
         (File.GetUnixFileMode(Path.Combine(_root, "srv")), File.GetUnixFileMode(dataFolder)).ShouldBe((_ownerOnlyFolder, _ownerOnlyFolder));
     }
@@ -225,7 +225,7 @@ public sealed class DatabaseLocationTests : IDisposable
 
         DatabaseLocation.TryResolve(Configuration($"Data Source={Path.Combine(shared, "collattice.db")}"), () => _userFolder, out var database, out _).ShouldBeTrue();
 
-        DatabaseLocation.TryPrepare(database!, out var createdNew, out var error).ShouldBeTrue(error);
+        DatabaseLocation.TryPrepare(database, out var createdNew, out var error).ShouldBeTrue(error);
         createdNew.ShouldBeTrue();
     }
 
@@ -288,7 +288,7 @@ public sealed class DatabaseLocationTests : IDisposable
     {
         DatabaseLocation.TryResolve(Configuration(null), () => _userFolder, out var database, out var error).ShouldBeTrue(error);
 
-        return database!;
+        return database;
     }
 
     private static IConfiguration Configuration(string? connectionString) =>

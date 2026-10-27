@@ -99,7 +99,7 @@ public class OnboardingSeedParityTests(CollatticeApiFactory factory) : IClassFix
         // Assert — every path carries exactly the starter set, byte-for-byte
         var expected = _expectedStarterLabels
             .Select(l => new ValueTuple<string, string?>(l.Name, l.Color))
-            .OrderBy(l => l.Item1)
+            .OrderBy(l => l.Item1, StringComparer.Ordinal)
             .ToList();
 
         installLabels.ShouldBe(expected);

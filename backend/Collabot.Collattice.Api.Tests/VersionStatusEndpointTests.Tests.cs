@@ -66,7 +66,7 @@ public class VersionStatusEndpointTests
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         response.Headers.CacheControl.ShouldNotBeNull();
-        response.Headers.CacheControl!.NoStore.ShouldBeTrue();
+        response.Headers.CacheControl.NoStore.ShouldBeTrue();
 
         var json = await response.Content.ReadFromJsonAsync<JsonElement>(TestAuthHelper.JsonOptions);
         json.TryGetProperty("current", out _).ShouldBeTrue();

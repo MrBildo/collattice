@@ -87,7 +87,7 @@ public class BulkCardTools(BoardDbContext db, McpAuthService auth, BoardEventBro
             },
             afterSave: async succeededCards =>
             {
-                foreach (var archived in await WebhookEventFactory.BuildCardArchivedBatchAsync(db, succeededCards, user!, ct))
+                foreach (var archived in await WebhookEventFactory.BuildCardArchivedBatchAsync(db, succeededCards, user, ct))
                 {
                     webhookSink.Enqueue(archived);
                 }
@@ -157,7 +157,7 @@ public class BulkCardTools(BoardDbContext db, McpAuthService auth, BoardEventBro
             beforeSave: succeededCards => CardReorderHelper.MoveCardsToLaneAsync(db, succeededCards, targetLaneId, 0, ct),
             afterSave: async succeededCards =>
             {
-                foreach (var restored in await WebhookEventFactory.BuildCardRestoredBatchAsync(db, succeededCards, user!, ct))
+                foreach (var restored in await WebhookEventFactory.BuildCardRestoredBatchAsync(db, succeededCards, user, ct))
                 {
                     webhookSink.Enqueue(restored);
                 }

@@ -431,7 +431,7 @@ public partial class DraftVisibilityTests(CollatticeApiFactory factory) : IClass
         return data;
     }
 
-    [GeneratedRegex(@"^/api/v\d+/(cards|comments|attachments)/\{id")]
+    [GeneratedRegex(@"^/api/v\d+/(cards|comments|attachments)/\{id", RegexOptions.ExplicitCapture, 1000)]
     private static partial Regex IdRoute { get; }
 
     private sealed record SeededDraft

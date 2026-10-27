@@ -2043,7 +2043,7 @@ public class CardEndpointTests(CollatticeApiFactory factory) : IClassFixture<Col
         var cards = paged!.Items;
 
         // Assert
-        var card = cards!.First(c => c.GetProperty("id").GetGuid() == cardId);
+        var card = cards.First(c => c.GetProperty("id").GetGuid() == cardId);
         card.GetProperty("sizeName").GetString().ShouldBe("L");
         card.GetProperty("sizeId").GetGuid().ShouldBe(sizeId);
     }
@@ -2090,7 +2090,7 @@ public class CardEndpointTests(CollatticeApiFactory factory) : IClassFixture<Col
         var cards = paged!.Items;
 
         // Assert
-        var card = cards!.First(c => c.GetProperty("id").GetGuid() == cardId);
+        var card = cards.First(c => c.GetProperty("id").GetGuid() == cardId);
         var labels = card.GetProperty("labels");
         labels.GetArrayLength().ShouldBe(2);
 
@@ -2135,7 +2135,7 @@ public class CardEndpointTests(CollatticeApiFactory factory) : IClassFixture<Col
         var cards = paged!.Items;
 
         // Assert
-        var card = cards!.First(c => c.GetProperty("id").GetGuid() == cardId);
+        var card = cards.First(c => c.GetProperty("id").GetGuid() == cardId);
         card.GetProperty("commentCount").GetInt32().ShouldBe(2);
     }
 
@@ -2168,7 +2168,7 @@ public class CardEndpointTests(CollatticeApiFactory factory) : IClassFixture<Col
         var cards = paged!.Items;
 
         // Assert
-        var card = cards!.First(c => c.GetProperty("id").GetGuid() == cardId);
+        var card = cards.First(c => c.GetProperty("id").GetGuid() == cardId);
         card.GetProperty("attachmentCount").GetInt32().ShouldBe(1);
     }
 
@@ -2316,13 +2316,13 @@ public class CardEndpointTests(CollatticeApiFactory factory) : IClassFixture<Col
         var cards = paged!.Items;
 
         // Assert
-        var cardA = cards!.First(c => c.GetProperty("id").GetGuid() == cardAId);
+        var cardA = cards.First(c => c.GetProperty("id").GetGuid() == cardAId);
         cardA.GetProperty("labels").GetArrayLength().ShouldBe(1);
         cardA.GetProperty("commentCount").GetInt32().ShouldBe(2);
         cardA.GetProperty("attachmentCount").GetInt32().ShouldBe(0);
         cardA.GetProperty("sizeName").GetString().ShouldNotBe("?");
 
-        var cardB = cards!.First(c => c.GetProperty("id").GetGuid() == cardBId);
+        var cardB = cards.First(c => c.GetProperty("id").GetGuid() == cardBId);
         cardB.GetProperty("labels").GetArrayLength().ShouldBe(0);
         cardB.GetProperty("commentCount").GetInt32().ShouldBe(0);
         cardB.GetProperty("attachmentCount").GetInt32().ShouldBe(0);
