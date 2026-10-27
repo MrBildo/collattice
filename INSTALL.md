@@ -66,6 +66,11 @@ Collattice uses `appsettings.json` for configuration. Edit it directly next to
 the executable; your edits are preserved across upgrades via the smart-merge
 performed by the installer.
 
+The app reads `appsettings.json`, and serves the Portal from `wwwroot/`, in its
+own folder, whichever folder you start it from. To keep them in another folder,
+name it with the standard `ASPNETCORE_CONTENTROOT` environment variable or the
+`--contentRoot <folder>` argument.
+
 | Setting | Default | Description |
 |---------|---------|-------------|
 | `Urls` | *(unset)* | Convenience override for bind address and port. When set (or `ASPNETCORE_URLS` is set), wins over `Hosting:ListenAddress`/`Hosting:ListenPort`. |
@@ -214,11 +219,13 @@ runs on:
   log lines rather than a key, stop it with Ctrl+C.
 - **Run it in your own terminal,** not through the process supervisor or a job whose output is
   recorded, or the new key lands in that log.
-- **Run it with the configuration the app runs with.** Run it from the install directory. It reads
-  `ConnectionStrings:Board` from `appsettings.json` and environment variables the same way the app
+- **Run it with the configuration the app runs with.** It reads `ConnectionStrings:Board` from the
+  `appsettings.json` beside the executable and from environment variables, the same way the app
   does, so if your process supervisor sets the database path through an environment variable
-  (`ConnectionStrings__Board`), set the same variable for the command. The command prints the
-  database it changed. It never creates a database: a wrong or missing path is an error.
+  (`ConnectionStrings__Board`), set the same variable for the command. If the app reads its
+  settings from another folder, name that folder with `ASPNETCORE_CONTENTROOT` for the command:
+  it does not accept `--contentRoot`. The command prints the database it changed. It never creates
+  a database: a wrong or missing path is an error.
 - **The new key is printed once, to your terminal.** It is never written to the app's log. Store it
   straight away.
 - **The old key stops working at once.** The app can stay running; no restart is needed. Sign in

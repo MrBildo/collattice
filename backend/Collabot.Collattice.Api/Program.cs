@@ -25,16 +25,19 @@ if (args.Length > 0 && args[0] == "--merge-appsettings")
 
 // Operator-invoked subcommand: give an Administrator a new auth key, printed once to this terminal.
 // It reads the configuration the app reads (appsettings.json and environment variables, in the same
-// order) but never builds the host, so the key does not pass through the app's logging.
+// order, from the same folder) but never builds the host, so the key does not pass through the app's
+// logging. Its own arguments are not host arguments, so none are passed on.
 if (args.Length > 0 && args[0] == "--reset-admin-key")
 {
-    var resetConfiguration = WebApplication.CreateBuilder().Configuration;
+    var resetConfiguration = WebApplication.CreateBuilder(ContentRootResolver.CreateBuilderOptions([])).Configuration;
     resetConfiguration.AddEnvironmentVariables();
 
     Environment.Exit(await AdminKeyResetCli.RunAsync(args[1..], resetConfiguration, Console.Out, Console.Error));
 }
 
-var builder = WebApplication.CreateBuilder(args);
+// appsettings.json and the web files are read from the program's own folder, whichever folder the
+// program is started from; an explicitly named content root still wins.
+var builder = WebApplication.CreateBuilder(ContentRootResolver.CreateBuilderOptions(args));
 
 // WebApplication.CreateBuilder adds an env-var provider at builder-construction time. The
 // re-add below ensures env vars sit at the top of the provider chain even if a future JSON
