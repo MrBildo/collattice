@@ -100,7 +100,7 @@ public class OnboardingSeedParityTests(CollatticeApiFactory factory) : IClassFix
         var expected = _expectedStarterLabels
             .Select(l => new ValueTuple<string, string?>(l.Name, l.Color))
             .OrderBy(l => l.Item1, StringComparer.Ordinal)
-            .ToList();
+                .ToList();
 
         installLabels.ShouldBe(expected);
         restLabels.ShouldBe(expected);
