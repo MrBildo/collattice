@@ -260,13 +260,14 @@ await using (var scope = app.Services.CreateAsyncScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<BoardDbContext>();
 
-    // Auto-backup SQLite DB before applying pending migrations
+    // Auto-backup SQLite DB before applying pending migrations. A new database is an empty file,
+    // created owner-only before SQLite opened it, and has nothing in it to back up.
     var pendingMigrations = await db.Database.GetPendingMigrationsAsync();
     if (pendingMigrations.Any())
     {
         var currentConnectionString = db.Database.GetConnectionString();
         var currentDbPath = new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder(currentConnectionString).DataSource;
-        if (File.Exists(currentDbPath))
+        if (File.Exists(currentDbPath) && new FileInfo(currentDbPath).Length > 0)
         {
             var backupPath = $"{currentDbPath}.bak-{DateTime.UtcNow.ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture)}";
             File.Copy(currentDbPath, backupPath);

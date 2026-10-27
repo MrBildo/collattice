@@ -23,16 +23,18 @@ public class ContentRootResolverTests(InstalledAppFixture installed) : IClassFix
         var startup = await InstalledAppFixture.StartAsync(_installed.StartInfo(startFolder, "Production"));
 
         // The configured path is the one used, and the per-user default is never created beside it. On
-        // macOS and Linux the default would be under the home folder the fixture gives the program.
+        // macOS and Linux the default would be under the home folder the fixture gives the program. A new
+        // database has nothing to back up before its first migration, so no backup is left beside it.
         var observed =
         (
             Normalize(startup.ContentRoot),
             File.Exists(_installed.DatabasePath),
             File.Exists(startFolderDatabasePath),
-            Directory.Exists(Path.Combine(_installed.HomeFolder, ".collattice"))
+            Directory.Exists(Path.Combine(_installed.HomeFolder, ".collattice")),
+            Directory.GetFiles(Path.GetDirectoryName(_installed.DatabasePath)!, "collattice.db.bak-*").Length
         );
 
-        observed.ShouldBe((Normalize(_installed.ProgramFolder), true, false, false), startup.Errors);
+        observed.ShouldBe((Normalize(_installed.ProgramFolder), true, false, false, 0), startup.Errors);
     }
 
     [Theory]

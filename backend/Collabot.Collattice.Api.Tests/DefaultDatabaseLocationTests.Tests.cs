@@ -39,10 +39,11 @@ public class DefaultDatabaseLocationTests(UnconfiguredAppFixture installed) : IC
             first.Output.Contains(_settingsLine, StringComparison.Ordinal),
             first.Output.Contains("Admin auth key:", StringComparison.Ordinal),
             File.GetUnixFileMode(folder),
-            File.GetUnixFileMode(databasePath)
+            File.GetUnixFileMode(databasePath),
+            Directory.GetFiles(folder, "collattice.db.bak-*").Length
         );
 
-        firstObserved.ShouldBe((true, true, true, true, true, _ownerOnlyFolder, _ownerOnlyFile), first.Output + first.Errors);
+        firstObserved.ShouldBe((true, true, true, true, true, _ownerOnlyFolder, _ownerOnlyFile, 0), first.Output + first.Errors);
 
         // A second start finds the same board: no new database, no new administrator, no new key.
         var second = await InstalledAppFixture.StartAsync(StartInfo(home));
