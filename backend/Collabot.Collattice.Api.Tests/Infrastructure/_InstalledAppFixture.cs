@@ -249,6 +249,9 @@ public class InstalledAppFixture : IDisposable
 
 // The same layout as an installer's install, but with the shipped appsettings.json left as it is: no
 // database path, as in a release archive someone downloads and runs.
+//
+// Sealed because the base class's Dispose is not virtual: a derived class could add state that
+// nothing would dispose.
 public sealed class UnconfiguredAppFixture : InstalledAppFixture
 {
     public UnconfiguredAppFixture()

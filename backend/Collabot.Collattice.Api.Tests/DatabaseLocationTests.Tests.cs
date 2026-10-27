@@ -6,6 +6,8 @@ namespace Collabot.Collattice.Api.Tests;
 
 // Where the database lives when a path is configured and when none is. Every test hands the resolver a
 // temporary folder as the user's base folder, so none of them reads or writes the real one.
+//
+// Sealed so the plain IDisposable shape below is complete; no derived class can add state to dispose.
 public sealed class DatabaseLocationTests : IDisposable
 {
     private const UnixFileMode _ownerOnlyFolder = UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute;

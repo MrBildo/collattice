@@ -138,6 +138,7 @@ internal static class DatabaseLocation
         }
 
         var folder = Path.GetDirectoryName(filePath);
+
         if (string.IsNullOrEmpty(folder))
         {
             error = $"The {Describe(database)} has no folder.";
