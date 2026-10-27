@@ -15,6 +15,8 @@ jobs:
       - uses: actions/setup-dotnet@v5
         with:
           global-json-file: global.json
+      - name: SDK in use
+        run: dotnet --version
       - name: Restore
         run: dotnet restore backend/Collabot.Collattice.slnx
       # Known security advisories against the backend's NuGet packages, direct and
@@ -44,7 +46,7 @@ jobs:
   # on the floor's band, so the floor is a checked fact rather than a hope. The
   # band comes from global.json itself, so moving the floor moves this job with it.
   backend-sdk-floor:
-    name: Backend (oldest SDK allowed)
+    name: Backend (SDK floor's feature band)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -146,6 +148,9 @@ jobs:
       - uses: actions/setup-dotnet@v5
         with:
           global-json-file: global.json
+
+      - name: SDK in use
+        run: dotnet --version
 
       - uses: actions/setup-node@v5
         with:

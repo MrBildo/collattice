@@ -21,12 +21,21 @@
 # bundle sourcemaps) lands in a scratch directory that is removed on exit, so the
 # working tree is left with those two edits and no residue.
 #
-# It deliberately leaves the SDK line in global.json alone. That line is a floor, the
-# oldest SDK feature band the repository builds and passes its tests with (CI checks
-# it on that band), not a tracked version. The runtime packs this pin selects are downloaded from NuGet rather than
-# taken from the installed SDK, so a runtime bump does not need a newer SDK, and
-# raising the floor in step with the runtime would only make every developer install
-# a new SDK each month.
+# It deliberately leaves the SDK line in global.json alone. That line is a build
+# floor, the oldest SDK feature band the repository builds with (CI builds and tests
+# on that band's newest patch), not a tracked version. It cannot track the runtime
+# either: each feature band carries a given runtime at a different patch number
+# (10.0.114 and 10.0.403 both carry runtime 10.0.14), so no single floor can say
+# "has runtime X".
+#
+# What a runtime bump asks of a developer's machine. Building: with Microsoft's SDK,
+# the runtime packs this pin selects are downloaded from NuGet rather than taken
+# from the installed SDK, so an older SDK still builds. A distribution's own SDK,
+# such as Ubuntu's, is the exception: it names the machine by the distribution, the
+# app launcher for that name exists only inside that SDK at that SDK's own runtime,
+# and so it cannot build while its runtime is older than the pin. Running: the API,
+# and the tests that start it, need the pinned runtime installed, whichever SDK
+# built them. A current SDK patch release is what usually brings it.
 #
 # Usage:
 #   bump-runtime.sh <version>
