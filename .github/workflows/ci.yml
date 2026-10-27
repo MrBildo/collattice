@@ -14,7 +14,9 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: '10.0.x'
+          global-json-file: global.json
+      - name: SDK in use
+        run: dotnet --version
       - name: Restore
         run: dotnet restore backend/Collabot.Collattice.slnx
       # Known security advisories against the backend's NuGet packages, direct and
@@ -31,6 +33,52 @@ jobs:
         # Default severity (warn) would also fail on the deferred warning-level
         # nudges, which belong to the separate recurring suggestion-resolution
         # gate, not this gate (#208).
+        run: dotnet format backend/Collabot.Collattice.slnx --verify-no-changes --no-restore --severity error
+      - name: Build
+        run: dotnet build backend/Collabot.Collattice.slnx --no-restore --no-incremental
+      - name: Test
+        run: dotnet test backend/ --no-build --verbosity normal
+
+  # global.json sets a floor, the oldest SDK allowed to build the repo, and every
+  # other job builds with the newest SDK above it. SDK feature bands ship different
+  # built-in analyzers, and the code-style rules run at error, so code the newest
+  # band accepts can fail to build on the floor's band. This job builds and tests
+  # on the floor's band, so the floor is a checked fact rather than a hope. The
+  # band comes from global.json itself, so moving the floor moves this job with it.
+  backend-sdk-floor:
+    name: Backend (SDK floor's feature band)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Read the SDK floor
+        id: floor
+        run: |
+          set -euo pipefail
+          floor="$(jq -r '.sdk.version' global.json)"
+          band="${floor%??}xx"
+          echo "global.json floor ${floor}, feature band ${band}"
+          echo "band=${band}" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ steps.floor.outputs.band }}
+      # With rollForward latestFeature, the SDK resolver picks the newest SDK on
+      # the runner, which is not the floor's band. latestPatch keeps it inside
+      # the floor's band. The change lives only in this job's checkout.
+      - name: Select the floor's band
+        run: |
+          set -euo pipefail
+          jq '.sdk.rollForward = "latestPatch"' global.json > global.json.tmp
+          mv global.json.tmp global.json
+          sdk="$(dotnet --version)"
+          echo "SDK in use: ${sdk}"
+          floor="$(jq -r '.sdk.version' global.json)"
+          if [[ "${sdk%??}" != "${floor%??}" ]]; then
+            echo "::error::SDK ${sdk} is not in the floor's band (${floor%??}xx)"
+            exit 1
+          fi
+      - name: Restore
+        run: dotnet restore backend/Collabot.Collattice.slnx
+      - name: Format
         run: dotnet format backend/Collabot.Collattice.slnx --verify-no-changes --no-restore --severity error
       - name: Build
         run: dotnet build backend/Collabot.Collattice.slnx --no-restore --no-incremental
@@ -99,7 +147,10 @@ jobs:
 
       - uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: '10.0.x'
+          global-json-file: global.json
+
+      - name: SDK in use
+        run: dotnet --version
 
       - uses: actions/setup-node@v5
         with:
