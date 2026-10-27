@@ -244,8 +244,10 @@ public class CardEndpointTests(CollatticeApiFactory factory) : IClassFixture<Col
         await _client.PostAsJsonAsync($"/api/v1/cards/{cardId}/comments", new { contentMarkdown = "Test comment" });
 
         // Add an attachment
-        using var attachContent = new MultipartFormDataContent();
-        attachContent.Add(new ByteArrayContent([1, 2, 3]), "file", "test.txt");
+        using var attachContent = new MultipartFormDataContent
+        {
+            { new ByteArrayContent([1, 2, 3]), "file", "test.txt" },
+        };
         await _client.PostAsync($"/api/v1/cards/{cardId}/attachments", attachContent);
 
         // Act
@@ -1409,8 +1411,10 @@ public class CardEndpointTests(CollatticeApiFactory factory) : IClassFixture<Col
         await _client.PostAsJsonAsync($"/api/v1/cards/{cardId}/comments", new { contentMarkdown = "MCP test comment" });
 
         // Add an attachment via REST
-        using var attachContent = new MultipartFormDataContent();
-        attachContent.Add(new ByteArrayContent([1, 2, 3]), "file", "data.csv");
+        using var attachContent = new MultipartFormDataContent
+        {
+            { new ByteArrayContent([1, 2, 3]), "file", "data.csv" },
+        };
         await _client.PostAsync($"/api/v1/cards/{cardId}/attachments", attachContent);
 
         // Act
@@ -2157,8 +2161,10 @@ public class CardEndpointTests(CollatticeApiFactory factory) : IClassFixture<Col
         var created = await createResponse.Content.ReadFromJsonAsync<JsonElement>();
         var cardId = created.GetProperty("id").GetGuid();
 
-        using var attachContent = new MultipartFormDataContent();
-        attachContent.Add(new ByteArrayContent([1, 2, 3]), "file", "file1.txt");
+        using var attachContent = new MultipartFormDataContent
+        {
+            { new ByteArrayContent([1, 2, 3]), "file", "file1.txt" },
+        };
         await _client.PostAsync($"/api/v1/cards/{cardId}/attachments", attachContent);
 
         // Act
