@@ -64,16 +64,29 @@ if [ "${INSTALL_KIND}" = "existing" ]; then
 fi
 echo
 
-# Get latest release tag from GitHub API
-echo "Fetching latest release..."
-RELEASE_TAG=$(curl -sSf "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name"' | sed -E 's/.*"([^"]+)".*/\1/')
+# COLLATTICE_VERSION optionally pins the release to install (for example v3.1.0,
+# or a pre-release such as v3.2.0-rc.1). Unset, the latest release is installed.
+# GitHub's "latest release" never points at a pre-release, so the pin is also how
+# a release candidate gets installed.
+if [ -n "${COLLATTICE_VERSION:-}" ]; then
+    if [[ ! "${COLLATTICE_VERSION}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
+        echo "COLLATTICE_VERSION '${COLLATTICE_VERSION}' is not a release tag (expected vX.Y.Z or vX.Y.Z-<pre-release>)." >&2
+        exit 1
+    fi
+    RELEASE_TAG="${COLLATTICE_VERSION}"
+    echo "Requested release: ${RELEASE_TAG}"
+else
+    # Get latest release tag from GitHub API
+    echo "Fetching latest release..."
+    RELEASE_TAG=$(curl -sSf "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name"' | sed -E 's/.*"([^"]+)".*/\1/')
 
-if [ -z "$RELEASE_TAG" ]; then
-    echo "Failed to fetch latest release." >&2
-    exit 1
+    if [ -z "$RELEASE_TAG" ]; then
+        echo "Failed to fetch latest release." >&2
+        exit 1
+    fi
+
+    echo "Latest release: ${RELEASE_TAG}"
 fi
-
-echo "Latest release: ${RELEASE_TAG}"
 
 # Download artifact
 DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${RELEASE_TAG}/${ARTIFACT_NAME}.tar.gz"
@@ -114,7 +127,8 @@ chmod +x "${INSTALL_DIR}/Collabot.Collattice.Api"
 # First install: copy the archive's shipped appsettings.json into place AND seed the
 # sidecar baseline (appsettings.shipped.json) so the next upgrade has a reference for
 # distinguishing operator-edited keys from untouched defaults. Then seed an absolute
-# ConnectionStrings:Board into appsettings.json (Collattice requires it; no default).
+# ConnectionStrings:Board into appsettings.json (the install's own data/ database, never
+# the app's per-user default).
 #
 # Upgrade: invoke `Collabot.Collattice.Api --merge-appsettings <shipped> <ondisk> --baseline
 # <baseline>` to perform the three-way merge. The binary owns the merge logic so the
@@ -131,9 +145,9 @@ if [ ! -f "${APPSETTINGS_DST}" ]; then
     cp "${SHIPPED_SRC}" "${BASELINE_DST}"
     echo "Seeded ${APPSETTINGS_DST} and ${BASELINE_DST} from shipped defaults"
 
-    # Seed the absolute ConnectionStrings:Board into appsettings.json. Collattice requires
-    # this key with no default and does not derive a path from the working or binary
-    # directory. Prefer python3 (always present on macOS, near-universal on modern Linux);
+    # Seed the absolute ConnectionStrings:Board into appsettings.json, so the install uses
+    # its own data/ database rather than the app's per-user default, and never a path
+    # derived from the working or binary directory. Prefer python3 (always present on macOS, near-universal on modern Linux);
     # fall back to awk against the known shape when python3 is unavailable.
     seed_with_python() {
         python3 - "${APPSETTINGS_DST}" "${DB_PATH}" <<'PY'

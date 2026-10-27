@@ -1,10 +1,5 @@
 using System.Globalization;
 using System.Text.Json;
-using Collabot.Collattice.Api.Auth;
-using Collabot.Collattice.Api.Events;
-using Collabot.Collattice.Api.Mcp;
-using Collabot.Collattice.Api.Models;
-using Collabot.Collattice.Api.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
@@ -390,7 +385,7 @@ public class McpBulkCardToolTests(CollatticeApiFactory factory) : IClassFixture<
     }
 
     [Fact]
-    public async Task BulkArchive_ResultsAlignWithInputOrder()
+    public async Task BulkArchive_UnsortedInput_ResultsAlignWithInputOrder()
     {
         var (db, bulk, _, _) = CreateTools();
         var board = await CreateBoardAsync(db);
@@ -409,7 +404,7 @@ public class McpBulkCardToolTests(CollatticeApiFactory factory) : IClassFixture<
     }
 
     [Fact]
-    public async Task BulkRestore_MovesArchivedCardsToTargetLane()
+    public async Task BulkRestore_TwoArchivedCards_MovesArchivedCardsToTargetLane()
     {
         var (db, bulk, _, _) = CreateTools();
         var board = await CreateBoardAsync(db);

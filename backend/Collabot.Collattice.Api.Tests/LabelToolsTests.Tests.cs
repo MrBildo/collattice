@@ -1,15 +1,11 @@
-using Collabot.Collattice.Api.Auth;
-using Collabot.Collattice.Api.Events;
-using Collabot.Collattice.Api.Mcp;
-using Collabot.Collattice.Api.Models;
-using Collabot.Collattice.Api.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 
 namespace Collabot.Collattice.Api.Tests;
 
-public class LabelToolsTests(CollatticeApiFactory factory) : IClassFixture<CollatticeApiFactory>, IDisposable
+// Sealed so the plain IDisposable shape below is complete; no derived class can add state to dispose.
+public sealed class LabelToolsTests(CollatticeApiFactory factory) : IClassFixture<CollatticeApiFactory>, IDisposable
 {
     private readonly CollatticeApiFactory _factory = factory;
     private readonly List<IServiceScope> _scopes = [];

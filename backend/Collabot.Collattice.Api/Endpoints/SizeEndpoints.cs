@@ -1,6 +1,3 @@
-using Collabot.Collattice.Api.Auth;
-using Collabot.Collattice.Api.Events;
-using Collabot.Collattice.Api.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace Collabot.Collattice.Api.Endpoints;
@@ -28,15 +25,13 @@ internal static class SizeEndpoints
                 return Results.BadRequest("Name is required.");
             }
 
-            var ordinal = request.Ordinal ?? 0;
-            if (!request.Ordinal.HasValue && await db.CardSizes.AnyAsync(x => x.BoardId == boardId, ct))
+            var created = await SizeCreateHelper.CreateAsync(db, boardId, request.Name, request.Ordinal, ct);
+            if (created.Size is not CardSize size)
             {
-                ordinal = await db.CardSizes.Where(x => x.BoardId == boardId).MaxAsync(x => x.Ordinal, ct) + 1;
+                return created.IsConflict
+                    ? Results.Conflict(created.Error)
+                    : Results.BadRequest(created.Error);
             }
-
-            var size = new CardSize { Id = Guid.NewGuid(), BoardId = boardId, Name = request.Name, Ordinal = ordinal };
-            db.CardSizes.Add(size);
-            await db.SaveChangesAsync(ct);
 
             // size.created — same single board bell, plus one webhook event.
             await WebhookEventFactory.PublishSizeCreatedAsync(db, broadcaster, size, http.CurrentUser(), ct);
@@ -88,8 +83,16 @@ internal static class SizeEndpoints
                 return Results.Conflict("Size is in use by cards.");
             }
 
-            db.CardSizes.Remove(size);
-            await db.SaveChangesAsync(ct);
+            var deleteOutcome = await GuardedDelete.SizeAsync(db, size, ct);
+            if (deleteOutcome is GuardedDeleteOutcome.InUse)
+            {
+                return Results.Conflict("Size is in use by cards.");
+            }
+
+            if (deleteOutcome is GuardedDeleteOutcome.NotFound)
+            {
+                return Results.NotFound();
+            }
 
             // size.deleted — published from the captured size after the row is gone; the board still
             // exists, so the slug resolves.
@@ -109,28 +112,13 @@ internal static class SizeEndpoints
             var oldName = size.Name;
             var oldOrdinal = size.Ordinal;
 
-            if (request.Name is not null)
+            var (error, isConflict) = await SizeUpdateHelper.UpdateAsync(db, size, request.Name, request.Ordinal, ct);
+            if (error is not null)
             {
-                if (string.IsNullOrWhiteSpace(request.Name))
-                {
-                    return Results.BadRequest("Name cannot be empty.");
-                }
-
-                size.Name = request.Name;
+                return isConflict
+                    ? Results.Conflict(error)
+                    : Results.BadRequest(error);
             }
-
-            if (request.Ordinal is not null)
-            {
-                var newOrd = request.Ordinal.Value;
-                if (await db.CardSizes.AnyAsync(x => x.BoardId == size.BoardId && x.Ordinal == newOrd && x.Id != id, ct))
-                {
-                    return Results.Conflict("Ordinal already taken by another size.");
-                }
-
-                size.Ordinal = newOrd;
-            }
-
-            await db.SaveChangesAsync(ct);
 
             // Split by axis: a name change → size.renamed; an ordinal change → size.reordered
             // (the board's full new order). Both can co-fire from one PATCH; PublishCoalesced rings

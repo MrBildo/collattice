@@ -1,7 +1,3 @@
-using Collabot.Collattice.Api.Events;
-using Collabot.Collattice.Api.Hosting.Webhooks;
-using Collabot.Collattice.Api.Models;
-using Collabot.Collattice.Api.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
@@ -12,10 +8,10 @@ namespace Collabot.Collattice.Api.Tests;
 // (driven directly, never racing the hosted loop against the
 // shared in-memory connection). The dormancy gate (DeliveryLogRetentionDays <= 0) is verified
 // through the hosted service over a configured WAF.
-public sealed class WebhookDeliveryLogSweepServiceTests
+public class WebhookDeliveryLogSweepServiceTests
 {
     [Fact]
-    public async Task Sweep_DeletesOnlyAttemptsOlderThanCutoff()
+    public async Task Sweep_MixedAgeAttempts_DeletesOnlyAttemptsOlderThanCutoff()
     {
         await using var factory = new CollatticeApiFactory();
         await factory.InitializeAsync();

@@ -2,8 +2,6 @@ using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Collabot.Collattice.Api.Models;
-using Collabot.Collattice.Api.Tests.Infrastructure;
 using Shouldly;
 
 namespace Collabot.Collattice.Api.Tests;
@@ -92,7 +90,7 @@ public class LaneReorderEndpointTests(CollatticeApiFactory factory) : IClassFixt
     }
 
     [Fact]
-    public async Task Reorder_NormalizesExistingGap()
+    public async Task Reorder_LanesWithGappedPositions_NormalizesExistingGap()
     {
         // Arrange — lanes with a gap (0, 2, 5); the reorder should densify to 0..2
         var boardId = await CreateBoardAsync($"reorder-gap-{Guid.NewGuid():N}");

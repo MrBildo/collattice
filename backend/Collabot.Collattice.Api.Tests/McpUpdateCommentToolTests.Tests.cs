@@ -1,9 +1,4 @@
 using System.Text.Json;
-using Collabot.Collattice.Api.Auth;
-using Collabot.Collattice.Api.Events;
-using Collabot.Collattice.Api.Mcp;
-using Collabot.Collattice.Api.Models;
-using Collabot.Collattice.Api.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
@@ -120,7 +115,7 @@ public class McpUpdateCommentToolTests(CollatticeApiFactory factory) : IClassFix
     }
 
     [Fact]
-    public async Task UpdateComment_ReturnsCommentJsonWithUpdatedBody()
+    public async Task UpdateComment_ExistingComment_ReturnsCommentJsonWithUpdatedBody()
     {
         // Arrange
         var (db, commentTools) = CreateTools();

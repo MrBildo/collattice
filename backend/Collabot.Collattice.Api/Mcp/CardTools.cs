@@ -1,16 +1,13 @@
 using System.ComponentModel;
 using System.Globalization;
 using System.Text.Json;
-using Collabot.Collattice.Api.Endpoints;
-using Collabot.Collattice.Api.Events;
-using Collabot.Collattice.Api.Models;
 using Microsoft.EntityFrameworkCore;
 using ModelContextProtocol.Server;
 
 namespace Collabot.Collattice.Api.Mcp;
 
 [McpServerToolType]
-public sealed class CardTools(BoardDbContext db, McpAuthService auth, BoardEventBroadcaster broadcaster)
+public class CardTools(BoardDbContext db, McpAuthService auth, BoardEventBroadcaster broadcaster)
 {
     [McpServerTool(Name = "create_card", Destructive = false)]
     [Description("Create a new card on the kanban board.")]
@@ -57,7 +54,10 @@ public sealed class CardTools(BoardDbContext db, McpAuthService auth, BoardEvent
             return $"Error: {buildError}";
         }
 
-        await CardNumberHelper.InsertCardWithAutoNumberAsync(db, card!, lane.BoardId, ct);
+        if (!await CardNumberHelper.TryInsertCardWithAutoNumberAsync(db, card!, lane.BoardId, ct))
+        {
+            return $"Error: {CardNumberHelper.ContendedMessage}";
+        }
 
         // The webhook fan-out already rings the SSE bell (the typed event downsamples to the
         // same "board-updated" signal), so a separate board broadcast here would double-ring
@@ -87,7 +87,7 @@ public sealed class CardTools(BoardDbContext db, McpAuthService auth, BoardEvent
             return error;
         }
 
-        var (resolvedCardId, resolveError) = await McpCardResolver.ResolveCardIdAsync(db, cardId, cardNumber, boardId, boardSlug, ct);
+        var (resolvedCardId, resolveError) = await McpCardResolver.ResolveCardIdAsync(db, user!, cardId, cardNumber, boardId, boardSlug, ct);
         if (resolveError is not null)
         {
             return resolveError;
@@ -157,7 +157,7 @@ public sealed class CardTools(BoardDbContext db, McpAuthService auth, BoardEvent
             return error;
         }
 
-        var (resolvedCardId, resolveError) = await McpCardResolver.ResolveCardIdAsync(db, cardId, cardNumber, boardId, boardSlug, ct);
+        var (resolvedCardId, resolveError) = await McpCardResolver.ResolveCardIdAsync(db, user!, cardId, cardNumber, boardId, boardSlug, ct);
         if (resolveError is not null)
         {
             return resolveError;
@@ -185,6 +185,7 @@ public sealed class CardTools(BoardDbContext db, McpAuthService auth, BoardEvent
         var oldName = card.Name;
         var oldDescription = card.DescriptionMarkdown;
         var oldSizeId = card.SizeId;
+        var oldPosition = card.Position;
 
         // Snapshot the pre-write last-editor/last-edit too, before this request overwrites them below
         // — the approximate collision signal reads them to tell whether someone else was working this
@@ -215,9 +216,10 @@ public sealed class CardTools(BoardDbContext db, McpAuthService auth, BoardEvent
         }
 
         // Lane move: if laneId provided, move card to that lane with optional index.
-        // card.moved fires only on a real lane change (the coverage rule: a
-        // size/label/name-only update raises no move event). Snapshot source lane/position
-        // before MoveCardToLaneAsync mutates + renumbers both lanes.
+        // card.moved fires when the card actually lands somewhere new — a different lane, or a
+        // different position in its current lane (a size/label/name-only update raises no move
+        // event). Snapshot source lane/position before MoveCardToLaneAsync mutates + renumbers
+        // both lanes.
         Lane? moveFromLane = null;
         Lane? moveToLane = null;
         var moveFromPosition = 0;
@@ -246,6 +248,17 @@ public sealed class CardTools(BoardDbContext db, McpAuthService auth, BoardEvent
             }
 
             await CardReorderHelper.MoveCardToLaneAsync(db, card, laneId.Value, index, ct);
+
+            // Within-lane movement is a move, keyed on the resolved position exactly as REST PATCH
+            // /cards/{id} keys it: re-asserting the current lane (with or without an index) emits
+            // card.moved with equal from/to lane ids when the card's position changed, and stays
+            // silent when it did not.
+            if (moveToLane is null && card.Position != oldPosition)
+            {
+                moveFromLane = targetLane;
+                moveToLane = targetLane;
+                moveFromPosition = oldPosition;
+            }
         }
 
         // Label replace: diff against current assignments. The added/removed sets drive
@@ -297,7 +310,10 @@ public sealed class CardTools(BoardDbContext db, McpAuthService auth, BoardEvent
         // racing the same revision number is resolved.
         var descriptionChange = await CardHistoryHelper.StageDescriptionChangeAsync(db, card.Id, oldDescription, card.DescriptionMarkdown, user.Id, ct);
 
-        await CardHistoryHelper.SaveWithRevisionRetryAsync(db, descriptionChange, ct);
+        if (!await CardHistoryHelper.TrySaveWithRevisionRetryAsync(db, descriptionChange, ct))
+        {
+            return $"Error: {CardHistoryHelper.ContendedMessage}";
+        }
 
         // Multi-axis co-fire: one webhook event per changed axis (content / lane /
         // labels), all riding ONE coalesced SSE bell. Routed through the shared factory seam so
@@ -393,13 +409,13 @@ public sealed class CardTools(BoardDbContext db, McpAuthService auth, BoardEvent
         CancellationToken ct = default
     )
     {
-        var (_, error) = await auth.RequireUserAsync(authKey, ct);
+        var (user, error) = await auth.RequireUserAsync(authKey, ct);
         if (error is not null)
         {
             return error;
         }
 
-        var (resolvedCardId, resolveError) = await McpCardResolver.ResolveCardIdAsync(db, cardId, cardNumber, boardId, boardSlug, ct);
+        var (resolvedCardId, resolveError) = await McpCardResolver.ResolveCardIdAsync(db, user!, cardId, cardNumber, boardId, boardSlug, ct);
         if (resolveError is not null)
         {
             return resolveError;

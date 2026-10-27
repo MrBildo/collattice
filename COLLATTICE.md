@@ -2,23 +2,23 @@
 
 Collattice development is tracked on its own production instance — Collattice runs on Collabhost, the board the team uses to track Collattice work IS a Collattice board. Self-hosted dogfooding.
 
-> **Board slug + skill name still read `collaboard`.** The board's own slug and the
-> `collaboard` MCP skill are suite-wide identifiers renamed on a separate track (the
-> Collabhost deploy, the ecosystem skill, and every bot's config move together); until
-> that lands, the working slug is `collaboard` and the skill is invoked as `collaboard`.
-> Use the values as written below.
+> **The board slug still reads `collaboard`.** Board slugs are fixed when a board is
+> created, so this board keeps its original slug even though the project is now
+> Collattice. The MCP skill and the auth-key variable have been renamed: the skill is
+> invoked as `collattice` and the key is `COLLATTICE_AUTH_KEY`. Use the values as
+> written below.
 
 | Field | Value |
 |---|---|
 | Slug | `collaboard` |
 | Board UUID | `f6fa6794-4bed-44d0-9656-de8080791302` |
-| Auth key | `~/.agents/bots/<bot>/.env` → `COLLABOARD_AUTH_KEY` (per-bot, gitignored) |
+| Auth key | `~/.agents/bots/<bot>/.env` → `COLLATTICE_AUTH_KEY` (per-bot, gitignored) |
 
-See the `collaboard` skill for the full auth contract and MCP usage. The conventions below are project-specific overrides on top of that skill.
+See the `collattice` skill for the full auth contract and MCP usage. The conventions below are project-specific overrides on top of that skill.
 
 ## Lanes
 
-This project deviates from the org-default lane set defined in the `collaboard` skill. Two changes (adopted 2026-05-12):
+This project deviates from the org-default lane set defined in the `collattice` skill. Two changes (adopted 2026-05-12):
 
 - **Added: `On Deck`** — sits between `Triage` and `Ready`. Acts as the bench / depth chart for work that's been decided-on but isn't the immediate next pickup.
 - **Removed: `Review`** — review happens on PRs, not on a board lane. The lane was unused.
@@ -42,7 +42,7 @@ This project deviates from the org-default lane set defined in the `collaboard` 
 - **All newly-created cards go to Triage** — including ones whose disposition already looks settled. The coordinator does not place a new card straight into On Deck on its own judgment; only the operator can direct otherwise. (Standing order, 2026-06-28, suite-wide. This line previously allowed coordinator discretion and predates that order.)
 - At session-end, glance at On Deck depth — if it's growing past ~10 cards without churn, surface it (it shouldn't quietly become a second Backlog).
 
-This pattern is borrowed from Collabhost. If it proves out across multiple Collabot.dev-org projects, promote the lane definition into the `collaboard` skill at that point.
+This pattern is borrowed from Collabhost. If it proves out across multiple [Collabot.dev](https://collabot.dev)-org projects, promote the lane definition into the `collattice` skill at that point.
 
 ## Labels
 

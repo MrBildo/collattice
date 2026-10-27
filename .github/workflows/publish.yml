@@ -83,10 +83,10 @@ jobs:
 
       # CI validation
       - name: Restore backend
-        run: dotnet restore backend/Collabot.Collattice.sln
+        run: dotnet restore backend/Collabot.Collattice.slnx
 
       - name: Build backend
-        run: dotnet build backend/Collabot.Collattice.sln --no-restore
+        run: dotnet build backend/Collabot.Collattice.slnx --no-restore
 
       - name: Test backend
         run: dotnet test backend/ --no-build --verbosity normal
@@ -114,11 +114,11 @@ jobs:
       # That trust rests on a measured property, not a per-build comparison.
       # `--sourcemap hidden` leaves the emitted .js/.css byte-identical to a plain
       # build -- its whole effect is the extra .map sidecars -- verified over
-      # alternating builds of both modes. A byte-for-byte comparison of the two
-      # builds is deliberately NOT done: repeated builds of an unchanged tree draw
-      # one of two variants of a shared chunk, so that comparison fails on healthy
-      # trees, and it is strictly stronger than the "same source modules"
-      # obligation it stood in for. What IS enforced on this path is the archive
+      # alternating builds of both modes, and again on Vite 8. A byte-for-byte
+      # comparison of the two builds is deliberately NOT done: under Vite 5,
+      # repeated builds of an unchanged tree drew one of two variants of a shared
+      # chunk, so that comparison failed on healthy trees, and it is strictly
+      # stronger than the "same source modules" obligation it stood in for. What IS enforced on this path is the archive
       # contract: verify-archive.sh rejects both sourcemap files and any lingering
       # sourceMappingURL reference in the packaged archive.
       - name: Build frontend

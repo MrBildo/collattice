@@ -1,8 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Collabot.Collattice.Api.Models;
-using Collabot.Collattice.Api.Tests.Infrastructure;
 using Shouldly;
 
 namespace Collabot.Collattice.Api.Tests;
@@ -49,7 +47,7 @@ public class LabelEndpointTests(CollatticeApiFactory factory) : IClassFixture<Co
     }
 
     [Fact]
-    public async Task GetLabels_ReturnsEmptyList()
+    public async Task GetLabels_BoardWithNoLabels_ReturnsEmptyList()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -131,7 +129,7 @@ public class LabelEndpointTests(CollatticeApiFactory factory) : IClassFixture<Co
     }
 
     [Fact]
-    public async Task PatchLabel_UpdatesNameAndColor()
+    public async Task PatchLabel_ExistingLabel_UpdatesNameAndColor()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -190,7 +188,7 @@ public class LabelEndpointTests(CollatticeApiFactory factory) : IClassFixture<Co
     }
 
     [Fact]
-    public async Task DeleteLabel_RemovesFromCards()
+    public async Task DeleteLabel_AssignedToCard_RemovesFromCards()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -216,7 +214,7 @@ public class LabelEndpointTests(CollatticeApiFactory factory) : IClassFixture<Co
     }
 
     [Fact]
-    public async Task GetCardLabels_ReturnsAssigned()
+    public async Task GetCardLabels_CardWithLabel_ReturnsAssigned()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -239,7 +237,7 @@ public class LabelEndpointTests(CollatticeApiFactory factory) : IClassFixture<Co
     }
 
     [Fact]
-    public async Task PostCardLabel_AssignsLabel()
+    public async Task PostCardLabel_UnassignedLabel_AssignsLabel()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -293,7 +291,7 @@ public class LabelEndpointTests(CollatticeApiFactory factory) : IClassFixture<Co
     }
 
     [Fact]
-    public async Task DeleteCardLabel_RemovesAssignment()
+    public async Task DeleteCardLabel_AssignedLabel_RemovesAssignment()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);

@@ -2,8 +2,6 @@ using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Collabot.Collattice.Api.Models;
-using Collabot.Collattice.Api.Tests.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 
@@ -30,8 +28,29 @@ public class CardEndpointTests(CollatticeApiFactory factory) : IClassFixture<Col
     private async Task<Guid> GetSizeIdByNameAsync(string sizeName)
         => await TestDataHelper.GetSizeIdByNameAsync(_client, _factory.DefaultBoardId, sizeName);
 
+    private async Task<Guid> CreateCardInLaneAsync(Guid laneId, string name, bool draft)
+    {
+        var path = draft
+            ? $"/api/v1/boards/{_factory.DefaultBoardId}/cards/temp"
+            : $"/api/v1/boards/{_factory.DefaultBoardId}/cards";
+
+        var response = await _client.PostAsJsonAsync(path, new { name, laneId });
+        response.EnsureSuccessStatusCode();
+
+        var created = await response.Content.ReadFromJsonAsync<JsonElement>();
+        return created.GetProperty("id").GetGuid();
+    }
+
+    private static async Task<List<Guid>> ReadReorderCardIdsAsync(HttpResponseMessage response)
+    {
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var board = await response.Content.ReadFromJsonAsync<JsonElement>();
+        return [.. board.GetProperty("cards").EnumerateArray().Select(card => card.GetProperty("id").GetGuid())];
+    }
+
     [Fact]
-    public async Task GetCards_ReturnsAllCards()
+    public async Task GetCards_BoardWithCards_ReturnsAllCards()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -203,7 +222,7 @@ public class CardEndpointTests(CollatticeApiFactory factory) : IClassFixture<Col
     }
 
     [Fact]
-    public async Task GetCardById_ReturnsEnrichedResponse()
+    public async Task GetCard_ById_ReturnsEnrichedResponse()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -306,7 +325,7 @@ public class CardEndpointTests(CollatticeApiFactory factory) : IClassFixture<Col
     }
 
     [Fact]
-    public async Task PostCard_AutoNumbersSequentially()
+    public async Task PostCard_ThreeCreates_AutoNumbersSequentially()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -392,7 +411,7 @@ public class CardEndpointTests(CollatticeApiFactory factory) : IClassFixture<Col
     }
 
     [Fact]
-    public async Task PatchCard_MovesToAnotherLane()
+    public async Task PatchCard_WithTargetLaneId_MovesToAnotherLane()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -472,7 +491,7 @@ public class CardEndpointTests(CollatticeApiFactory factory) : IClassFixture<Col
     }
 
     [Fact]
-    public async Task PatchCard_ReturnsEnrichedCardSummary()
+    public async Task PatchCard_ExistingCard_ReturnsEnrichedCardSummary()
     {
         // Arrange — parity with POST /cards: PATCH returns sizeName, labels, commentCount, attachmentCount, isArchived
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -908,7 +927,7 @@ public class CardEndpointTests(CollatticeApiFactory factory) : IClassFixture<Col
     }
 
     [Fact]
-    public async Task ReorderCard_ReturnsFullBoard()
+    public async Task ReorderCard_ExistingCard_ReturnsFullBoard()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -941,6 +960,42 @@ public class CardEndpointTests(CollatticeApiFactory factory) : IClassFixture<Col
         board.TryGetProperty("cards", out var cards).ShouldBeTrue();
         lanes.GetArrayLength().ShouldBeGreaterThan(0);
         cards.GetArrayLength().ShouldBeGreaterThan(0);
+    }
+
+    [Fact]
+    public async Task ReorderCard_DraftOnBoard_ResponseOmitsDraft()
+    {
+        // Arrange
+        TestAuthHelper.SetAdminAuth(_client, _factory);
+        var laneId = await GetFirstLaneIdAsync();
+        var cardId = await CreateCardInLaneAsync(laneId, "Reorder Beside A Draft", draft: false);
+        var draftId = await CreateCardInLaneAsync(laneId, "Half-Written Draft", draft: true);
+
+        // Act
+        var response = await _client.PostAsJsonAsync($"/api/v1/cards/{cardId}/reorder", new { laneId, index = 0 });
+
+        // Assert
+        var ids = await ReadReorderCardIdsAsync(response);
+        ids.ShouldContain(cardId);
+        ids.ShouldNotContain(draftId);
+    }
+
+    [Fact]
+    public async Task ReorderCard_ArchivedCardOnBoard_ResponseKeepsArchivedCard()
+    {
+        // Arrange
+        TestAuthHelper.SetAdminAuth(_client, _factory);
+        var laneId = await GetFirstLaneIdAsync();
+        var archivedId = await CreateCardInLaneAsync(laneId, "Archived Before The Reorder", draft: false);
+        (await _client.PostAsync($"/api/v1/cards/{archivedId}/archive", null)).EnsureSuccessStatusCode();
+        var cardId = await CreateCardInLaneAsync(laneId, "Reorder Beside An Archived Card", draft: false);
+
+        // Act
+        var response = await _client.PostAsJsonAsync($"/api/v1/cards/{cardId}/reorder", new { laneId, index = 0 });
+
+        // Assert
+        var ids = await ReadReorderCardIdsAsync(response);
+        ids.ShouldContain(archivedId);
     }
 
     [Fact]
@@ -1041,7 +1096,7 @@ public class CardEndpointTests(CollatticeApiFactory factory) : IClassFixture<Col
     }
 
     [Fact]
-    public async Task GetCards_IncludesLabelsAndCounts()
+    public async Task GetCards_LabeledCard_IncludesLabelsAndCounts()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -1181,7 +1236,7 @@ public class CardEndpointTests(CollatticeApiFactory factory) : IClassFixture<Col
     }
 
     [Fact]
-    public async Task GetCardById_ReturnsAttachmentsWithoutPayload()
+    public async Task GetCard_WithAttachment_ReturnsAttachmentsWithoutPayload()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -1224,7 +1279,7 @@ public class CardEndpointTests(CollatticeApiFactory factory) : IClassFixture<Col
     }
 
     [Fact]
-    public async Task GetCardById_ReturnsUserDisplayNames()
+    public async Task GetCard_CreatedByHumanUser_ReturnsUserDisplayNames()
     {
         // Arrange
         var human = await TestAuthHelper.CreateUserAsync(_client, _factory, "DisplayNameUser", UserRole.HumanUser);
@@ -1332,7 +1387,7 @@ public class CardEndpointTests(CollatticeApiFactory factory) : IClassFixture<Col
     }
 
     [Fact]
-    public async Task McpGetCard_IncludesAttachmentsAndUserNames()
+    public async Task McpGetCard_EnrichedCard_IncludesAttachmentsAndUserNames()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -1705,7 +1760,7 @@ public class CardEndpointTests(CollatticeApiFactory factory) : IClassFixture<Col
     // ── Comments compat pivot: v1 legacy array + deprecation, v2 paged, MCP dual-path ────────
 
     [Fact]
-    public async Task GetCardV1_CarriesDeprecationHeaders()
+    public async Task GetCard_V1_CarriesDeprecationHeaders()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -1755,7 +1810,7 @@ public class CardEndpointTests(CollatticeApiFactory factory) : IClassFixture<Col
     }
 
     [Fact]
-    public async Task GetCardV1_LegacyArrayCarriesAdditiveFields()
+    public async Task GetCard_V1_LegacyArrayCarriesAdditiveFields()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -1789,7 +1844,7 @@ public class CardEndpointTests(CollatticeApiFactory factory) : IClassFixture<Col
     }
 
     [Fact]
-    public async Task GetCardV2_DoesNotCarryDeprecationHeaders()
+    public async Task GetCard_V2_DoesNotCarryDeprecationHeaders()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -1962,7 +2017,7 @@ public class CardEndpointTests(CollatticeApiFactory factory) : IClassFixture<Col
     // ── Hardened enrichment tests (query optimization) ───────────────────────
 
     [Fact]
-    public async Task GetCards_ReturnsCorrectSizeName()
+    public async Task GetCards_CardWithSizeL_ReturnsCorrectSizeName()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -1994,7 +2049,7 @@ public class CardEndpointTests(CollatticeApiFactory factory) : IClassFixture<Col
     }
 
     [Fact]
-    public async Task GetCards_ReturnsCorrectLabelSummaries()
+    public async Task GetCards_LabeledCard_ReturnsCorrectLabelSummaries()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -2053,7 +2108,7 @@ public class CardEndpointTests(CollatticeApiFactory factory) : IClassFixture<Col
     }
 
     [Fact]
-    public async Task GetCards_ReturnsCorrectCommentCount()
+    public async Task GetCards_CardWithComments_ReturnsCorrectCommentCount()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -2085,7 +2140,7 @@ public class CardEndpointTests(CollatticeApiFactory factory) : IClassFixture<Col
     }
 
     [Fact]
-    public async Task GetCards_ReturnsCorrectAttachmentCount()
+    public async Task GetCards_CardWithAttachments_ReturnsCorrectAttachmentCount()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -2118,7 +2173,7 @@ public class CardEndpointTests(CollatticeApiFactory factory) : IClassFixture<Col
     }
 
     [Fact]
-    public async Task GetCardV1_CommentsAreOldestFirstPlainArray()
+    public async Task GetCard_V1_CommentsAreOldestFirstPlainArray()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -2176,7 +2231,7 @@ public class CardEndpointTests(CollatticeApiFactory factory) : IClassFixture<Col
     }
 
     [Fact]
-    public async Task GetComments_ReturnsOrderedByDate()
+    public async Task GetComments_SeveralComments_ReturnsOrderedByDate()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -2521,11 +2576,21 @@ public class CardEndpointTests(CollatticeApiFactory factory) : IClassFixture<Col
             laneId = targetLaneId
         });
 
-        // Assert
+        // Assert — the moved card is last in the target lane. Its stored number is not pinned: a move
+        // to another lane renumbers the target lane from 0.
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         var card = await response.Content.ReadFromJsonAsync<JsonElement>();
         card.GetProperty("laneId").GetGuid().ShouldBe(targetLaneId);
-        card.GetProperty("position").GetInt32().ShouldBeGreaterThan(50);
+
+        var laneResponse = await _client.GetAsync($"/api/v1/boards/{_factory.DefaultBoardId}/cards?laneId={targetLaneId}");
+        laneResponse.EnsureSuccessStatusCode();
+        var lane = await laneResponse.Content.ReadFromJsonAsync<JsonElement>();
+        var lastInLane = lane.GetProperty("items")
+            .EnumerateArray()
+            .OrderBy(c => c.GetProperty("position").GetInt32())
+                .Last();
+
+        lastInLane.GetProperty("id").GetGuid().ShouldBe(cardId);
     }
 
     // ── Create card with labels (atomic label attachment) ────────────────
@@ -2685,7 +2750,7 @@ public class CardEndpointTests(CollatticeApiFactory factory) : IClassFixture<Col
     }
 
     [Fact]
-    public async Task PostCard_ReturnsEnrichedSummary()
+    public async Task PostCard_WithSizeId_ReturnsEnrichedSummary()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);

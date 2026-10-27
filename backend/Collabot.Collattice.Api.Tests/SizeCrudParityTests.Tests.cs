@@ -1,9 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Collabot.Collattice.Api.Events;
-using Collabot.Collattice.Api.Mcp;
-using Collabot.Collattice.Api.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
@@ -11,11 +8,11 @@ using Shouldly;
 namespace Collabot.Collattice.Api.Tests;
 
 // Cross-surface parity tests for card-size CRUD.
-// SizeEndpoints.cs and SizeTools.cs
-// re-encode auto-ordinal assignment, ordinal-collision, and size-in-use-before-delete
-// independently with no shared service. These tests feed the same input to both
-// surfaces and assert identical outcomes — both the accept path (auto-ordinal lands on
-// the same value) and the reject paths (collision, in-use).
+// SizeEndpoints.cs and SizeTools.cs share the create and update rules (SizeCreateHelper,
+// SizeUpdateHelper) but each re-encodes size-in-use-before-delete. These tests feed the same
+// input to both surfaces and assert identical outcomes — both the accept paths (auto-ordinal
+// lands on the same value, re-sending a size's own name) and the reject paths (collision,
+// in-use).
 public class SizeCrudParityTests(CollatticeApiFactory factory) : IClassFixture<CollatticeApiFactory>, IDisposable
 {
     private readonly CollatticeApiFactory _factory = factory;
@@ -102,6 +99,79 @@ public class SizeCrudParityTests(CollatticeApiFactory factory) : IClassFixture<C
         mcpSize.GetProperty("ordinal").GetInt32().ShouldBe(4);
     }
 
+    // ── create_size: a taken ordinal or name is a conflict, never a save failure ──
+    // The unique (BoardId, Ordinal) and (BoardId, Name) indexes would otherwise answer a 500.
+
+    [Fact]
+    public async Task CreateSize_TakenOrdinal_ConflictsOnBothSurfacesWithTheUpdateMessage()
+    {
+        // Arrange — the seeded S holds ordinal 0 on both boards
+        var restBoardId = await SeedBoardAsync();
+        var mcpBoardId = await SeedBoardAsync();
+        var (db, tools, authKey) = CreateMcpTools();
+
+        // Act
+        TestAuthHelper.SetAdminAuth(_client, _factory);
+        var restResponse = await _client.PostAsJsonAsync($"/api/v1/boards/{restBoardId}/sizes", new { name = "Huge", ordinal = 0 });
+        var mcpResult = await tools.CreateSizeAsync(authKey, mcpBoardId, "Huge", 0);
+
+        // Assert — 409 on REST, "Error: ..." on MCP, the message the update paths use
+        restResponse.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        (await restResponse.Content.ReadAsStringAsync()).ShouldContain("Ordinal already taken by another size");
+
+        mcpResult.ShouldContain("Error: Ordinal already taken by another size");
+
+        (await db.CardSizes.AnyAsync(s => s.BoardId == restBoardId && s.Name == "Huge")).ShouldBeFalse();
+        (await db.CardSizes.AnyAsync(s => s.BoardId == mcpBoardId && s.Name == "Huge")).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task CreateSize_TakenName_ConflictsOnBothSurfaces()
+    {
+        // Arrange — the seeded M exists on both boards; a free ordinal isolates the name rule
+        var restBoardId = await SeedBoardAsync();
+        var mcpBoardId = await SeedBoardAsync();
+        var (db, tools, authKey) = CreateMcpTools();
+
+        // Act
+        TestAuthHelper.SetAdminAuth(_client, _factory);
+        var restResponse = await _client.PostAsJsonAsync($"/api/v1/boards/{restBoardId}/sizes", new { name = "M", ordinal = 40 });
+        var mcpResult = await tools.CreateSizeAsync(authKey, mcpBoardId, "M", 40);
+
+        // Assert
+        restResponse.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        (await restResponse.Content.ReadAsStringAsync()).ShouldContain("A size with that name already exists on this board");
+
+        mcpResult.ShouldContain("Error: A size with that name already exists on this board");
+
+        (await db.CardSizes.CountAsync(s => s.BoardId == restBoardId && s.Name == "M")).ShouldBe(1);
+        (await db.CardSizes.CountAsync(s => s.BoardId == mcpBoardId && s.Name == "M")).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task CreateSize_NoOrdinalAfterTheHighestPossible_RejectedOnBothSurfaces()
+    {
+        // Arrange — one past int.MaxValue would wrap to int.MinValue and sort the new size first
+        var restBoardId = await SeedBoardAsync();
+        var mcpBoardId = await SeedBoardAsync();
+        await CreateSizeAsync(restBoardId, "Top", int.MaxValue);
+        await CreateSizeAsync(mcpBoardId, "Top", int.MaxValue);
+        var (db, tools, authKey) = CreateMcpTools();
+
+        // Act
+        TestAuthHelper.SetAdminAuth(_client, _factory);
+        var restResponse = await _client.PostAsJsonAsync($"/api/v1/boards/{restBoardId}/sizes", new { name = "Beyond" });
+        var mcpResult = await tools.CreateSizeAsync(authKey, mcpBoardId, "Beyond");
+
+        // Assert — 400, not a conflict: no rival holds the slot, there is no slot
+        restResponse.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        (await restResponse.Content.ReadAsStringAsync()).ShouldContain("No ordinal is free after the board's highest size");
+
+        mcpResult.ShouldContain("Error: No ordinal is free after the board's highest size");
+
+        (await db.CardSizes.AnyAsync(s => (s.BoardId == restBoardId || s.BoardId == mcpBoardId) && s.Name == "Beyond")).ShouldBeFalse();
+    }
+
     // ── update_size: ordinal collision rejected on both surfaces ──────────────
     // REST categorizes this as 409 Conflict; MCP returns the "Error: ..." string.
 
@@ -132,6 +202,65 @@ public class SizeCrudParityTests(CollatticeApiFactory factory) : IClassFixture<C
         restBody.ShouldNotContain("Error:");
 
         mcpResult.ShouldContain("Error: Ordinal already taken by another size");
+    }
+
+    // ── update_size: a name another size holds is a conflict, never a save failure ──
+    // The unique (BoardId, Name) index would otherwise answer a 500. The name is asked before the
+    // ordinal, as on create, and a rejected update writes neither.
+
+    [Fact]
+    public async Task UpdateSize_TakenName_ConflictsOnBothSurfacesAndWritesNothing()
+    {
+        // Arrange — the seeded M exists on both boards; 40 is free, so only the name collides
+        var restBoardId = await SeedBoardAsync();
+        var mcpBoardId = await SeedBoardAsync();
+        var (restSizeId, _) = await CreateSizeAsync(restBoardId, "REST-B", 11);
+        var (mcpSizeId, _) = await CreateSizeAsync(mcpBoardId, "MCP-B", 11);
+        var (db, tools, authKey) = CreateMcpTools();
+
+        // Act
+        TestAuthHelper.SetAdminAuth(_client, _factory);
+        var restResponse = await _client.PatchAsJsonAsync($"/api/v1/sizes/{restSizeId}", new { name = "M", ordinal = 40 });
+        var mcpResult = await tools.UpdateSizeAsync(authKey, mcpSizeId, name: "M", ordinal: 40);
+
+        // Assert — 409 on REST, "Error: ..." on MCP, the create path's message
+        restResponse.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        var restBody = await restResponse.Content.ReadAsStringAsync();
+        restBody.ShouldContain("A size with that name already exists on this board");
+        restBody.ShouldNotContain("Error:");
+
+        mcpResult.ShouldBe("Error: A size with that name already exists on this board.");
+
+        var sizes = await db.CardSizes
+            .AsNoTracking()
+            .Where(s => s.Id == restSizeId || s.Id == mcpSizeId)
+            .OrderBy(s => s.Name)
+                .Select(s => new { s.Name, s.Ordinal })
+                    .ToListAsync();
+
+        sizes.ShouldBe([new { Name = "MCP-B", Ordinal = 11 }, new { Name = "REST-B", Ordinal = 11 }]);
+    }
+
+    [Fact]
+    public async Task UpdateSize_ItsOwnName_IsNotAConflictOnBothSurfaces()
+    {
+        // Arrange — re-sending a size's current name alongside a real change must not collide with itself
+        var restBoardId = await SeedBoardAsync();
+        var mcpBoardId = await SeedBoardAsync();
+        var (restSizeId, _) = await CreateSizeAsync(restBoardId, "Same", 11);
+        var (mcpSizeId, _) = await CreateSizeAsync(mcpBoardId, "Same", 11);
+        var (_, tools, authKey) = CreateMcpTools();
+
+        // Act
+        TestAuthHelper.SetAdminAuth(_client, _factory);
+        var restResponse = await _client.PatchAsJsonAsync($"/api/v1/sizes/{restSizeId}", new { name = "Same", ordinal = 12 });
+        var mcpResult = await tools.UpdateSizeAsync(authKey, mcpSizeId, name: "Same", ordinal: 12);
+
+        // Assert
+        restResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await restResponse.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("ordinal").GetInt32().ShouldBe(12);
+
+        JsonSerializer.Deserialize<JsonElement>(mcpResult).GetProperty("ordinal").GetInt32().ShouldBe(12);
     }
 
     // ── delete_size: size in use by a card rejected on both surfaces ──────────

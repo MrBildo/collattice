@@ -1,7 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Collabot.Collattice.Api.Tests.Infrastructure;
 using Shouldly;
 
 namespace Collabot.Collattice.Api.Tests;
@@ -28,7 +27,7 @@ public class VersionEndpointTests(CollatticeApiFactory factory) : IClassFixture<
     }
 
     [Fact]
-    public async Task GetVersion_ResponseHasNoCacheHeaders()
+    public async Task GetVersion_AsAdmin_ResponseHasNoCacheHeaders()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, factory);

@@ -1,8 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Collabot.Collattice.Api.Models;
-using Collabot.Collattice.Api.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
@@ -44,7 +42,7 @@ public class ArchiveEndpointTests(CollatticeApiFactory factory) : IClassFixture<
     }
 
     [Fact]
-    public async Task RestoreCard_BackInTargetLaneAtPosition0()
+    public async Task RestoreCard_ArchivedCard_LandsInTargetLaneAtPosition0()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -67,7 +65,7 @@ public class ArchiveEndpointTests(CollatticeApiFactory factory) : IClassFixture<
     }
 
     [Fact]
-    public async Task ArchiveAlreadyArchivedCard_Returns400()
+    public async Task ArchiveCard_AlreadyArchived_Returns400()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -83,7 +81,7 @@ public class ArchiveEndpointTests(CollatticeApiFactory factory) : IClassFixture<
     }
 
     [Fact]
-    public async Task RestoreNonArchivedCard_Returns400()
+    public async Task RestoreCard_NotArchived_Returns400()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -98,7 +96,7 @@ public class ArchiveEndpointTests(CollatticeApiFactory factory) : IClassFixture<
     }
 
     [Fact]
-    public async Task RestoreToArchiveLane_Returns400()
+    public async Task RestoreCard_ToArchiveLane_Returns400()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -164,7 +162,7 @@ public class ArchiveEndpointTests(CollatticeApiFactory factory) : IClassFixture<
     }
 
     [Fact]
-    public async Task RestoreToNonexistentLane_Returns404()
+    public async Task RestoreCard_ToNonexistentLane_Returns404()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);

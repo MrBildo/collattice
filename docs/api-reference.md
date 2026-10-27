@@ -18,24 +18,24 @@ All endpoints are under `/api/v1/`, with one exception: the card-detail read als
 |--------|------|------|-------|
 | GET | /boards/{boardId}/board | All | Composite: lanes + cards + sizes |
 | GET | /boards/{boardId}/lanes | All | List lanes |
-| POST | /boards/{boardId}/lanes | Admin | Create lane |
+| POST | /boards/{boardId}/lanes | Admin | Create lane. Body `{ name, position? }` — omit `position` to append after the board's last lane; a taken position returns 409; 400 when `position` is the reserved `int.MaxValue`, or when it is omitted and no position is free after the last lane |
 | POST | /boards/{boardId}/lanes/reorder | Admin | Reorder all non-archive lanes. Body `{ laneIds }` — complete desired order; all-or-nothing |
 | GET | /boards/{boardId}/cards | All | List cards (enriched: labels, sizes, comment/attachment counts). Returns a `{ items, totalCount, offset, limit }` paged envelope. Query params: `since`, `labelId`, `laneId`, `search`, `includeArchived` (default `false`), `offset` (default `0`), `limit` |
-| POST | /boards/{boardId}/cards | All | Create card |
+| POST | /boards/{boardId}/cards | All | Create card. When many cards are being created on one board at the same moment, a create that cannot get a card number returns 409 with a "try again" message and saves nothing; retry it |
 | GET | /boards/{boardId}/sizes | All | List card sizes (ordered by ordinal) |
-| POST | /boards/{boardId}/sizes | Admin | Create size |
+| POST | /boards/{boardId}/sizes | Admin | Create size. Body `{ name, ordinal? }` — omit `ordinal` to place it one past the board's highest; a taken ordinal or name returns 409; 400 when `ordinal` is omitted and no ordinal is free after the highest |
 | GET | /boards/{boardId}/labels | All | List labels for a board |
 | POST | /boards/{boardId}/labels | Admin | Create label |
-| PATCH | /boards/{boardId}/labels/{id} | Admin | Update label name/color |
+| PATCH | /boards/{boardId}/labels/{id} | Admin | Update label name/color. A name another label on the board holds → 409, nothing saved |
 | DELETE | /boards/{boardId}/labels/{id} | Admin | Delete label + cleanup card assignments |
 
 ## By-ID Operations
 
 | Resource | Endpoints |
 |----------|-----------|
-| Lanes | `GET /lanes/{id}`, `PATCH /lanes/{id}`, `DELETE /lanes/{id}` |
-| Sizes | `GET /sizes/{id}`, `PATCH /sizes/{id}` (name/ordinal), `DELETE /sizes/{id}` (blocked if in use) |
-| Cards | `GET /cards/{id}` (enriched detail; comments as a plain array — **deprecated** in favour of `GET /api/v2/cards/{id}`; see [Reading a card](#reading-a-card); includes `descriptionHistoryCount`, see [Card History](#card-history)), `GET /api/v2/cards/{id}` (the recommended read — field projection + paged comments; see [Reading a card](#reading-a-card)), `PATCH /cards/{id}` (a description edit can carry a [collision notice](#collision-awareness)), `DELETE /cards/{id}`, `POST /cards/{id}/reorder`, `POST /cards/{id}/archive`, `POST /cards/{id}/restore` |
+| Lanes | `GET /lanes/{id}`, `PATCH /lanes/{id}` (name/position; a position another lane on the board holds → 409, nothing saved), `DELETE /lanes/{id}` |
+| Sizes | `GET /sizes/{id}`, `PATCH /sizes/{id}` (name/ordinal; a name or ordinal another size on the board holds → 409, nothing saved), `DELETE /sizes/{id}` (blocked if in use) |
+| Cards | `GET /cards/{id}` (enriched detail; comments as a plain array — **deprecated** in favour of `GET /api/v2/cards/{id}`; see [Reading a card](#reading-a-card); includes `descriptionHistoryCount`, see [Card History](#card-history)), `GET /api/v2/cards/{id}` (the recommended read — field projection + paged comments; see [Reading a card](#reading-a-card)), `PATCH /cards/{id}` (a description edit can carry a [collision notice](#collision-awareness); a `laneId` for another lane puts the card at the end of that lane, or with a `position` where that number sorts among its cards, and renumbers both lanes 0, 10, 20, … as `POST /cards/{id}/reorder` and MCP `update_card` do), `DELETE /cards/{id}`, `POST /cards/{id}/reorder`, `POST /cards/{id}/archive`, `POST /cards/{id}/restore` |
 | Card history | `GET /cards/{id}/history` — the card's description edit trail; see [Card History](#card-history) |
 
 ### Reading a card
@@ -79,7 +79,7 @@ To read comments on their own — untouched by this deprecation — use `GET /ca
 
 | Resource | Endpoints |
 |----------|-----------|
-| Card Labels | `GET /cards/{id}/labels`, `POST /cards/{id}/labels` (validates same board), `DELETE /cards/{id}/labels/{labelId}` |
+| Card Labels | `GET /cards/{id}/labels`, `POST /cards/{id}/labels` (validates same board; 409 if the label is already on the card, also when another caller added it at the same moment), `DELETE /cards/{id}/labels/{labelId}` (404 if the label is not on the card, also when another caller removed it at the same moment) |
 | Comments | `GET /cards/{id}/comments`, `POST /cards/{id}/comments`, `PATCH /comments/{id}`, `DELETE /comments/{id}` |
 | Attachments | `GET /cards/{id}/attachments`, `POST /cards/{id}/attachments` (5 MB via MCP / 50 MB via REST), `GET /attachments/{id}`, `DELETE /attachments/{id}` |
 
@@ -141,6 +141,11 @@ It is `0` or at least `2`, never `1`: a card's first edit records two revisions,
       "editedByUserId": null,
       "editedByName": null,
       "editedAtUtc": null,
+      "inferredEditor": {
+        "userId": "52df8c11-2c9a-4d1e-8b3f-7a6e5d4c3b2a",
+        "name": "Bill Wheelock",
+        "basis": "creator"
+      },
       "value": "the description as it stood when recording began",
       "diff": ""
     }
@@ -153,7 +158,8 @@ It is `0` or at least `2`, never `1`: a card's first edit records two revisions,
 
 - `entries` is ordered **newest first**. Each entry is a *version* of the text, not an edit delta — so the newest entry's `value` is the card's current description, and `diff` answers "what did this edit change?".
 - `revision` is a monotonic integer starting at 1, unique within a card and field. It is the addressing scheme `from`/`to` uses.
-- **The oldest revision carries a `null` author and timestamp**, and only the oldest. History is not back-filled, so revision 1 holds whatever the description said when recording began — nobody observed it being written, and an audit trail should not attribute a value to someone who may not have written it. Every later revision is fully attributed. Render this case explicitly (*"original version — author unknown"*), not as an empty name or an invalid date.
+- **The oldest revision carries a `null` author and timestamp**, and only the oldest. History is not back-filled, so revision 1 holds whatever the description said when recording began — nobody observed it being written, and an audit trail should not attribute a value to someone who may not have written it. Every later revision is fully attributed. Render this case explicitly, not as an empty name or an invalid date.
+- **The oldest revision also carries `inferredEditor`** — `{ userId, name, basis }`, the best available attribution for that unobserved text. `basis` says how it was inferred: `"creator"` means the card's creator. It is an inference, not an observation: a card created before history was recorded may have been edited by someone else before recording began. Keep the two apart when you render it — the history panel shows *"original version — Bill Wheelock (card creator)"*. `inferredEditor` is absent (not `null`) on every observed revision, so its presence is itself the signal that the name is inferred. There is no inferred timestamp: the card's creation time is on the card, but it is not necessarily when this text was written. Treat an unfamiliar `basis` value as a generic inference rather than an error; more may be added.
 - The oldest revision's `diff` is `""` — an empty string, never `null`. There is nothing older to compare it against. **Only the oldest revision has an empty diff**, so an empty diff is a reliable test for "this is the start of the record": no revision is ever recorded holding the same text as the one before it, including when two people save the same wording at the same moment.
 - `editedAtUtc` is stamped when the revision is recorded, not when the request arrived, so **timestamps never decrease as `revision` increases**. Where the two could disagree — two stamps can land on the same clock tick — **`revision` is the authority**; sort by it, not by time.
 - `value` and `diff` are **omitted from the JSON entirely** (not serialized as `null`) when the requested `format` does not include them, so `format=diff` carries no wasted padding.
@@ -199,7 +205,7 @@ Diffs are computed on read and rendered as a **git-style unified diff**: hunks o
 
 - **No back-fill.** A trail begins at a card's first description edit after this feature shipped; the value in place at that moment is preserved as revision 1. A card whose description has never been edited returns `entries: []`, and its current text remains available from `GET /cards/{id}`.
 - **No-op edits record nothing.** Saving a description identical to the current one adds no revision — including a `PATCH` that changes the lane or labels while carrying an unchanged description.
-- **Simultaneous edits both land, and leave the trail two people editing one after the other would have left.** Two saves racing each other are recorded as two attributed revisions in the order they committed; neither request is rejected and no conflict response exists to handle. If they happen to set the *same* text, the second one records nothing, exactly as it would have if it had arrived a minute later. Note this is not lost-update protection: the card's text is still last-one-wins, as it was before history existed — a write can, however, tell you *after the fact* when it overwrote someone; see [Collision awareness](#collision-awareness).
+- **Simultaneous edits both land, and leave the trail two people editing one after the other would have left.** Two saves racing each other are recorded as two attributed revisions in the order they committed; neither request is rejected and no conflict response exists to handle. The one exception is heavy contention: an edit that loses the race for its revision on every attempt (many edits to one description at the same instant) returns 409 with a "try again" message and saves nothing; retry it. If they happen to set the *same* text, the second one records nothing, exactly as it would have if it had arrived a minute later. Note this is not lost-update protection: the card's text is still last-one-wins, as it was before history existed — a write can, however, tell you *after the fact* when it overwrote someone; see [Collision awareness](#collision-awareness).
 - **Archived cards are frozen.** Their descriptions cannot be edited (`400`), so no history accrues; whatever they already have stays readable.
 - **Retention is unbounded.** History is never pruned — that is the point of an audit trail. It is deleted only with the card.
 - A description edit fires the existing `card.updated` webhook event; recording history adds no new event type.
@@ -234,6 +240,12 @@ Only the **description** is checked today, because it is the only field with a r
 
 `collision` is **additive and non-breaking**: it appears only on the two write responses (this `PATCH` and MCP `update_card`), beside the card's usual fields, so a consumer already reading the update response keeps working unchanged and simply gains a field when one is present. It is deliberately built into those two responses alone and never into the shared card summary that feeds card lists, [search](#search), and [webhook](#webhooks) payloads, so it cannot appear on any of those surfaces.
 
+## Writes that race a delete
+
+A write checks that the card, lane, label or size it refers to exists before it saves. If that thing is deleted in the moment between the check and the save — a comment posted as its card is deleted, a card created into a lane as the lane is deleted — the write answers **`409 Conflict`** with the message `"Something this change refers to was changed or deleted at the same moment. Reload and try again."` The failed save is not applied. Retrying gets the usual precise answer, normally a `404` because the thing is now gone. MCP tools answer the same case with that message prefixed `Error: `. This applies to every write, REST and MCP alike.
+
+The three deletes that are refused while something depends on the row — a lane that still has cards, a size a card uses, a board that still has lanes — make that check part of the delete itself. A card or lane that lands at the same moment is never removed along with its parent; the delete answers as it would have if the card or lane had been there first (`409 "Lane must be empty."`, `409 "Size is in use by cards."`, `400 "Board must have no lanes before it can be deleted."`).
+
 ## Search
 
 | Method | Path | Auth | Notes |
@@ -255,7 +267,7 @@ Search supports:
 
 | Path | Notes |
 |------|-------|
-| /mcp | Streamable HTTP transport — 45 tools (boards, cards, card history, lanes, sizes, labels, comments, attachments, archive, bulk operations, search, prune, webhooks) |
+| /mcp | Streamable HTTP transport — 46 tools (boards, cards, card history, lanes, sizes, labels, comments, attachments, archive, bulk operations, search, prune, webhooks) |
 
 For the full agent-facing tool reference — connecting a client, every tool, the board model, and the identifier rules — see the [MCP skill](collattice/SKILL.md), a drop-in `SKILL.md` you can add to an agent harness rather than writing your own from the tool schemas.
 
@@ -376,8 +388,8 @@ A subscription receives an event only when its `events` selection includes that 
 
 | Family | Event | Fires when |
 |--------|-------|------------|
-| Cards | `card.created` | A card first comes into existence — via REST `POST /boards/{boardId}/cards`, MCP `create_card`, or when an interactive draft card is finalized. A draft (temp) card does **not** fire until it is finalized. |
-| | `card.moved` | A card moves to a different lane **or position** through any successful non-archive mutation — the dedicated reorder/move paths, a `PATCH /cards/{id}` that sets `laneId` or `position`, an `update_card` that sets `laneId`, or `bulk_update_cards` (one event per moved card). A within-lane move carries equal `from`/`to` lane ids. A `PATCH` that changes the position to the same value fires no `card.moved`. Archiving and restoring do **not** fire `card.moved` (they fire `card.archived` / `card.restored`). |
+| Cards | `card.created` | A card first comes into existence — via REST `POST /boards/{boardId}/cards`, MCP `create_card` or `duplicate_card` (a copy of an existing card is a new card), or when an interactive draft card is finalized. A draft (temp) card does **not** fire until it is finalized. |
+| | `card.moved` | A card moves to a different lane **or position** through any successful non-archive mutation — the dedicated reorder/move paths, a `PATCH /cards/{id}` that sets `laneId` or `position`, an `update_card` that sets `laneId`, or `bulk_update_cards` with `laneId` (one event per card in the batch whose saved lane or position differs from where it sat before the call — the batch saves once, so `from` is the card's placement before the call and `to` its placement after; a card outside the batch does not report even when the batch renumbered it, and a batch that leaves every card where it was fires none). A within-lane move carries equal `from`/`to` lane ids. For `PATCH /cards/{id}` and `update_card` the rule is where the card actually lands, however the request expressed it: re-sending the card's current lane still fires `card.moved` when that re-positions the card (a `PATCH` with the current `laneId` and no `position` re-appends the card to the end of its lane), and a request that leaves the card exactly where it was fires none. Archiving and restoring do **not** fire `card.moved` (they fire `card.archived` / `card.restored`). |
 | | `card.updated` | A card's name, description, or size changes. |
 | | `card.archived` | A card is archived. |
 | | `card.restored` | A card is restored from the archive. |

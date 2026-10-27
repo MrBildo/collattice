@@ -1,12 +1,6 @@
 using System.Net;
-using Collabot.Collattice.Api.Configuration;
-using Collabot.Collattice.Api.Events;
-using Collabot.Collattice.Api.Hosting.Webhooks;
-using Collabot.Collattice.Api.Models;
-using Collabot.Collattice.Api.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Shouldly;
 
@@ -14,10 +8,10 @@ namespace Collabot.Collattice.Api.Tests;
 
 // Registry-delivery fan-out tests. The dispatcher loads the enabled subscriptions per event
 // and fans out to those whose selection matches. Driven through the deterministic DeliverEventAsync
-// seam (never race the hosted dispatcher against the shared
-// in-memory connection): RunDispatcher = false, the test owns delivery, the real HttpWebhookSender
-// runs against a capture stub. No Webhooks:Endpoint, so subscriptions are explicit, not seeded.
-public sealed class WebhookRegistryDeliveryTests
+// seam so each test decides when delivery happens: RunDispatcher = false, the test owns delivery,
+// the real HttpWebhookSender runs against a capture stub. No Webhooks:Endpoint, so subscriptions are
+// explicit, not seeded.
+public class WebhookRegistryDeliveryTests
 {
     private const string _urlA = "https://sub-a.test/hook";
     private const string _urlB = "https://sub-b.test/hook";
@@ -44,7 +38,7 @@ public sealed class WebhookRegistryDeliveryTests
     }
 
     [Fact]
-    public async Task FailingSubscription_DoesNotPreventDeliveryToTheOther()
+    public async Task Delivery_OneFailingSubscription_DoesNotPreventDeliveryToTheOther()
     {
         await using var factory = await NewFactoryAsync();
         var idA = await AddSubscriptionAsync(factory, _urlA, enabled: true, WebhookEventTypes.CardMoved);
@@ -68,7 +62,7 @@ public sealed class WebhookRegistryDeliveryTests
     }
 
     [Fact]
-    public async Task SubscriptionNotSelectingTheEvent_ReceivesNothing()
+    public async Task Delivery_SubscriptionNotSelectingTheEvent_ReceivesNothing()
     {
         await using var factory = await NewFactoryAsync();
         await AddSubscriptionAsync(factory, _urlA, enabled: true, WebhookEventTypes.CardCreated);   // only created
@@ -80,7 +74,7 @@ public sealed class WebhookRegistryDeliveryTests
     }
 
     [Fact]
-    public async Task WildcardSubscription_ReceivesEveryEvent()
+    public async Task Delivery_WildcardSubscription_ReceivesEveryEvent()
     {
         await using var factory = await NewFactoryAsync();
         var id = await AddSubscriptionAsync(factory, _urlA, enabled: true, WebhookEventTypes.Wildcard);
@@ -94,7 +88,7 @@ public sealed class WebhookRegistryDeliveryTests
     }
 
     [Fact]
-    public async Task DisabledSubscription_ReceivesNothing()
+    public async Task Delivery_DisabledSubscription_ReceivesNothing()
     {
         await using var factory = await NewFactoryAsync();
         await AddSubscriptionAsync(factory, _urlA, enabled: false, WebhookEventTypes.CardCreated);

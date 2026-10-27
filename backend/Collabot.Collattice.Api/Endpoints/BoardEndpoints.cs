@@ -1,6 +1,3 @@
-using Collabot.Collattice.Api.Auth;
-using Collabot.Collattice.Api.Events;
-using Collabot.Collattice.Api.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace Collabot.Collattice.Api.Endpoints;
@@ -103,8 +100,16 @@ internal static class BoardEndpoints
 
             var archivedCardsDeleted = await db.Cards.CountAsync(x => x.BoardId == id, ct);
 
-            db.Boards.Remove(board);
-            await db.SaveChangesAsync(ct);
+            var deleteOutcome = await GuardedDelete.BoardAsync(db, board, ct);
+            if (deleteOutcome is GuardedDeleteOutcome.InUse)
+            {
+                return Results.BadRequest("Board must have no lanes before it can be deleted.");
+            }
+
+            if (deleteOutcome is GuardedDeleteOutcome.NotFound)
+            {
+                return Results.NotFound();
+            }
 
             // board.deleted — WEBHOOK-ONLY (no board bell), enqueued from the captured board after the
             // row is gone (state at occurrence; the event is self-contained).

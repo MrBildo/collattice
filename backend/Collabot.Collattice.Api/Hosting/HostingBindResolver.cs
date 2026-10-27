@@ -1,5 +1,4 @@
 using System.Globalization;
-using Collabot.Collattice.Api.Configuration;
 
 namespace Collabot.Collattice.Api.Hosting;
 

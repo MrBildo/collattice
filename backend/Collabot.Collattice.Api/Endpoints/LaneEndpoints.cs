@@ -1,6 +1,3 @@
-using Collabot.Collattice.Api.Auth;
-using Collabot.Collattice.Api.Events;
-using Collabot.Collattice.Api.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace Collabot.Collattice.Api.Endpoints;
@@ -28,14 +25,13 @@ internal static class LaneEndpoints
                 return Results.BadRequest("Name is required.");
             }
 
-            if (request.Position == int.MaxValue)
+            var created = await LanePositionHelper.CreateAsync(db, boardId, request.Name, request.Position, ct);
+            if (created.Lane is not Lane lane)
             {
-                return Results.BadRequest("Position value is reserved.");
+                return created.IsConflict
+                    ? Results.Conflict(created.Error)
+                    : Results.BadRequest(created.Error);
             }
-
-            var lane = new Lane { Id = Guid.NewGuid(), BoardId = boardId, Name = request.Name, Position = request.Position };
-            db.Lanes.Add(lane);
-            await db.SaveChangesAsync(ct);
 
             // lane.created — same single board bell, plus one webhook event.
             await WebhookEventFactory.PublishLaneCreatedAsync(db, broadcaster, lane, http.CurrentUser(), ct);
@@ -92,8 +88,16 @@ internal static class LaneEndpoints
                 return Results.Conflict("Lane must be empty.");
             }
 
-            db.Lanes.Remove(lane);
-            await db.SaveChangesAsync(ct);
+            var deleteOutcome = await GuardedDelete.LaneAsync(db, lane, ct);
+            if (deleteOutcome is GuardedDeleteOutcome.InUse)
+            {
+                return Results.Conflict("Lane must be empty.");
+            }
+
+            if (deleteOutcome is GuardedDeleteOutcome.NotFound)
+            {
+                return Results.NotFound();
+            }
 
             // lane.deleted — published from the captured lane after the row is gone; the board still
             // exists, so the slug resolves.
@@ -109,43 +113,17 @@ internal static class LaneEndpoints
                 return Results.NotFound();
             }
 
-            if (lane.IsArchiveLane)
-            {
-                return Results.BadRequest("Archive lanes cannot be modified.");
-            }
-
             // Capture the pre-mutation values for the per-axis no-op guard.
             var oldName = lane.Name;
             var oldPosition = lane.Position;
 
-            if (request.Name is not null)
+            var (error, isConflict) = await LaneUpdateHelper.UpdateAsync(db, lane, request.Name, request.Position, ct);
+            if (error is not null)
             {
-                if (string.IsNullOrWhiteSpace(request.Name))
-                {
-                    return Results.BadRequest("Name cannot be empty.");
-                }
-
-                lane.Name = request.Name;
+                return isConflict
+                    ? Results.Conflict(error)
+                    : Results.BadRequest(error);
             }
-
-            if (request.Position is not null)
-            {
-                var newPos = request.Position.Value;
-
-                if (newPos == int.MaxValue)
-                {
-                    return Results.BadRequest("Position value is reserved.");
-                }
-
-                if (await db.Lanes.AnyAsync(x => x.BoardId == lane.BoardId && x.Position == newPos && x.Id != id, ct))
-                {
-                    return Results.Conflict("Position already taken by another lane.");
-                }
-
-                lane.Position = newPos;
-            }
-
-            await db.SaveChangesAsync(ct);
 
             // Split by axis: a name change → lane.renamed; a position change → lane.reordered
             // (the board's full new order). Both can co-fire from one PATCH; PublishCoalesced rings

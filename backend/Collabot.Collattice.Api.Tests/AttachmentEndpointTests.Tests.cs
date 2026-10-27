@@ -1,8 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Collabot.Collattice.Api.Models;
-using Collabot.Collattice.Api.Tests.Infrastructure;
 using Shouldly;
 
 namespace Collabot.Collattice.Api.Tests;
@@ -51,7 +49,7 @@ public class AttachmentEndpointTests(CollatticeApiFactory factory) : IClassFixtu
     }
 
     [Fact]
-    public async Task GetCardAttachments_ReturnsMetadataWithoutPayload()
+    public async Task GetCardAttachments_CardWithUpload_ReturnsMetadataWithoutPayload()
     {
         // Arrange
         var cardId = await CreateCardAsync();
@@ -149,7 +147,7 @@ public class AttachmentEndpointTests(CollatticeApiFactory factory) : IClassFixtu
     }
 
     [Fact]
-    public async Task GetAttachment_ReturnsFileWithCorrectContent()
+    public async Task GetAttachment_UploadedFile_ReturnsFileWithCorrectContent()
     {
         // Arrange
         var cardId = await CreateCardAsync();

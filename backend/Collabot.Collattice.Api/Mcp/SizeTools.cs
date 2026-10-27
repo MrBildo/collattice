@@ -1,8 +1,5 @@
 using System.ComponentModel;
 using System.Text.Json;
-using Collabot.Collattice.Api.Endpoints;
-using Collabot.Collattice.Api.Events;
-using Collabot.Collattice.Api.Models;
 using Microsoft.EntityFrameworkCore;
 using ModelContextProtocol.Server;
 
@@ -13,10 +10,10 @@ namespace Collabot.Collattice.Api.Mcp;
 // DELETE /sizes/{id}). All three gate via RequireAdminLevelAsync.
 // reorder_sizes added, mirroring reorder_lanes.
 [McpServerToolType]
-public sealed class SizeTools(BoardDbContext db, McpAuthService auth, BoardEventBroadcaster broadcaster)
+public class SizeTools(BoardDbContext db, McpAuthService auth, BoardEventBroadcaster broadcaster)
 {
     [McpServerTool(Name = "create_size", Destructive = false)]
-    [Description("Create a card size on a board. Requires Administrator or AgentAdministrator role. If ordinal is omitted, it is auto-assigned to one greater than the board's current highest ordinal.")]
+    [Description("Create a card size on a board. Requires Administrator or AgentAdministrator role. If ordinal is omitted, it is auto-assigned to one greater than the board's current highest ordinal. An ordinal or name already taken by another size on the board is a conflict.")]
     public async Task<string> CreateSizeAsync
     (
         [Description("Your auth key")] string authKey,
@@ -42,15 +39,11 @@ public sealed class SizeTools(BoardDbContext db, McpAuthService auth, BoardEvent
             return "Error: Name is required.";
         }
 
-        var resolvedOrdinal = ordinal ?? 0;
-        if (!ordinal.HasValue && await db.CardSizes.AnyAsync(s => s.BoardId == boardId, ct))
+        var created = await SizeCreateHelper.CreateAsync(db, boardId, name, ordinal, ct);
+        if (created.Size is not CardSize size)
         {
-            resolvedOrdinal = await db.CardSizes.Where(s => s.BoardId == boardId).MaxAsync(s => s.Ordinal, ct) + 1;
+            return $"Error: {created.Error}";
         }
-
-        var size = new CardSize { Id = Guid.NewGuid(), BoardId = boardId, Name = name, Ordinal = resolvedOrdinal };
-        db.CardSizes.Add(size);
-        await db.SaveChangesAsync(ct);
 
         // size.created — REST/MCP emit the identical event through the shared factory.
         await WebhookEventFactory.PublishSizeCreatedAsync(db, broadcaster, size, user!, ct);
@@ -58,7 +51,7 @@ public sealed class SizeTools(BoardDbContext db, McpAuthService auth, BoardEvent
     }
 
     [McpServerTool(Name = "update_size", Destructive = false)]
-    [Description("Update a card size's name and/or ordinal. Requires Administrator or AgentAdministrator role. An ordinal already taken by another size on the board is a conflict.")]
+    [Description("Update a card size's name and/or ordinal. Requires Administrator or AgentAdministrator role. A name or an ordinal already taken by another size on the board is a conflict, and nothing in the call is saved.")]
     public async Task<string> UpdateSizeAsync
     (
         [Description("Your auth key")] string authKey,
@@ -84,28 +77,11 @@ public sealed class SizeTools(BoardDbContext db, McpAuthService auth, BoardEvent
         var oldName = size.Name;
         var oldOrdinal = size.Ordinal;
 
-        if (name is not null)
+        var (updateError, _) = await SizeUpdateHelper.UpdateAsync(db, size, name, ordinal, ct);
+        if (updateError is not null)
         {
-            if (string.IsNullOrWhiteSpace(name))
-            {
-                return "Error: Name cannot be empty.";
-            }
-
-            size.Name = name;
+            return $"Error: {updateError}";
         }
-
-        if (ordinal is not null)
-        {
-            var newOrd = ordinal.Value;
-            if (await db.CardSizes.AnyAsync(s => s.BoardId == size.BoardId && s.Ordinal == newOrd && s.Id != sizeId, ct))
-            {
-                return "Error: Ordinal already taken by another size.";
-            }
-
-            size.Ordinal = newOrd;
-        }
-
-        await db.SaveChangesAsync(ct);
 
         // Split by axis: name → size.renamed; ordinal → size.reordered (board's full new order).
         // Co-fire through PublishCoalesced — one SSE bell, identical to the REST PATCH.
@@ -143,8 +119,16 @@ public sealed class SizeTools(BoardDbContext db, McpAuthService auth, BoardEvent
             return "Error: Size is in use by cards.";
         }
 
-        db.CardSizes.Remove(size);
-        await db.SaveChangesAsync(ct);
+        var deleteOutcome = await GuardedDelete.SizeAsync(db, size, ct);
+        if (deleteOutcome is GuardedDeleteOutcome.InUse)
+        {
+            return "Error: Size is in use by cards.";
+        }
+
+        if (deleteOutcome is GuardedDeleteOutcome.NotFound)
+        {
+            return "Error: Size not found.";
+        }
 
         // size.deleted — published from the captured size after the row is gone; REST/MCP identical
         // through the shared factory.

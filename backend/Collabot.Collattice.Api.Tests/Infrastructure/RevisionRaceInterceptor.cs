@@ -1,6 +1,4 @@
 using System.Globalization;
-using Collabot.Collattice.Api.Endpoints;
-using Collabot.Collattice.Api.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
@@ -125,7 +123,12 @@ public class RevisionRaceInterceptor(IServiceScopeFactory scopeFactory) : SaveCh
                 ct
             );
 
-            await CardHistoryHelper.SaveWithRevisionRetryAsync(db, change, ct);
+            // The rival commits uncontended, so it cannot run out of attempts; failing loudly here
+            // keeps a broken rival from passing as a collision the request under test never met.
+            if (!await CardHistoryHelper.TrySaveWithRevisionRetryAsync(db, change, ct))
+            {
+                throw new InvalidOperationException("The injected rival edit failed to commit.");
+            }
         }
         finally
         {

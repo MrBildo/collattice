@@ -1,0 +1,15 @@
+global using Collabot.Collattice.Api.Auth;
+global using Collabot.Collattice.Api.Configuration;
+global using Collabot.Collattice.Api.Endpoints;
+global using Collabot.Collattice.Api.Events;
+global using Collabot.Collattice.Api.Hosting;
+global using Collabot.Collattice.Api.Hosting.UpdateCheck;
+global using Collabot.Collattice.Api.Hosting.Webhooks;
+global using Collabot.Collattice.Api.Installation;
+global using Collabot.Collattice.Api.Mcp;
+global using Collabot.Collattice.Api.Models;
+global using Collabot.Collattice.Api.Persistence;
+global using Collabot.Collattice.Api.Tests.Infrastructure;
+global using Microsoft.AspNetCore.Mvc.Testing;
+global using Microsoft.Extensions.Configuration;
+global using Microsoft.Extensions.Logging;

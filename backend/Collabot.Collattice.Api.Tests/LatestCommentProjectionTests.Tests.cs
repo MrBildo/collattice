@@ -1,9 +1,5 @@
 using System.Net.Http.Json;
 using System.Text.Json;
-using Collabot.Collattice.Api.Events;
-using Collabot.Collattice.Api.Mcp;
-using Collabot.Collattice.Api.Models;
-using Collabot.Collattice.Api.Tests.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 
@@ -175,7 +171,7 @@ public class LatestCommentProjectionTests(CollatticeApiFactory factory) : IClass
     }
 
     [Fact]
-    public async Task McpGetCards_CarriesLatestCommentProjection()
+    public async Task McpGetCards_CardWithComment_CarriesLatestCommentProjection()
     {
         // Arrange — exercise the MCP surface directly to prove parity with REST.
         TestAuthHelper.SetAdminAuth(_client, _factory);

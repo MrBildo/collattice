@@ -1,5 +1,3 @@
-using Collabot.Collattice.Api.Auth;
-
 namespace Collabot.Collattice.Api.Endpoints;
 
 internal static class SearchEndpoints

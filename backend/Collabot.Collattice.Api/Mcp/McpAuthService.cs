@@ -1,6 +1,3 @@
-using Collabot.Collattice.Api.Auth;
-using Collabot.Collattice.Api.Models;
-
 namespace Collabot.Collattice.Api.Mcp;
 
 public class McpAuthService(IUserResolver resolver)

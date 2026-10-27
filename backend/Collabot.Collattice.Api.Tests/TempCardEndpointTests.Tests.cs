@@ -1,8 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Collabot.Collattice.Api.Models;
-using Collabot.Collattice.Api.Tests.Infrastructure;
 using Shouldly;
 
 namespace Collabot.Collattice.Api.Tests;
@@ -62,7 +60,7 @@ public class TempCardEndpointTests(CollatticeApiFactory factory) : IClassFixture
     }
 
     [Fact]
-    public async Task CreateTempCard_Returns201WithId()
+    public async Task CreateTempCard_ByAdmin_Returns201WithId()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -90,7 +88,7 @@ public class TempCardEndpointTests(CollatticeApiFactory factory) : IClassFixture
     }
 
     [Fact]
-    public async Task TempCard_ExcludedFromCardListings()
+    public async Task GetCards_WithTempCard_ExcludesTempCard()
     {
         // Arrange
         var tempCardId = await CreateTempCardAsync();
@@ -109,7 +107,7 @@ public class TempCardEndpointTests(CollatticeApiFactory factory) : IClassFixture
     }
 
     [Fact]
-    public async Task TempCard_ExcludedFromCompositeView()
+    public async Task GetBoardComposite_WithTempCard_ExcludesTempCard()
     {
         // Arrange
         var tempCardId = await CreateTempCardAsync();
@@ -127,7 +125,7 @@ public class TempCardEndpointTests(CollatticeApiFactory factory) : IClassFixture
     }
 
     [Fact]
-    public async Task FinalizeTempCard_AssignsNumber()
+    public async Task FinalizeCard_TempCard_AssignsNumber()
     {
         // Arrange
         var tempCardId = await CreateTempCardAsync();
@@ -148,7 +146,7 @@ public class TempCardEndpointTests(CollatticeApiFactory factory) : IClassFixture
     }
 
     [Fact]
-    public async Task FinalizedCard_AppearsInListings()
+    public async Task GetCards_FinalizedCard_AppearsInListings()
     {
         // Arrange
         var tempCardId = await CreateTempCardAsync();
@@ -169,7 +167,7 @@ public class TempCardEndpointTests(CollatticeApiFactory factory) : IClassFixture
     }
 
     [Fact]
-    public async Task FinalizeNonTempCard_Returns400()
+    public async Task FinalizeCard_NonTempCard_Returns400()
     {
         // Arrange
         var normalCardId = await CreateNormalCardAsync();
@@ -187,7 +185,7 @@ public class TempCardEndpointTests(CollatticeApiFactory factory) : IClassFixture
     }
 
     [Fact]
-    public async Task FinalizeByNonCreator_Returns403()
+    public async Task FinalizeCard_ByNonCreator_Returns404()
     {
         // Arrange
         var tempCardId = await CreateTempCardAsync();
@@ -208,11 +206,11 @@ public class TempCardEndpointTests(CollatticeApiFactory factory) : IClassFixture
         );
 
         // Assert
-        response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 
     [Fact]
-    public async Task CancelTempCard_Returns204()
+    public async Task CancelCard_TempCard_Returns204()
     {
         // Arrange
         var tempCardId = await CreateTempCardAsync();
@@ -230,7 +228,7 @@ public class TempCardEndpointTests(CollatticeApiFactory factory) : IClassFixture
     }
 
     [Fact]
-    public async Task CancelTempCard_DeletesCardAndAttachments()
+    public async Task CancelCard_TempCardWithAttachment_DeletesCardAndAttachments()
     {
         // Arrange
         var tempCardId = await CreateTempCardAsync();
@@ -271,7 +269,7 @@ public class TempCardEndpointTests(CollatticeApiFactory factory) : IClassFixture
     }
 
     [Fact]
-    public async Task CancelNonTempCard_Returns400()
+    public async Task CancelCard_NonTempCard_Returns400()
     {
         // Arrange
         var normalCardId = await CreateNormalCardAsync();
@@ -289,7 +287,7 @@ public class TempCardEndpointTests(CollatticeApiFactory factory) : IClassFixture
     }
 
     [Fact]
-    public async Task ReorderTempCard_Returns400()
+    public async Task ReorderCard_TempCard_Returns400()
     {
         // Arrange
         var tempCardId = await CreateTempCardAsync();
@@ -308,7 +306,7 @@ public class TempCardEndpointTests(CollatticeApiFactory factory) : IClassFixture
     }
 
     [Fact]
-    public async Task ArchiveTempCard_Returns400()
+    public async Task ArchiveCard_TempCard_Returns400()
     {
         // Arrange
         var tempCardId = await CreateTempCardAsync();
@@ -326,7 +324,7 @@ public class TempCardEndpointTests(CollatticeApiFactory factory) : IClassFixture
     }
 
     [Fact]
-    public async Task UploadAttachmentToTempCard_Succeeds()
+    public async Task UploadAttachment_TempCard_Succeeds()
     {
         // Arrange
         var tempCardId = await CreateTempCardAsync();
@@ -376,7 +374,7 @@ public class TempCardEndpointTests(CollatticeApiFactory factory) : IClassFixture
     }
 
     [Fact]
-    public async Task CreateTempCard_DefaultsToLowestOrdinalSize()
+    public async Task CreateTempCard_NoSizeId_DefaultsToLowestOrdinalSize()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);

@@ -1,5 +1,4 @@
 using System.Net;
-using Collabot.Collattice.Api.Tests.Infrastructure;
 using Shouldly;
 
 namespace Collabot.Collattice.Api.Tests;
@@ -32,7 +31,7 @@ public class MethodNotAllowedTests(CollatticeApiFactory factory) : IClassFixture
     }
 
     [Fact]
-    public async Task MethodNotAllowedResponse_StillEmitsAllowHeader()
+    public async Task MethodNotAllowedResponse_PutOnGetPatchRoute_StillEmitsAllowHeader()
     {
         // Act
         var response = await _client.SendAsync(new HttpRequestMessage(HttpMethod.Put, _methodRestrictedRoute));
@@ -45,7 +44,7 @@ public class MethodNotAllowedTests(CollatticeApiFactory factory) : IClassFixture
     }
 
     [Fact]
-    public async Task NonMethodNotAllowedError_IsNotGivenTheMethodNotAllowedBody()
+    public async Task NonMethodNotAllowedError_MissingCard404_IsNotGivenTheMethodNotAllowedBody()
     {
         // Arrange — a GET for a card that does not exist returns 404, exercising a non-405 error
         // path to confirm the middleware acts on 405 alone and leaves other responses untouched.

@@ -1,17 +1,7 @@
 using System.Globalization;
 using System.Reflection;
-using Collabot.Collattice.Api;
-using Collabot.Collattice.Api.Auth;
-using Collabot.Collattice.Api.Configuration;
-using Collabot.Collattice.Api.Endpoints;
-using Collabot.Collattice.Api.Events;
-using Collabot.Collattice.Api.Hosting;
-using Collabot.Collattice.Api.Hosting.UpdateCheck;
-using Collabot.Collattice.Api.Hosting.Webhooks;
-using Collabot.Collattice.Api.Installation;
-using Collabot.Collattice.Api.Mcp;
-using Collabot.Collattice.Api.Models;
 using Microsoft.AspNetCore.Http.Features;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 
 // --version flag
@@ -33,7 +23,21 @@ if (args.Length > 0 && args[0] == "--merge-appsettings")
     Environment.Exit(AppSettingsMergeCli.Run(args[1..], Console.Out, Console.Error));
 }
 
-var builder = WebApplication.CreateBuilder(args);
+// Operator-invoked subcommand: give an Administrator a new auth key, printed once to this terminal.
+// It reads the configuration the app reads (appsettings.json and environment variables, in the same
+// order, from the same folder) but never builds the host, so the key does not pass through the app's
+// logging. Its own arguments are not host arguments, so none are passed on.
+if (args.Length > 0 && args[0] == "--reset-admin-key")
+{
+    var resetConfiguration = WebApplication.CreateBuilder(ContentRootResolver.CreateBuilderOptions([])).Configuration;
+    resetConfiguration.AddEnvironmentVariables();
+
+    Environment.Exit(await AdminKeyResetCli.RunAsync(args[1..], resetConfiguration, Console.Out, Console.Error));
+}
+
+// appsettings.json and the web files are read from the program's own folder, whichever folder the
+// program is started from; an explicitly named content root still wins.
+var builder = WebApplication.CreateBuilder(ContentRootResolver.CreateBuilderOptions(args));
 
 // WebApplication.CreateBuilder adds an env-var provider at builder-construction time. The
 // re-add below ensures env vars sit at the top of the provider chain even if a future JSON
@@ -82,91 +86,23 @@ builder.Services.AddCors(options =>
     });
 });
 
-// The writable database location is a told input — never derived from the working
-// directory, the binary directory, or $HOME. ConnectionStrings:Board is required
-// configuration with no fallback; an absolute path is required. Misconfiguration
-// fails loud and early here, naming the key and the offending value, rather than
-// degrading to a cwd-relative guess that lands unpredictably under a hardened
-// deployment. Each actionable failure carries a copy-paste-ready remedy in
-// both forms a user might use — environment variable and appsettings.json — so a
-// manual-download user can fix it in one step.
-static string ExampleDbConnectionString() =>
-    OperatingSystem.IsWindows()
-        ? @"Data Source=C:\collattice\data\collattice.db"
-        : "Data Source=/var/lib/collattice/collattice.db";
-
-static string ConfigRemedy()
+// Where the database lives: the configured 'ConnectionStrings:Board', or a per-user default when none
+// is configured, decided by the same resolver --reset-admin-key uses. A location that can't be used
+// stops the app here, naming the path and the setting to change, before EF opens anything.
+if (!DatabaseLocation.TryResolve(builder.Configuration, out var database, out var databaseError)
+    || !DatabaseLocation.TryPrepare(database, out var createdNewDatabase, out databaseError))
 {
-    var example = ExampleDbConnectionString();
-    var jsonValue = example.Replace(@"\", @"\\", StringComparison.Ordinal);
-
-    return $$"""
-        To fix this, set 'ConnectionStrings:Board' to an absolute path in either form:
-
-          - Environment variable:
-              ConnectionStrings__Board={{example}}
-
-          - appsettings.json (next to the executable; edits survive upgrades via the smart-merge):
-              {
-                "ConnectionStrings": {
-                  "Board": "{{jsonValue}}"
-                }
-              }
-        """;
+    throw new InvalidOperationException($"{databaseError}\n\n{DatabaseLocation.Remedy()}");
 }
 
-var connectionString = builder.Configuration.GetConnectionString("Board");
-if (string.IsNullOrWhiteSpace(connectionString))
-{
-    throw new InvalidOperationException
-    (
-        "Required configuration 'ConnectionStrings:Board' is not set. The application "
-        + "does not derive a database path from the working or binary directory.\n\n"
-        + ConfigRemedy()
-    );
-}
+// EF Core logs through ExpectedSaveFailureLoggerFactory so a save failure the code declares it
+// handles (a lost race on a unique index) is not written as an error.
+builder.Services.AddSingleton<ExpectedSaveFailureLoggerFactory>();
 
-var dbPath = new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder(connectionString).DataSource;
-
-// SQLite special data sources (`:memory:`, empty/temp) carry no filesystem path —
-// the in-memory test database relies on this. Real filesystem paths must be
-// absolute and writable; anything else fails loud here, before EF opens the DB.
-var isSpecialDataSource = string.IsNullOrEmpty(dbPath) || dbPath == ":memory:";
-if (!isSpecialDataSource)
-{
-    if (!Path.IsPathRooted(dbPath))
-    {
-        throw new InvalidOperationException
-        (
-            $"Configuration 'ConnectionStrings:Board' resolves to a relative data "
-            + $"source '{dbPath}'. An absolute path is required so the database "
-            + "location does not depend on the process working directory.\n\n"
-            + ConfigRemedy()
-        );
-    }
-
-    var dbDir = Path.GetDirectoryName(dbPath);
-    if (!string.IsNullOrEmpty(dbDir))
-    {
-        try
-        {
-            Directory.CreateDirectory(dbDir);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            throw new InvalidOperationException
-            (
-                $"The database directory '{dbDir}' (from 'ConnectionStrings:Board' "
-                + $"= '{dbPath}') could not be created or is not writable: {ex.Message}. "
-                + "Point 'ConnectionStrings:Board' at an absolute path the process "
-                + $"can write under this deployment's sandbox.\n\n{ConfigRemedy()}",
-                ex
-            );
-        }
-    }
-}
-
-builder.Services.AddDbContext<BoardDbContext>(options => options.UseSqlite(connectionString));
+builder.Services.AddDbContext<BoardDbContext>((serviceProvider, options) => options
+    .UseSqlite(database.ConnectionString)
+    .AddInterceptors(SqliteBusyTimeoutInterceptor.Instance)
+    .UseLoggerFactory(serviceProvider.GetRequiredService<ExpectedSaveFailureLoggerFactory>()));
 
 builder.Services.Configure<AttachmentSettings>(builder.Configuration.GetSection(AttachmentSettings.SectionName));
 builder.Services.Configure<TempCardSweepSettings>(builder.Configuration.GetSection(TempCardSweepSettings.SectionName));
@@ -293,23 +229,46 @@ builder.Services
         // shapes and rethrows as McpException so the wrapper renders
         // "<tool>': <Type — Message>". Server-internal failures (DB, EF,
         // downstream) deliberately fall through, preserving the body-less
-        // wrapper response so infrastructure detail does not leak.
+        // wrapper response so infrastructure detail does not leak. A write that
+        // lost to a concurrent delete is the one database failure it answers,
+        // with a fixed "Error: " message.
         filters.AddCallToolFilter(McpErrorTranslator.WrapForCallTool);
     });
 
 var app = builder.Build();
 
+// The default location is announced at warning level, so an operator whose service lost its configured
+// path can find out from the log why the board is empty, and where this start's data is going.
+if (database.IsDefault && createdNewDatabase)
+{
+    app.Logger.LogWarning
+    (
+        "Using the default database location {DatabasePath}, because no database path is configured. This start created a new, empty database there. To use a different database, set 'ConnectionStrings:Board' in appsettings.json or the 'ConnectionStrings__Board' environment variable.",
+        database.FilePath
+    );
+}
+else if (database.IsDefault)
+{
+    app.Logger.LogWarning
+    (
+        "Using the default database location {DatabasePath}, because no database path is configured. To use a different database, set 'ConnectionStrings:Board' in appsettings.json or the 'ConnectionStrings__Board' environment variable.",
+        database.FilePath
+    );
+}
+
 await using (var scope = app.Services.CreateAsyncScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<BoardDbContext>();
 
-    // Auto-backup SQLite DB before applying pending migrations
+    // Auto-backup SQLite DB before applying pending migrations. A new database is an empty file,
+    // created owner-only before SQLite opened it, and has nothing in it to back up.
     var pendingMigrations = await db.Database.GetPendingMigrationsAsync();
     if (pendingMigrations.Any())
     {
         var currentConnectionString = db.Database.GetConnectionString();
         var currentDbPath = new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder(currentConnectionString).DataSource;
-        if (File.Exists(currentDbPath))
+
+        if (File.Exists(currentDbPath) && new FileInfo(currentDbPath).Length > 0)
         {
             var backupPath = $"{currentDbPath}.bak-{DateTime.UtcNow.ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture)}";
             File.Copy(currentDbPath, backupPath);
@@ -324,13 +283,14 @@ await using (var scope = app.Services.CreateAsyncScope())
 
     await db.Database.MigrateAsync();
 
+    // WAL is recorded in the database file, so setting it once covers every connection. The busy
+    // timeout is per connection and is set on each one by SqliteBusyTimeoutInterceptor.
     await db.Database.ExecuteSqlRawAsync("PRAGMA journal_mode = 'wal';");
-    await db.Database.ExecuteSqlRawAsync("PRAGMA busy_timeout = 5000;");
 
     if (!await db.Users.AnyAsync())
     {
-        var adminAuthKey = app.Configuration.GetValue<string>("Admin:AuthKey")
-            ?? Ulid.NewUlid().ToString();
+        var configuredAdminAuthKey = app.Configuration.GetValue<string>("Admin:AuthKey");
+        var adminAuthKey = configuredAdminAuthKey ?? Ulid.NewUlid().ToString(null, CultureInfo.InvariantCulture);
 
         var adminUser = new BoardUser
         {
@@ -412,13 +372,19 @@ await using (var scope = app.Services.CreateAsyncScope())
         db.CardLabels.Add(new CardLabel { CardId = welcomeCard.Id, LabelId = featureLabel.Id });
 
         await db.SaveChangesAsync();
-    }
 
-    // Always log the admin auth key at startup
-    var admin = await db.Users.FirstOrDefaultAsync(u => u.Role == UserRole.Administrator);
-    if (admin is not null)
+        // The one time a key is logged: it was just generated, and the log is the only place the
+        // operator can learn it. A key set through Admin:AuthKey is already known to whoever set it.
+        // An existing administrator's key is never logged, because the app log is often readable by
+        // people who should not hold full control of the board.
+        if (configuredAdminAuthKey is null)
+        {
+            app.Logger.LogInformation("Admin auth key: {AuthKey}", adminAuthKey);
+        }
+    }
+    else
     {
-        app.Logger.LogInformation("Admin auth key: {AuthKey}", admin.AuthKey);
+        app.Logger.LogInformation("Auth keys are not logged on an ordinary start. To give an administrator a new key, run the executable with --reset-admin-key.");
     }
 
     // Migrate the v1 single configured webhook endpoint into the subscription registry on
@@ -434,10 +400,23 @@ await using (var scope = app.Services.CreateAsyncScope())
     );
 }
 
-// Outermost so it observes the final status of every request: fills a bodyless 405 from
-// routing with a readable message naming the allowed methods, leaving the Allow header and
-// every other response untouched.
+// Behind a TLS-terminating reverse proxy (production: Collabhost's Caddy, dialing this process
+// over plain HTTP on localhost) the request scheme Kestrel sees is http, so anything that echoes
+// the public address — get_api_info's base URL — advertised http:// for an https-only host. Honor
+// X-Forwarded-Proto, and only that: the client IP and Host are not taken from forwarded headers.
+// The framework default trusts the header only from loopback peers, which is exactly a
+// same-box proxy; a request arriving from any other address keeps the scheme it connected with.
+// First in the pipeline, so nothing added later can read the scheme before it is corrected.
+app.UseForwardedHeaders(new ForwardedHeadersOptions { ForwardedHeaders = ForwardedHeaders.XForwardedProto });
+
+// Wraps everything after the forwarded-headers fix-up (which only rewrites the request), so it
+// observes the final status of every request: fills a bodyless 405 from routing with a readable
+// message naming the allowed methods, leaving the Allow header and every other response untouched.
 app.UseMethodNotAllowedBody();
+
+// Answers a write that lost to a concurrent delete (a foreign key that now points at nothing, or a
+// row already gone) with a 409 instead of a 500. Inside the 405 filler, outside every endpoint.
+app.UseConcurrentDeleteConflict();
 
 if (app.Environment.IsDevelopment())
 {

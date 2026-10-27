@@ -3,14 +3,8 @@ using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using Collabot.Collattice.Api.Configuration;
-using Collabot.Collattice.Api.Events;
-using Collabot.Collattice.Api.Hosting.Webhooks;
-using Collabot.Collattice.Api.Models;
-using Collabot.Collattice.Api.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Shouldly;
 
@@ -22,7 +16,7 @@ namespace Collabot.Collattice.Api.Tests;
 // is swapped for a capture stub. Each scenario needs its own Webhooks config (Endpoint/Secret/
 // MaxAttempts/RetryBackoffBase bind at startup), so each test builds its own factory rather than
 // sharing a fixture.
-public sealed class WebhookDeliveryTests
+public class WebhookDeliveryTests
 {
     private const string _testEndpoint = "https://sink.test/webhooks";
 
@@ -42,8 +36,8 @@ public sealed class WebhookDeliveryTests
     //
     // runDispatcher = true: the hosted dispatcher drains the queue (end-to-end "delivery happens"
     // tests asserting on the capturing handler). false: the test owns the queue and drives the
-    // deterministic DeliverEventAsync seam (persistence tests — avoids the shared-in-memory-SQLite
-    // concurrent-read race that a running hosted service would create).
+    // deterministic DeliverEventAsync seam (persistence tests — the test decides when delivery
+    // happens and when its rows are read back).
     private static async Task<WebhookDeliveryFactory> CreateFactoryAsync(IReadOnlyDictionary<string, string?> config, bool runDispatcher = true)
     {
         var factory = new WebhookDeliveryFactory { ConfigOverrides = config, RunDispatcher = runDispatcher };
@@ -140,7 +134,7 @@ public sealed class WebhookDeliveryTests
     }
 
     [Fact]
-    public async Task DisabledMasterSwitch_MakesNoOutboundCalls()
+    public async Task Delivery_MasterSwitchDisabled_MakesNoOutboundCalls()
     {
         // Endpoint set but Enabled=false → still dark (the pause-but-keep-config affordance).
         var config = BaseConfig(_testEndpoint);
@@ -188,7 +182,7 @@ public sealed class WebhookDeliveryTests
     }
 
     [Fact]
-    public async Task WithoutSecret_SendsNoSignatureHeader()
+    public async Task Delivery_WithoutSecret_SendsNoSignatureHeader()
     {
         await using var factory = await CreateFactoryAsync(BaseConfig(_testEndpoint, secret: null));
         var client = factory.CreateClient();
@@ -200,6 +194,38 @@ public sealed class WebhookDeliveryTests
 
         var request = await WaitForOneRequestAsync(factory.Handler);
         request.Headers.ContainsKey("X-Collattice-Signature").ShouldBeFalse();
+    }
+
+    // ── The dispatcher's database work runs beside other contexts' open statements ──
+    // A create enqueues its event and then keeps reading to build its response, so the dispatcher
+    // can open its context while that read is mid-result. Holding a statement open on another
+    // context for the whole create-and-deliver reproduces that state on demand.
+
+    [Fact]
+    public async Task Delivery_OpenStatementOnAnotherContext_DoesNotStopTheCreateOrItsDelivery()
+    {
+        await using var factory = await CreateFactoryAsync(BaseConfig(_testEndpoint));
+        var client = factory.CreateClient();
+        TestAuthHelper.SetAdminAuth(client, factory);
+        var laneId = await TestDataHelper.GetFirstLaneIdAsync(client, factory.DefaultBoardId);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<BoardDbContext>();
+        var connection = db.Database.GetDbConnection();
+        await connection.OpenAsync();
+
+        // Two rows, one read: the statement stays active until the reader is disposed.
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT 1 UNION ALL SELECT 2";
+        await using var reader = await command.ExecuteReaderAsync();
+        (await reader.ReadAsync()).ShouldBeTrue();
+
+        var response = await client.PostAsJsonAsync($"/api/v1/boards/{factory.DefaultBoardId}/cards", new { name = "Beside An Open Read", laneId });
+        response.StatusCode.ShouldBe(HttpStatusCode.Created);
+
+        var request = await WaitForOneRequestAsync(factory.Handler);
+        var wire = JsonDocument.Parse(request.Body).RootElement;
+        wire.GetProperty("data").GetProperty("card").GetProperty("name").GetString().ShouldBe("Beside An Open Read");
     }
 
     // ── Scenario 8: retry + persisted attempts + loud drop; the mutation still succeeded ──
@@ -403,7 +429,7 @@ public sealed class WebhookDeliveryTests
     // ── Edge cases ────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task SlowEndpoint_DoesNotBlockOrFailTheMutation()
+    public async Task Delivery_SlowEndpoint_DoesNotBlockOrFailTheMutation()
     {
         // The sink hangs ~3s; the create must still return promptly (delivery is never inline).
         var config = BaseConfig(_testEndpoint);
@@ -424,7 +450,7 @@ public sealed class WebhookDeliveryTests
     }
 
     [Fact]
-    public async Task FailedMutation_EmitsNoEvent()
+    public async Task Delivery_FailedMutation_EmitsNoEvent()
     {
         // A create with an invalid label → 400; enqueue is after a successful SaveChanges, so no
         // event is ever delivered.

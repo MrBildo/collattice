@@ -26,6 +26,33 @@ irm https://raw.githubusercontent.com/MrBildo/collattice/main/install.ps1 | iex
 > show the fresh-install location; if you are upgrading an existing install, run the
 > binary from your existing directory instead.
 
+### Installing a specific release
+
+By default the installers fetch the latest release. To pin a particular one, set
+`COLLATTICE_VERSION` to its release tag. GitHub's "latest release" never points at a
+pre-release, so this is also how you install a release candidate.
+
+```bash
+curl -sSL https://raw.githubusercontent.com/MrBildo/collattice/main/install.sh | COLLATTICE_VERSION=v3.1.0 bash
+```
+
+```powershell
+$env:COLLATTICE_VERSION = 'v3.1.0'
+irm https://raw.githubusercontent.com/MrBildo/collattice/main/install.ps1 | iex
+```
+
+The value must be a release tag such as `v3.1.0`, or a pre-release tag such as
+`v3.2.0-rc.1`; anything else stops the installer before it downloads. Pin `v3.0.0` or
+later: older releases were published under the project's previous name, and the installer
+can't find their downloads.
+
+In PowerShell the variable stays set for the rest of the window, so a later plain install
+would reinstall the pinned release. Clear it when you're done:
+
+```powershell
+Remove-Item Env:COLLATTICE_VERSION
+```
+
 ## Manual Download
 
 Download the latest release for your platform from [GitHub Releases](https://github.com/MrBildo/collattice/releases/latest):
@@ -38,10 +65,14 @@ Download the latest release for your platform from [GitHub Releases](https://git
 | Linux 64-bit | `collattice-linux-x64.tar.gz` |
 | Linux ARM64 | `collattice-linux-arm64.tar.gz` |
 
-Extract the archive. Before the first run, edit `appsettings.json` next to the
-executable to set an absolute database path — Collattice requires
-`ConnectionStrings:Board` and does not derive a path from the working or binary
-directory (the one-line installers above do this for you):
+Extract the archive and run the executable. With no database path set, Collattice keeps
+the board in a per-user folder, `~/.collattice/collattice.db` on macOS and Linux or
+`%LOCALAPPDATA%\Collattice\collattice.db` on Windows, and a warning at startup names
+that path. It is the same file whichever folder you start the program from.
+
+To keep the database somewhere else, set an absolute path in `appsettings.json` next
+to the executable before the first run (the one-line installers above set one for
+you, in their own `data` folder):
 
 ```jsonc
 // appsettings.json
@@ -52,10 +83,11 @@ directory (the one-line installers above do this for you):
 }
 ```
 
-Your edits to `appsettings.json` survive upgrades — when you re-run the one-line
+The `ConnectionStrings__Board` environment variable does the same and wins over the
+file. Your edits to `appsettings.json` survive upgrades — when you re-run the one-line
 installer it performs a smart three-way merge.
 
-Then run the executable. No runtime or framework installation required.
+No runtime or framework installation required.
 
 ## macOS Gatekeeper
 
@@ -67,12 +99,13 @@ xattr -d com.apple.quarantine ./Collabot.Collattice.Api
 
 ## First Run
 
-1. Run the executable
+1. Run the executable. If you set no database path, the startup log names the
+   per-user database it is using.
 2. Open **http://localhost:8080** in your browser
 3. Copy the admin auth key from the console output
 4. Enter the key on the login screen
 
-The admin key is printed once on first startup. To set a persistent key, see [Host Configuration](../README.md#host-configuration).
+The admin key is printed once on first startup and never logged again. To choose the key yourself, see [Host Configuration](../README.md#host-configuration). If you lose it, see [Recovering the Admin Key](../INSTALL.md#recovering-the-admin-key).
 
 ## Updating
 

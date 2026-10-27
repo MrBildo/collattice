@@ -1,5 +1,3 @@
-using Collabot.Collattice.Api.Models;
-
 namespace Collabot.Collattice.Api.Auth;
 
 // Single seam for the AuthKey == key && IsActive lookup — REST (RequireRoleFilter)

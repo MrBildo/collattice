@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { fetchBoardBySlug, searchAllCards } from '@/lib/api';
 import { queryKeys } from '@/lib/query-keys';
+import { buildMarkdownSnippet } from '@/lib/markdown-snippet';
 import { cn, isTextInputFocused } from '@/lib/utils';
 import { useDebounce } from '@/hooks/use-debounce';
 import { useClickOutside } from '@/hooks/use-click-outside';
@@ -92,6 +93,20 @@ export function SearchCommand() {
     }
 
     return { activeResults: active, archivedResults: archived };
+  }, [searchQuery.data]);
+
+  // Parsed once per result set rather than on every render: hovering a row
+  // re-renders the list.
+  const snippets = useMemo(() => {
+    const byCardId = new Map<string, string>();
+    for (const group of searchQuery.data ?? []) {
+      for (const card of group.cards) {
+        if (card.descriptionMarkdown) {
+          byCardId.set(card.id, buildMarkdownSnippet(card.descriptionMarkdown, 100));
+        }
+      }
+    }
+    return byCardId;
   }, [searchQuery.data]);
 
   const totalCards = useMemo(
@@ -217,9 +232,12 @@ export function SearchCommand() {
         ) : (
           <Search className="pointer-events-none absolute left-2.5 top-1/2 w-4 h-4 -translate-y-1/2 text-muted-foreground" />
         )}
+        {/* A fixed name: the placeholder is cleared on focus and shortens to "/" when the box
+            is narrow, so it cannot be what the field is called. */}
         <Input
           ref={inputRef}
           type="text"
+          aria-label="Search cards"
           placeholder={isInputFocused ? '' : placeholder}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -235,6 +253,7 @@ export function SearchCommand() {
           <Button
             variant="ghost"
             size="icon-xs"
+            aria-label="Clear search"
             onClick={handleClear}
             className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
           >
@@ -266,6 +285,7 @@ export function SearchCommand() {
                 archived: boolean,
               ) => {
                 const idx = flatIndex++;
+                const snippet = snippets.get(card.id);
                 return (
                   <button
                     key={card.id}
@@ -285,10 +305,8 @@ export function SearchCommand() {
                     </span>
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-medium text-foreground">{card.name}</p>
-                      {card.descriptionMarkdown && (
-                        <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                          {card.descriptionMarkdown.slice(0, 100)}
-                        </p>
+                      {snippet && (
+                        <p className="mt-0.5 truncate text-xs text-muted-foreground">{snippet}</p>
                       )}
                     </div>
                     {archived && (

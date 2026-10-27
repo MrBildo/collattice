@@ -1,5 +1,3 @@
-using Collabot.Collattice.Api.Models;
-
 namespace Collabot.Collattice.Api.Endpoints;
 
 // Shared prune-filter logic for the REST PruneEndpoints and the MCP PruneTools.

@@ -1,5 +1,4 @@
 using System.Globalization;
-using Collabot.Collattice.Api.Endpoints;
 using Shouldly;
 
 namespace Collabot.Collattice.Api.Tests;

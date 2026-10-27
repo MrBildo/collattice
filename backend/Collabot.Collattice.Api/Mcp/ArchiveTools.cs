@@ -1,14 +1,12 @@
 using System.ComponentModel;
 using System.Globalization;
-using Collabot.Collattice.Api.Endpoints;
-using Collabot.Collattice.Api.Events;
 using Microsoft.EntityFrameworkCore;
 using ModelContextProtocol.Server;
 
 namespace Collabot.Collattice.Api.Mcp;
 
 [McpServerToolType]
-public sealed class ArchiveTools(BoardDbContext db, McpAuthService auth, BoardEventBroadcaster broadcaster)
+public class ArchiveTools(BoardDbContext db, McpAuthService auth, BoardEventBroadcaster broadcaster)
 {
     [McpServerTool(Name = "archive_card", Destructive = false)]
     [Description("Archive a card — hides it from normal views but preserves it for reference. All roles can archive.")]
@@ -28,7 +26,7 @@ public sealed class ArchiveTools(BoardDbContext db, McpAuthService auth, BoardEv
             return authError!;
         }
 
-        var (resolvedCardId, resolveError) = await McpCardResolver.ResolveCardIdAsync(db, cardId, cardNumber, boardId, boardSlug, ct);
+        var (resolvedCardId, resolveError) = await McpCardResolver.ResolveCardIdAsync(db, user!, cardId, cardNumber, boardId, boardSlug, ct);
         if (resolvedCardId is null)
         {
             return resolveError!;
@@ -83,7 +81,7 @@ public sealed class ArchiveTools(BoardDbContext db, McpAuthService auth, BoardEv
             return authError!;
         }
 
-        var (resolvedCardId, resolveError) = await McpCardResolver.ResolveCardIdAsync(db, cardId, cardNumber, boardId, boardSlug, ct);
+        var (resolvedCardId, resolveError) = await McpCardResolver.ResolveCardIdAsync(db, user!, cardId, cardNumber, boardId, boardSlug, ct);
         if (resolvedCardId is null)
         {
             return resolveError!;

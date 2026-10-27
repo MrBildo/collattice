@@ -1,13 +1,12 @@
 using System.Globalization;
-using Collabot.Collattice.Api.Auth;
-using Collabot.Collattice.Api.Events;
-using Collabot.Collattice.Api.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace Collabot.Collattice.Api.Endpoints;
 
 internal static class CardEndpoints
 {
+    private const string _notADraftMessage = "Card is not a temp card.";
+
     public static RouteGroupBuilder MapCardEndpoints(this RouteGroupBuilder group)
     {
         // Board-scoped listing and creation
@@ -77,7 +76,11 @@ internal static class CardEndpoints
                 return Results.BadRequest(error);
             }
 
-            await CardNumberHelper.InsertCardWithAutoNumberAsync(db, card!, boardId, ct);
+            if (!await CardNumberHelper.TryInsertCardWithAutoNumberAsync(db, card!, boardId, ct))
+            {
+                return Results.Conflict(CardNumberHelper.ContendedMessage);
+            }
+
             await WebhookEventFactory.PublishCardCreatedAsync(db, broadcaster, card!, http.CurrentUser(), ct);
 
             var summaries = await CardSummaryBuilder.BuildAsync(db, [card!], ct);
@@ -92,12 +95,8 @@ internal static class CardEndpoints
         // deserializes it unchanged. The paged successor is GET /api/v2/cards/{id}; every response here advertises
         // that with Deprecation + Link headers. includeDescription stays (an additive, never-breaking
         // projection); commentsOffset/commentsLimit are the paged surface's and live only on v2.
-        group.MapGet("/cards/{id:guid}", async (BoardDbContext db, HttpContext http, Guid id, bool? includeDescription, CancellationToken ct) =>
+        group.MapGet("/cards/{id:guid}", async (BoardDbContext db, Guid id, bool? includeDescription, CancellationToken ct) =>
         {
-            // Deprecation is a property of the resource, not of a particular card, so it is advertised on
-            // every response from this route — the 404 as much as the 200.
-            StampV1CardDetailDeprecation(http.Response, id);
-
             var card = await db.Cards.FindAsync([id], ct);
             if (card is null)
             {
@@ -106,7 +105,17 @@ internal static class CardEndpoints
 
             var detail = await CardDetailBuilder.BuildLegacyAsync(db, card, includeDescription ?? true, ct);
             return Results.Ok(detail);
-        }).RequireAuth();
+        }).RequireAuth().AddEndpointFilter(async (context, next) =>
+        {
+            // Deprecation is a property of the resource, not of a particular card, so it is advertised on
+            // every response from this route — the 404 as much as the 200, including the 404 another
+            // user's draft gets before the handler runs.
+            var id = Guid.Parse(context.HttpContext.GetRouteValue("id")!.ToString()!, CultureInfo.InvariantCulture);
+
+            StampV1CardDetailDeprecation(context.HttpContext.Response, id);
+
+            return await next(context);
+        }).HidesOthersDrafts();
 
         group.MapPatch("/cards/{id:guid}", async (BoardDbContext db, HttpContext http, Guid id, UpdateCardRequest request, BoardEventBroadcaster broadcaster, CancellationToken ct) =>
         {
@@ -168,10 +177,9 @@ internal static class CardEndpoints
             }
 
             // This block handles a lane change; a within-lane position change is handled after the
-            // position mutation below. A name/size/label-only update raises no move event. This
-            // site mutates LaneId/Position INLINE (it does not route through MoveCardToLaneAsync),
-            // so the source lane/position must be snapshotted before the mutation. Resolved only on
-            // a real lane change.
+            // position mutation below. A name/size/label-only update raises no move event. The
+            // source lane/position is snapshotted before the card moves, since the move overwrites
+            // both. Resolved only on a real lane change.
             Lane? moveFromLane = null;
             Lane? moveToLane = null;
             var moveFromPosition = 0;
@@ -200,29 +208,33 @@ internal static class CardEndpoints
                     moveFromLane = await db.Lanes.FindAsync([card.LaneId], ct);
                     moveToLane = targetLane;
                     moveFromPosition = card.Position;
+
+                    // A move to another lane goes through the same helper as every other move path,
+                    // so both lanes are renumbered and the lane left behind keeps no gap.
+                    var targetIndex = await ResolveLaneMoveIndexAsync(db, newLaneId, request.Position, ct);
+                    await CardReorderHelper.MoveCardToLaneAsync(db, card, newLaneId, targetIndex, ct);
                 }
-
-                card.LaneId = newLaneId;
-
-                if (request.Position is null)
+                else if (request.Position is null)
                 {
-                    var maxPosition = await db.Cards.Where(c => c.LaneId == newLaneId && c.Id != id).MaxAsync(c => (int?)c.Position, ct) ?? -10;
-                    card.Position = maxPosition + 10;
+                    card.Position = await CardReorderHelper.EndOfLanePositionAsync(db, newLaneId, id, ct);
                 }
             }
 
-            if (request.Position is not null)
+            // On a move to another lane the position has already been turned into a place in the
+            // target lane above; anywhere else it is the stored number, set as given.
+            if (request.Position is not null && moveToLane is null)
             {
                 card.Position = request.Position.Value;
             }
 
-            // Within-lane movement is a move: an explicit position change with no lane change emits
-            // card.moved with equal from/to lane ids, so a position-only edit is reported the same as
-            // a within-lane reorder. Guarded on a real position change (a same-value position is a
-            // no-op). The lane-change block above already set the move for a genuine lane change; this
-            // covers the position-only case. Scoped to an explicit request.Position so re-asserting
-            // the current lane without a position (which reshuffles to the lane's end) stays silent.
-            if (moveToLane is null && request.Position is not null && card.Position != oldPosition)
+            // Within-lane movement is a move: a position change with no lane change emits card.moved
+            // with equal from/to lane ids, so it is reported the same as a within-lane reorder. The
+            // guard is the resolved position, not how the request expressed it — an explicit position,
+            // or re-asserting the current lane with no position (which re-appends the card to the
+            // lane's end), both count when the card actually lands somewhere new. A same-value result
+            // is a no-op and stays silent. The lane-change block above already set the move for a
+            // genuine lane change; this covers every within-lane case.
+            if (moveToLane is null && card.Position != oldPosition)
             {
                 var currentLane = await db.Lanes.FindAsync([card.LaneId], ct);
                 moveFromLane = currentLane;
@@ -279,7 +291,10 @@ internal static class CardEndpoints
             // on how a concurrent edit racing the same revision number is resolved.
             var descriptionChange = await CardHistoryHelper.StageDescriptionChangeAsync(db, card.Id, oldDescription, card.DescriptionMarkdown, actor.Id, ct);
 
-            await CardHistoryHelper.SaveWithRevisionRetryAsync(db, descriptionChange, ct);
+            if (!await CardHistoryHelper.TrySaveWithRevisionRetryAsync(db, descriptionChange, ct))
+            {
+                return Results.Conflict(CardHistoryHelper.ContendedMessage);
+            }
 
             // Multi-axis co-fire: a single PATCH can change content + lane + labels and
             // emits one webhook event per CHANGED axis, while ringing EXACTLY ONE SSE bell via
@@ -297,7 +312,7 @@ internal static class CardEndpoints
             // shared CardSummaryBuilder — so it cannot appear in list, search or webhook payloads.
             var summaries = await CardSummaryBuilder.BuildAsync(db, [card], ct);
             return Results.Ok(new CardUpdateResult(summaries[0], collision));
-        }).RequireAuth();
+        }).RequireAuth().HidesOthersDrafts();
 
         group.MapPost("/cards/{id:guid}/reorder", async (BoardDbContext db, HttpContext http, Guid id, ReorderCardRequest request, BoardEventBroadcaster broadcaster, CancellationToken ct) =>
         {
@@ -360,11 +375,15 @@ internal static class CardEndpoints
             await db.SaveChangesAsync(ct);
             await WebhookEventFactory.PublishCardMovedAsync(db, broadcaster, card, sourceLane, fromPosition, targetLane, http.CurrentUser(), ct);
 
-            var boardLaneIds = await db.Lanes.Where(x => x.BoardId == targetLane.BoardId).Select(x => x.Id).ToListAsync(ct);
             var lanes = await db.Lanes.Where(x => x.BoardId == targetLane.BoardId).OrderBy(l => l.Position).ToListAsync(ct);
-            var cards = await db.Cards.Where(x => boardLaneIds.Contains(x.LaneId)).OrderBy(c => c.LaneId).ThenBy(c => c.Position).ToListAsync(ct);
+
+            // Drafts are left out like every other card read, so one user's unsaved card never reaches
+            // another. Archived cards stay in, because this response carries the whole board, archive lane included.
+            var cardsQuery = CardQueryHelper.BoardCards(db.Cards, db.Lanes, targetLane.BoardId, includeArchived: true);
+            var cards = await CardQueryHelper.OrderForBoard(cardsQuery).ToListAsync(ct);
+
             return Results.Ok(new { lanes, cards });
-        }).RequireAuth();
+        }).RequireAuth().HidesOthersDrafts();
 
         group.MapDelete("/cards/{id:guid}", async (BoardDbContext db, HttpContext http, Guid id, BoardEventBroadcaster broadcaster, CancellationToken ct) =>
         {
@@ -392,7 +411,7 @@ internal static class CardEndpoints
             broadcaster.Publish(deletedEvent);
 
             return Results.NoContent();
-        }).RequireRole(UserRole.Administrator, UserRole.HumanUser);
+        }).RequireRole(UserRole.Administrator, UserRole.HumanUser).HidesOthersDrafts();
 
         group.MapPost("/cards/{id:guid}/archive", async (BoardDbContext db, HttpContext http, Guid id, BoardEventBroadcaster broadcaster, CancellationToken ct) =>
         {
@@ -431,7 +450,7 @@ internal static class CardEndpoints
             await WebhookEventFactory.PublishCardArchivedAsync(db, broadcaster, card, http.CurrentUser(), ct);
 
             return Results.NoContent();
-        }).RequireAuth();
+        }).RequireAuth().HidesOthersDrafts();
 
         group.MapPost("/cards/{id:guid}/restore", async (BoardDbContext db, HttpContext http, Guid id, RestoreCardRequest request, BoardEventBroadcaster broadcaster, CancellationToken ct) =>
         {
@@ -474,7 +493,7 @@ internal static class CardEndpoints
             await WebhookEventFactory.PublishCardRestoredAsync(db, broadcaster, card, http.CurrentUser(), ct);
 
             return Results.NoContent();
-        }).RequireAuth();
+        }).RequireAuth().HidesOthersDrafts();
 
         // Temp card lifecycle endpoints
         group.MapPost("/boards/{boardId:guid}/cards/temp", async (BoardDbContext db, HttpContext http, Guid boardId, CreateCardRequest request, CancellationToken ct) =>
@@ -514,23 +533,25 @@ internal static class CardEndpoints
 
             if (!card.IsTemp)
             {
-                return Results.BadRequest("Card is not a temp card.");
+                return Results.BadRequest(_notADraftMessage);
             }
 
-            if (http.CurrentUser().Id != card.CreatedByUserId)
-            {
-                return Results.StatusCode(StatusCodes.Status403Forbidden);
-            }
+            // A draft has no place in its lane's order, so the card goes to the end of the lane.
+            card.Position = await CardReorderHelper.EndOfLanePositionAsync(db, card.LaneId, ct: ct);
 
             card.LastUpdatedAtUtc = DateTimeOffset.UtcNow;
             card.LastUpdatedByUserId = http.CurrentUser().Id;
+
             try
             {
-                await CardNumberHelper.FinalizeCardNumberAsync(db, card, card.BoardId, ct);
+                if (!await CardNumberHelper.TryFinalizeCardNumberAsync(db, card, card.BoardId, ct))
+                {
+                    return Results.Conflict(CardNumberHelper.ContendedMessage);
+                }
             }
-            catch (InvalidOperationException)
+            catch (DbUpdateConcurrencyException)
             {
-                return Results.StatusCode(500);
+                return await AnswerDraftSettledMeanwhileAsync(db, id, ct);
             }
 
             // card.created fires here, on finalize — never at temp-insert (a temp card is
@@ -538,9 +559,9 @@ internal static class CardEndpoints
             // nothing. (the temp-card create wrinkle.)
             await WebhookEventFactory.PublishCardCreatedAsync(db, broadcaster, card, http.CurrentUser(), ct);
             return Results.Ok(new { card.Id, card.Number });
-        }).RequireAuth();
+        }).RequireAuth().HidesOthersDrafts();
 
-        group.MapPost("/cards/{id:guid}/cancel", async (BoardDbContext db, HttpContext http, Guid id, CancellationToken ct) =>
+        group.MapPost("/cards/{id:guid}/cancel", async (BoardDbContext db, Guid id, CancellationToken ct) =>
         {
             var card = await db.Cards.FindAsync([id], ct);
             if (card is null)
@@ -550,21 +571,32 @@ internal static class CardEndpoints
 
             if (!card.IsTemp)
             {
-                return Results.BadRequest("Card is not a temp card.");
-            }
-
-            if (http.CurrentUser().Id != card.CreatedByUserId)
-            {
-                return Results.StatusCode(StatusCodes.Status403Forbidden);
+                return Results.BadRequest(_notADraftMessage);
             }
 
             db.Cards.Remove(card);
-            await db.SaveChangesAsync(ct);
+
+            try
+            {
+                await db.SaveChangesAsync(ct);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return await AnswerDraftSettledMeanwhileAsync(db, id, ct);
+            }
 
             return Results.NoContent();
-        }).RequireAuth();
+        }).RequireAuth().HidesOthersDrafts();
 
         return group;
+
+        // A finalize or cancel whose save found the draft already finalized or cancelled by another
+        // request since it was loaded. It answers as it would have arriving after that request: no
+        // longer a draft if the card is still there, not found if it was cancelled.
+        static async Task<IResult> AnswerDraftSettledMeanwhileAsync(BoardDbContext db, Guid id, CancellationToken ct) =>
+            await db.Cards.AnyAsync(c => c.Id == id, ct)
+                ? Results.BadRequest(_notADraftMessage)
+                : Results.NotFound();
 
         // Validates that every requested label belongs to the board, returning the
         // validated list (empty when none requested) or a REST-worded error. The
@@ -610,5 +642,19 @@ internal static class CardEndpoints
     {
         response.Headers.Append("Deprecation", $"@{_v1CardDetailDeprecatedAtUnixSeconds.ToString(CultureInfo.InvariantCulture)}");
         response.Headers.Append("Link", $"</api/v2/cards/{id}>; rel=\"successor-version\"");
+    }
+
+    // PATCH's position is a stored position number, while the shared move helper places a card at an
+    // index. With no position the card goes to the end of the target lane. With one, it goes where
+    // that number sorts: ahead of the first card whose number is not below it, so the target lane's
+    // order is the one the number asked for, and the lane is then renumbered. Drafts are not counted,
+    // because the helper's index is a place among the lane's saved cards.
+    private static async Task<int> ResolveLaneMoveIndexAsync(BoardDbContext db, Guid targetLaneId, int? position, CancellationToken ct)
+    {
+        var targetCards = db.Cards.Where(c => c.LaneId == targetLaneId && !c.IsTemp);
+
+        return position is null
+            ? await targetCards.CountAsync(ct)
+            : await targetCards.CountAsync(c => c.Position < position.Value, ct);
     }
 }

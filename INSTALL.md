@@ -4,7 +4,7 @@
 
 Collattice supports two production deployment shapes. Pick the one that matches your environment, then follow the matching section below.
 
-- **(a) LAN single-process.** One self-contained executable serves both the API and the embedded React Portal from the same origin. SQLite next to the binary, no reverse proxy, no CORS. Recommended for small teams on a trusted network. → **[Quick Start](#quick-start)** + **[Configuration](#configuration)** below.
+- **(a) LAN single-process.** One self-contained executable serves both the API and the embedded React Portal from the same origin. One SQLite file, no reverse proxy, no CORS. Recommended for small teams on a trusted network. → **[Quick Start](#quick-start)** + **[Configuration](#configuration)** below.
 - **(b) Portal + API hosted separately.** The headless API runs as one process (`Hosting:ServeSpa=false`); the React Portal is built and served by any static-file host on its own origin. [Collabhost](https://github.com/MrBildo/collabhost) is one worked example; any static-site host paired with any .NET process supervisor works. → **[Hosted separately (Portal + API)](#hosted-separately-portal--api)** below.
 
 The same executable serves both shapes — the difference is configuration (`Hosting:ServeSpa`, `Cors:AllowedOrigins`) and how the Portal is hosted, not which build you download.
@@ -14,10 +14,11 @@ The same executable serves both shapes — the difference is configuration (`Hos
 If you used the one-line installer (see [Installation Guide](docs/installation.md)),
 `appsettings.json` is already seeded with an absolute database path — skip to step 2.
 
-1. **Set the database path (required before first run).** Collattice requires
-   `ConnectionStrings:Board` to be an absolute path and does not derive one from
-   the working or binary directory — startup fails loud if it is unset. Edit
-   `appsettings.json` next to the executable to set an absolute path:
+1. **Choose where the database lives (optional).** With no path set, Collattice keeps
+   the board in a per-user folder, `~/.collattice/collattice.db` (macOS/Linux) or
+   `%LOCALAPPDATA%\Collattice\collattice.db` (Windows), and a warning at startup names
+   that path. To keep it somewhere else, set `ConnectionStrings:Board` to an absolute
+   path in `appsettings.json` next to the executable before the first run:
 
    ```jsonc
    // appsettings.json
@@ -58,13 +59,18 @@ If you used the one-line installer (see [Installation Guide](docs/installation.m
 
 3. Open **http://localhost:8080** in your browser.
 
-4. Copy the **admin auth key** from the console output — you'll need it to create users and manage boards.
+4. Copy the **admin auth key** from the console output — you'll need it to create users and manage boards. It is printed on this first run only; later starts never log it. If you lose it, see [Recovering the Admin Key](#recovering-the-admin-key).
 
 ## Configuration
 
 Collattice uses `appsettings.json` for configuration. Edit it directly next to
 the executable; your edits are preserved across upgrades via the smart-merge
 performed by the installer.
+
+The app reads `appsettings.json`, and serves the Portal from `wwwroot/`, in its
+own folder, whichever folder you start it from. To keep them in another folder,
+name it with the standard `ASPNETCORE_CONTENTROOT` environment variable or the
+`--contentRoot <folder>` argument.
 
 | Setting | Default | Description |
 |---------|---------|-------------|
@@ -73,8 +79,8 @@ performed by the installer.
 | `Hosting:ListenPort` | `8080` | Bind port. Used with `Hosting:ListenAddress` when `Urls`/`ASPNETCORE_URLS` is unset. |
 | `Hosting:ServeSpa` | `true` | Serve the embedded React Portal from `wwwroot/`. Set to `false` for headless hosted-separately deployments. See [Hosted separately (Portal + API)](#hosted-separately-portal--api). |
 | `Cors:AllowedOrigins` | `[]` (empty) | Allowed cross-origin Portal hosts. Empty disallows all cross-origin requests; required for hosted-separately deployments. |
-| `ConnectionStrings:Board` | *(required — no default)* | SQLite database path. Must be an **absolute** path; the app does not derive a path from the working or binary directory. The installer writes this into `appsettings.json`. |
-| `Admin:AuthKey` | *(auto-generated)* | Override the admin auth key |
+| `ConnectionStrings:Board` | `~/.collattice/collattice.db` (macOS/Linux), `%LOCALAPPDATA%\Collattice\collattice.db` (Windows) | SQLite database path. Must be an **absolute** path; the app never derives one from the working or binary directory. The installer writes one into `appsettings.json`. With none set, the per-user default is used and named in a startup warning. See [Database](#database). |
+| `Admin:AuthKey` | *(auto-generated)* | The admin auth key to create on first run. Read only while the database has no users; to change the key later, see [Recovering the Admin Key](#recovering-the-admin-key). |
 
 ### Environment Variables
 
@@ -91,12 +97,29 @@ Environment variables win over `appsettings.json`.
 
 ## Database
 
-- The SQLite database path is **required** configuration — `ConnectionStrings:Board`
-  must be set to an absolute path. The installer writes this into `appsettings.json`
-  (pointing at `<install-dir>/data/collattice.db` for a fresh install); if you run the binary without the
-  installer, set it yourself before first run or startup fails loud with the missing
-  key named.
-- The database file and its parent directory are created automatically on first run
+- The SQLite database path is `ConnectionStrings:Board`, an absolute path. The
+  installer writes it into `appsettings.json` (pointing at
+  `<install-dir>/data/collattice.db` for a fresh install). A path you set always wins.
+- With no path set, the app uses a per-user default: `~/.collattice/collattice.db`
+  (macOS/Linux) or `%LOCALAPPDATA%\Collattice\collattice.db` (Windows), from the
+  operating system's own record of the user's home folder. A warning at startup names
+  the path and the two ways to change it, and says when this start created a new, empty
+  database there, so an install that has lost its setting shows up in the log. The
+  default is in the installer's folder but is never the installer's database
+  (`data/collattice.db`), so a downloaded build of another version never opens or
+  upgrades an installed board. A service running as another account (a Windows service
+  as SYSTEM, for example) gets that account's folder, so set the path for services.
+- The database file and any folders it needs are created automatically on first run.
+  On macOS and Linux they are created readable by the owner only (folders `0700`, the
+  database file `0600`, and SQLite's `-wal`/`-shm` files and the pre-upgrade backups
+  follow the file's mode). An existing database keeps the mode it has.
+- The app stops at startup, naming the path and the setting to change, when it can't
+  use the location: a relative path, a folder it can't create or can't write to, a
+  database file it can't write, a user with no absolute home folder, or a default
+  folder that other users can write to (or a link to one).
+- The container image (`backend/Collabot.Collattice.Api/Dockerfile`) sets the path to
+  `/data/collattice.db` and declares `/data` a volume, so the board is not kept inside
+  the container's own layer.
 - Schema migrations run automatically on startup
 - The database file is backed up automatically before applying new migrations
 - Backups are saved next to the database as `<db-filename>.bak-{timestamp}` (e.g.
@@ -154,6 +177,7 @@ Notes:
 - `Hosting:ListenAddress=127.0.0.1` binds loopback only; the static-site host (or reverse proxy) is expected to be on the same machine. Use `0.0.0.0` if you need to reach the API across machines.
 - `Cors:AllowedOrigins` is an array of full origins (`scheme://host[:port]`). Empty list (the LAN default) disallows all cross-origin requests; populate it with every Portal origin that will call the API.
 - Behind a reverse proxy that injects `ASPNETCORE_URLS`, the API uses that and the structured `Hosting:ListenAddress`/`Hosting:ListenPort` pair is ignored. `Cors:AllowedOrigins` is unaffected by this — set it regardless.
+- **TLS at the proxy.** When the proxy terminates HTTPS and talks to the API over plain HTTP, the API reads the original scheme from the proxy's `X-Forwarded-Proto` header, so the base URL that the MCP tool `get_api_info` reports is `https://`. The header is only honored when the proxy connects from the same machine (a loopback address). Requests from any other address keep the scheme they arrived with, and the `X-Forwarded-For` and `X-Forwarded-Host` headers are not used. A proxy on a different machine therefore gets the scheme its own connection uses. Caddy's `reverse_proxy` sends `X-Forwarded-Proto` by default. nginx does not, so add `proxy_set_header X-Forwarded-Proto $scheme;` to the location block.
 
 ### Portal — static-file host + runtime `config.json`
 
@@ -189,6 +213,51 @@ If `/config.json` is absent, malformed, or returns a non-2xx status, the Portal 
    `./Collabot.Collattice.Api --merge-appsettings <shipped-appsettings.json> ./appsettings.json --baseline ./appsettings.shipped.json`
    from the install directory.
 4. Start the app — migrations run automatically.
+
+## Recovering the Admin Key
+
+The admin auth key is written to the console once, on the first run, when it is generated. Later
+starts never log it, so the app's log does not expose it. If the key is lost, or you want to replace
+it (because it was exposed, for example), give the administrator a new key from the machine the app
+runs on:
+
+**macOS / Linux:**
+```bash
+./Collabot.Collattice.Api --reset-admin-key
+```
+
+**Windows:**
+```powershell
+.\Collabot.Collattice.Api.exe --reset-admin-key
+```
+
+- **Check the version first.** The command arrived in the release that stopped logging the key; run
+  `--version` and compare it with the release notes. An older build does not know the command and
+  starts the whole app instead, on whatever database its configuration names. If you see startup
+  log lines rather than a key, stop it with Ctrl+C.
+- **Run it in your own terminal,** not through the process supervisor or a job whose output is
+  recorded, or the new key lands in that log.
+- **Run it with the configuration the app runs with, as the user the app runs as.** It reads
+  `ConnectionStrings:Board` from the `appsettings.json` beside the executable and from environment
+  variables, the same way the app does, so if your process supervisor sets the database path
+  through an environment variable (`ConnectionStrings__Board`), set the same variable for the
+  command. With no path set it uses the same per-user default the app does, which is that user's. If the app reads its
+  settings from another folder, name that folder with `ASPNETCORE_CONTENTROOT` for the command:
+  it does not accept `--contentRoot`. The command prints the database it changed. It never creates
+  a database: a wrong or missing path is an error.
+- **The new key is printed once, to your terminal.** It is never written to the app's log. Store it
+  straight away.
+- **The old key stops working at once.** The app can stay running; no restart is needed. Sign in
+  with the new key to confirm it: if the app refuses it, the command changed a different database
+  from the one the app uses (compare the path it printed).
+- **It needs no current key and no network,** only write access to the database file, which already
+  holds every user's key.
+- **More than one Administrator?** The command changes nothing and lists the active Administrators
+  with their ids. Run it again with the id of the one to reset:
+  `--reset-admin-key <user-id>`.
+- **Exit codes:** `0` done; `2` bad arguments; `3` the database is not found, could not be read,
+  or its location can't be used; `4` no matching active Administrator; `5` more than one active Administrator
+  and no id given. Codes `2` to `5` all mean no key was changed.
 
 ## Version
 

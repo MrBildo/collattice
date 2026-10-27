@@ -1,12 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Collabot.Collattice.Api.Auth;
-using Collabot.Collattice.Api.Endpoints;
-using Collabot.Collattice.Api.Events;
-using Collabot.Collattice.Api.Mcp;
-using Collabot.Collattice.Api.Models;
-using Collabot.Collattice.Api.Tests.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 
@@ -342,7 +336,7 @@ public class CardCollisionTests(CollatticeApiFactory factory) : IClassFixture<Co
     // ── The structural safeguard ────────────────────────────────────────────
 
     [Fact]
-    public async Task Collision_NeverAppearsInListOrSearchPayloads()
+    public async Task Collision_JustReported_NeverAppearsInListOrSearchPayloads()
     {
         // Collision lives on CardUpdateResult, which only the two write responses build. The shared
         // CardSummary that feeds card lists and cross-board search has no member for it, so it cannot

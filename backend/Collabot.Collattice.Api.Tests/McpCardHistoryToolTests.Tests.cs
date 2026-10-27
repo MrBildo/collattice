@@ -1,10 +1,6 @@
 using System.Globalization;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Collabot.Collattice.Api.Events;
-using Collabot.Collattice.Api.Mcp;
-using Collabot.Collattice.Api.Models;
-using Collabot.Collattice.Api.Tests.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 
@@ -125,7 +121,7 @@ public class McpCardHistoryToolTests(CollatticeApiFactory factory) : IClassFixtu
     }
 
     [Fact]
-    public async Task UpdateCardOverMcp_RecordsHistoryAttributedToTheCallingUser()
+    public async Task UpdateCard_OverMcp_RecordsHistoryAttributedToTheCallingUser()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -149,6 +145,40 @@ public class McpCardHistoryToolTests(CollatticeApiFactory factory) : IClassFixtu
         entries[0].GetProperty("editedByName").GetString().ShouldBe("Mcp History Editor");
         entries[0].GetProperty("value").GetString().ShouldBe("rewritten");
         entries[1].GetProperty("value").GetString().ShouldBe("genesis");
+    }
+
+    [Fact]
+    public async Task GetCardHistory_FirstEditedBySomeoneElse_OldestRevisionCarriesTheCardCreatorAsAnInferredEditor()
+    {
+        // Arrange — created by the admin, first edited over MCP by someone else, so the inferred
+        // editor can only be the creator if it is not simply whoever triggered the first capture.
+        TestAuthHelper.SetAdminAuth(_client, _factory);
+        var cardId = await CreateCardAsync("Mcp History Inferred Editor", "genesis");
+        var agent = await TestAuthHelper.CreateUserAsync(_client, _factory, "Mcp History Later Editor", UserRole.AgentUser);
+
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<BoardDbContext>();
+        var authService = scope.ServiceProvider.GetRequiredService<McpAuthService>();
+        var broadcaster = scope.ServiceProvider.GetRequiredService<BoardEventBroadcaster>();
+
+        var cardTools = new CardTools(db, authService, broadcaster);
+        await cardTools.UpdateCardAsync(agent.AuthKey, cardId: cardId, descriptionMarkdown: "rewritten");
+
+        // Act — the tool's default format
+        var historyTools = new HistoryTools(db, authService);
+        var json = await historyTools.GetCardHistoryAsync(agent.AuthKey, cardId: cardId);
+
+        // Assert — the observed editor stays null and the inference rides in its own field.
+        var entries = ParseEntries(json);
+
+        var oldest = entries[1];
+        oldest.GetProperty("editedByName").ValueKind.ShouldBe(JsonValueKind.Null);
+        oldest.GetProperty("inferredEditor").GetProperty("name").GetString().ShouldBe("Admin");
+        oldest.GetProperty("inferredEditor").GetProperty("basis").GetString().ShouldBe("creator");
+
+        var newest = entries[0];
+        newest.GetProperty("editedByName").GetString().ShouldBe("Mcp History Later Editor");
+        newest.TryGetProperty("inferredEditor", out _).ShouldBeFalse();
     }
 
     [Fact]
@@ -238,7 +268,7 @@ public class McpCardHistoryToolTests(CollatticeApiFactory factory) : IClassFixtu
         [.. JsonDocument.Parse(json).RootElement.GetProperty("entries").EnumerateArray()];
 
     [Fact]
-    public async Task GetCardHistory_ReturnsThePagingEnvelopeAlongsideTheEntries()
+    public async Task GetCardHistory_CardWithRevisions_ReturnsThePagingEnvelopeAlongsideTheEntries()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -258,7 +288,7 @@ public class McpCardHistoryToolTests(CollatticeApiFactory factory) : IClassFixtu
     }
 
     [Fact]
-    public async Task GetCardHistory_PagesFromTheNewestEndAndKeepsTotalCountWhole()
+    public async Task GetCardHistory_PagedRead_PagesFromTheNewestEndAndKeepsTotalCountWhole()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -284,7 +314,7 @@ public class McpCardHistoryToolTests(CollatticeApiFactory factory) : IClassFixtu
     }
 
     [Fact]
-    public async Task GetCardHistory_ClampsItsLimitToTheToolCeiling()
+    public async Task GetCardHistory_LimitAboveCeiling_ClampsItsLimitToTheToolCeiling()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -319,7 +349,7 @@ public class McpCardHistoryToolTests(CollatticeApiFactory factory) : IClassFixtu
     }
 
     [Fact]
-    public async Task GetCard_CarriesTheDescriptionHistoryCount()
+    public async Task GetCard_CardWithRevisions_CarriesTheDescriptionHistoryCount()
     {
         // The same count REST's card detail carries — both surfaces read it through one builder,
         // so a bot deciding whether to spend a call on the trail gets the same answer a browser does.

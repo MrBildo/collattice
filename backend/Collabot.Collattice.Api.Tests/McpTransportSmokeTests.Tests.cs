@@ -1,5 +1,4 @@
 using System.Text.Json;
-using Collabot.Collattice.Api.Tests.Infrastructure;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
 using Shouldly;
@@ -25,12 +24,13 @@ public class McpTransportSmokeTests(CollatticeApiFactory factory) : IClassFixtur
     // reorder_sizes (SizeTools) added: 38 -> 39.
     // WebhookTools (create/list/update/delete/test_webhook) added: 39 -> 44.
     // get_card_history (HistoryTools) added: 44 -> 45.
-    private const int _expectedToolCount = 45;
+    // duplicate_card (DuplicateCardTools) added: 45 -> 46.
+    private const int _expectedToolCount = 46;
 
     private readonly CollatticeApiFactory _factory = factory;
 
     [Fact]
-    public async Task McpTransport_BootsListsToolsAndRoundTripsOneCall()
+    public async Task McpTransport_RealClientOverHttp_BootsListsToolsAndRoundTripsOneCall()
     {
         // Arrange — drive the real MCP client over the in-memory test server's HttpClient.
         // CreateAsync performs the initialize handshake; if the transport is broken it throws here.

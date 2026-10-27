@@ -1,7 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Collabot.Collattice.Api.Tests.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 
@@ -183,7 +182,7 @@ public class ArchivePruneSearchTests(CollatticeApiFactory factory) : IClassFixtu
     }
 
     [Fact]
-    public async Task PrunePreview_RespectsIncludeArchived()
+    public async Task PrunePreview_ArchivedCardMatchingFilter_RespectsIncludeArchived()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);

@@ -1,5 +1,3 @@
-using Collabot.Collattice.Api.Models;
-
 namespace Collabot.Collattice.Api.Auth;
 
 public static class AuthExtensions

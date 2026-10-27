@@ -2,6 +2,7 @@ import {
   forwardRef,
   useCallback,
   useEffect,
+  useId,
   useImperativeHandle,
   useMemo,
   useRef,
@@ -41,6 +42,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { LabelPicker } from '@/components/LabelPicker';
 import { queryKeys } from '@/lib/query-keys';
+import { mergeSavedCard } from '@/lib/merge-saved-card';
 import { QUERY_DEFAULTS } from '@/lib/query-config';
 import { useUserDirectory } from '@/hooks/use-user-directory';
 import { useCardLinkContext } from '@/hooks/use-card-links';
@@ -54,11 +56,15 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  Copy,
   History,
   RefreshCw,
   RotateCcw,
+  Tag,
 } from 'lucide-react';
 import { ROLES } from '@/lib/roles';
+import { buildCardPrefill } from '@/lib/duplicate-card';
+import type { DuplicateRequest } from '@/lib/duplicate-card';
 import type { BoardData, CardItem, CardSize, Lane, UpdateCardPatch } from '@/types';
 
 type FieldName = 'name' | 'description' | 'sizeId' | 'laneId' | 'labelIds';
@@ -144,6 +150,14 @@ type CardBaseline = {
   labelIds: string[];
 };
 
+// What one click of Save sends: the patch, the form's values at that moment
+// (the baseline once the save lands), and which save it was.
+type SaveRequest = {
+  patch: UpdateCardPatch;
+  sent: CardBaseline;
+  saveId: number;
+};
+
 // Per-field collision indicator. The remote value and the "accept" action are
 // load-bearing UI, so they live in a click/keyboard-openable Popover with an
 // accessible name — not a hover-only tooltip, which keyboard and screen-reader
@@ -208,6 +222,7 @@ type CardDetailFormProps = {
   card: CardItem;
   onClose: () => void;
   onSaveComplete?: () => void;
+  onSaveError?: () => void;
   currentUserId?: string;
   currentUserRole?: number;
   lanes?: Lane[];
@@ -217,6 +232,7 @@ type CardDetailFormProps = {
   navPosition?: string | null;
   onNavigatePrev?: () => void;
   onNavigateNext?: () => void;
+  onDuplicate?: (request: DuplicateRequest) => void;
 };
 
 export const CardDetailForm = forwardRef<CardDetailFormHandle, CardDetailFormProps>(
@@ -225,6 +241,7 @@ export const CardDetailForm = forwardRef<CardDetailFormHandle, CardDetailFormPro
       card,
       onClose,
       onSaveComplete,
+      onSaveError,
       currentUserId,
       currentUserRole,
       lanes,
@@ -234,6 +251,7 @@ export const CardDetailForm = forwardRef<CardDetailFormHandle, CardDetailFormPro
       navPosition,
       onNavigatePrev,
       onNavigateNext,
+      onDuplicate,
     },
     ref,
   ) {
@@ -262,6 +280,23 @@ export const CardDetailForm = forwardRef<CardDetailFormHandle, CardDetailFormPro
 
     // Touch tracking: fields the user has edited since mount/last save
     const touchedFields = useRef(new Set<FieldName>());
+    // Fields edited since the most recent save was sent. Typing goes on while a
+    // save is in flight, and what is typed then never reaches the server, so
+    // these fields stay touched when that save lands instead of counting as
+    // saved.
+    const editedSinceSend = useRef(new Set<FieldName>());
+    // Numbers each save, so that only the most recent one resets the form. An
+    // earlier save landing after a later one was sent would otherwise reset the
+    // baseline to its own, older values.
+    const latestSaveId = useRef(0);
+    // The most recent save whose result has landed, so that an earlier save
+    // landing after a later one can't move the baseline back.
+    const latestLandedSaveId = useRef(0);
+
+    function markTouched(field: FieldName) {
+      touchedFields.current.add(field);
+      editedSinceSend.current.add(field);
+    }
 
     // Baseline: the card prop values we compare dirty state against (frozen for touched fields)
     const [baselineState, setBaselineState] = useState<CardBaseline>({
@@ -325,6 +360,7 @@ export const CardDetailForm = forwardRef<CardDetailFormHandle, CardDetailFormPro
       queryFn: () => fetchCardLabels(card.id),
       ...QUERY_DEFAULTS.labels,
     });
+    const labelsErrorId = useId();
 
     const allLabelsQuery = useQuery({
       queryKey: queryKeys.labels.all(boardId as string),
@@ -527,20 +563,22 @@ export const CardDetailForm = forwardRef<CardDetailFormHandle, CardDetailFormPro
       // <InlineError> at the form footer. This is the app's biggest current
       // silent-loss gap.
       meta: { skipToast: true },
-      mutationFn: (patch: UpdateCardPatch) => updateCard(card.id, patch),
-      onSuccess: (updatedCard, patch) => {
+      mutationFn: ({ patch }: SaveRequest) => updateCard(card.id, patch),
+      onSuccess: (updatedCard, { patch, sent, saveId }) => {
         if (boardId) {
-          // PATCH /cards/{id} now returns the enriched CardSummary, so the
-          // mutation response carries everything the board cache needs — labels,
-          // sizeName, commentCount, attachmentCount, isArchived. No re-fetch needed.
+          // PATCH /cards/{id} returns the enriched CardSummary, so the response
+          // carries everything the board cache needs for this card — labels,
+          // sizeName, commentCount, attachmentCount, isArchived.
+          const isLaneChange = patch.laneId !== undefined;
           queryClient.setQueryData<BoardData>(queryKeys.boards.data(boardId), (old) =>
-            old
-              ? {
-                  ...old,
-                  cards: old.cards.map((c) => (c.id === card.id ? { ...c, ...updatedCard } : c)),
-                }
-              : old,
+            old ? { ...old, cards: mergeSavedCard(old.cards, updatedCard, isLaneChange) } : old,
           );
+          if (isLaneChange) {
+            // A lane change renumbers both lanes on the server, and the response
+            // carries only this card's number; refetch so every card's number is
+            // the server's again.
+            queryClient.invalidateQueries({ queryKey: queryKeys.boards.data(boardId) });
+          }
         }
         queryClient.invalidateQueries({ queryKey: queryKeys.cards.labels(card.id) });
         if (patch.descriptionMarkdown !== undefined) {
@@ -549,17 +587,30 @@ export const CardDetailForm = forwardRef<CardDetailFormHandle, CardDetailFormPro
           queryClient.invalidateQueries({ queryKey: queryKeys.cards.history(card.id) });
         }
 
-        // Reset touch tracking and baseline after successful save
-        touchedFields.current.clear();
-        setBaselineState({
-          name,
-          description,
-          sizeId,
-          laneId: currentLaneId,
-          labelIds: effectiveLabelIds,
-        });
+        // A later save is already on its way and carries everything this one
+        // did; that one settles the form. The server now holds what this save
+        // sent, though, so the baseline moves to it: left behind, this save's
+        // own values would come back through the board cache and read as
+        // someone else's change, and if the later save failed, accepting
+        // "their version" would throw the typing away.
+        if (saveId !== latestSaveId.current) {
+          if (saveId > latestLandedSaveId.current) {
+            latestLandedSaveId.current = saveId;
+            setBaselineState(sent);
+          }
+          return;
+        }
+
+        latestLandedSaveId.current = saveId;
+
+        // The baseline is what this save sent, not what is on screen now: this
+        // callback runs with the latest render's values, which include anything
+        // typed while the save was in flight. Fields edited since the send stay
+        // touched, so they stay dirty and a refetch can't overwrite them.
+        touchedFields.current = new Set(editedSinceSend.current);
+        setBaselineState(sent);
         setExternalUpdates({});
-        isDirtyRef.current = false;
+        isDirtyRef.current = editedSinceSend.current.size > 0;
         setSaveError(null);
 
         // Show transient "Saved" indicator
@@ -569,9 +620,17 @@ export const CardDetailForm = forwardRef<CardDetailFormHandle, CardDetailFormPro
         // Signal completion so the sheet can execute any pending action
         onSaveComplete?.();
       },
-      onError: (error: unknown) => {
+      onError: (error: unknown, { saveId }) => {
+        // The later save still in flight carries this one's changes too.
+        if (saveId !== latestSaveId.current) {
+          return;
+        }
+
         // Inline surface: render the message in the form (skipToast above).
         setSaveError(toMessage(error));
+        // Signal the failure so the sheet can drop any action that was waiting
+        // on this save, rather than running it after some later save.
+        onSaveError?.();
       },
     });
 
@@ -624,8 +683,18 @@ export const CardDetailForm = forwardRef<CardDetailFormHandle, CardDetailFormPro
       if (!arraysEqual(effectiveLabelIds, baselineState.labelIds))
         patch.labelIds = effectiveLabelIds;
 
+      const sent: CardBaseline = {
+        name,
+        description,
+        sizeId,
+        laneId: currentLaneId,
+        labelIds: effectiveLabelIds,
+      };
+      editedSinceSend.current.clear();
+      latestSaveId.current += 1;
+
       setSaveError(null);
-      updateMutation.mutate(patch);
+      updateMutation.mutate({ patch, sent, saveId: latestSaveId.current });
     }, [
       isDirty,
       name,
@@ -674,6 +743,58 @@ export const CardDetailForm = forwardRef<CardDetailFormHandle, CardDetailFormPro
     const handleClose = () => {
       onClose();
     };
+
+    // Label edits and the copy's labels both start from this card's label query.
+    // Until it has loaded (or if it failed), an edit would start from no labels and
+    // a save would drop the ones the card has; a duplicate would silently lose
+    // them too. Both wait for it.
+    const hasCardLabels = labelsQuery.data !== undefined;
+    const canDuplicate = hasCardLabels;
+
+    const handleDuplicate = () => {
+      if (!onDuplicate || !canDuplicate) {
+        return;
+      }
+
+      const visibleLanes = lanes ?? [];
+      onDuplicate({
+        draft: buildCardPrefill(
+          {
+            name,
+            descriptionMarkdown: description,
+            sizeId,
+            labelIds: effectiveLabelIds,
+            laneId: currentLaneId,
+          },
+          card,
+          visibleLanes,
+        ),
+        saved: buildCardPrefill(
+          {
+            name: card.name,
+            descriptionMarkdown: card.descriptionMarkdown ?? '',
+            sizeId: card.sizeId,
+            labelIds: originalLabelIds,
+            laneId: card.laneId,
+          },
+          card,
+          visibleLanes,
+        ),
+      });
+    };
+
+    const duplicateButton = onDuplicate && (
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={handleDuplicate}
+        disabled={!canDuplicate}
+        aria-describedby={labelsQuery.isLoadingError ? labelsErrorId : undefined}
+      >
+        <Copy className="mr-1 h-4 w-4" />
+        Duplicate
+      </Button>
+    );
 
     return (
       <div
@@ -738,10 +859,11 @@ export const CardDetailForm = forwardRef<CardDetailFormHandle, CardDetailFormPro
               <Input
                 value={name}
                 onChange={(e) => {
-                  touchedFields.current.add('name');
+                  markTouched('name');
                   setName(e.target.value);
                 }}
                 maxLength={120}
+                aria-label="Card name"
                 disabled={isArchived}
                 className={cn(
                   'border-none bg-transparent px-0 text-xl font-semibold shadow-none focus-visible:ring-0',
@@ -764,10 +886,11 @@ export const CardDetailForm = forwardRef<CardDetailFormHandle, CardDetailFormPro
                 <Tooltip>
                   <TooltipTrigger render={<span />}>
                     <Select
+                      aria-label="Size"
                       value={sizeId}
                       onValueChange={(v) => {
                         if (v) {
-                          touchedFields.current.add('sizeId');
+                          markTouched('sizeId');
                           setSizeId(v);
                         }
                       }}
@@ -804,10 +927,11 @@ export const CardDetailForm = forwardRef<CardDetailFormHandle, CardDetailFormPro
                 <Tooltip>
                   <TooltipTrigger render={<span />}>
                     <Select
+                      aria-label="Lane"
                       value={currentLaneId}
                       onValueChange={(v) => {
                         if (v && v !== currentLaneId) {
-                          touchedFields.current.add('laneId');
+                          markTouched('laneId');
                           setCurrentLaneId(v);
                         }
                       }}
@@ -842,17 +966,48 @@ export const CardDetailForm = forwardRef<CardDetailFormHandle, CardDetailFormPro
                 )}
               </div>
             )}
-            {!isArchived && (
+            {/* Without the card's own labels the picker would start from none, and
+                a save after one click would drop every label the card has; a
+                duplicate would silently lose them too. Say so instead. Only when
+                they never loaded: a failed refresh still has the last good list. */}
+            {labelsQuery.isLoadingError && (
+              <div className="flex items-center gap-2">
+                <div id={labelsErrorId}>
+                  <InlineError message="Couldn't load this card's labels, so they can't be edited and the card can't be duplicated." />
+                </div>
+                <Button
+                  variant="outline"
+                  size="xs"
+                  onClick={() => labelsQuery.refetch()}
+                  disabled={labelsQuery.isFetching}
+                >
+                  {labelsQuery.isFetching ? 'Retrying...' : 'Retry'}
+                </Button>
+              </div>
+            )}
+            {!isArchived && !hasCardLabels && !labelsQuery.isLoadingError && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-auto min-h-8 w-fit gap-1.5 px-2.5 py-1"
+                disabled
+                aria-busy="true"
+              >
+                <Tag className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                <span className="text-muted-foreground">Loading labels...</span>
+              </Button>
+            )}
+            {!isArchived && hasCardLabels && (
               <div className="flex items-center gap-1">
                 <LabelPicker
                   allLabels={allLabelsQuery.data ?? []}
                   assignedLabels={assignedLabels}
                   onAdd={(id) => {
-                    touchedFields.current.add('labelIds');
+                    markTouched('labelIds');
                     setSelectedLabelIds((prev) => [...(prev ?? originalLabelIds), id]);
                   }}
                   onRemove={(id) => {
-                    touchedFields.current.add('labelIds');
+                    markTouched('labelIds');
                     setSelectedLabelIds((prev) =>
                       (prev ?? originalLabelIds).filter((x) => x !== id),
                     );
@@ -942,7 +1097,7 @@ export const CardDetailForm = forwardRef<CardDetailFormHandle, CardDetailFormPro
                 <Textarea
                   value={description}
                   onChange={(e) => {
-                    touchedFields.current.add('description');
+                    markTouched('description');
                     setDescription(e.target.value);
                   }}
                   rows={16}
@@ -1033,14 +1188,24 @@ export const CardDetailForm = forwardRef<CardDetailFormHandle, CardDetailFormPro
           </div>
         )}
 
-        {/* Footer */}
-        <div className="flex items-center justify-between border-t px-6 py-3">
+        {/* Footer. It wraps rather than overflows: on a phone-width dialog a
+            delete confirmation's longer label is enough to push the last button
+            past the edge, out of reach. The right-hand controls carry ml-auto,
+            which keeps them on the right on a wide screen and when they drop to
+            a line of their own; their group is also justify-end, so when the
+            collision warning fills its first line, Close and Save wrap to the
+            right rather than the left. The archived actions and the restore
+            lane picker are display:contents so they wrap one control at a
+            time, which lets Close share a line with the controls before it
+            instead of stacking an extra row. */}
+        <div className="flex flex-wrap items-center gap-2 border-t px-6 py-3">
           {isArchived ? (
             /* Archived card footer */
-            <div className="flex items-center gap-2">
+            <div className="contents">
               {showRestorePicker && lanes && lanes.length > 0 ? (
-                <div className="flex items-center gap-2">
+                <div className="contents">
                   <Select
+                    aria-label="Restore to lane"
                     value={restoreLaneId ?? ''}
                     onValueChange={(v) => v && setRestoreLaneId(v)}
                   >
@@ -1070,10 +1235,15 @@ export const CardDetailForm = forwardRef<CardDetailFormHandle, CardDetailFormPro
                   </Button>
                 </div>
               ) : (
-                <Button size="sm" onClick={handleRestore}>
-                  <ArchiveRestore className="mr-1 h-4 w-4" />
-                  Restore
-                </Button>
+                <>
+                  <Button size="sm" onClick={handleRestore}>
+                    <ArchiveRestore className="mr-1 h-4 w-4" />
+                    Restore
+                  </Button>
+                  {/* Step aside while a delete is being confirmed, as the other
+                      footer actions do while archive or restore is in progress. */}
+                  {!isConfirmingDelete && duplicateButton}
+                </>
               )}
               {canDelete && !showRestorePicker && (
                 <Button
@@ -1088,7 +1258,7 @@ export const CardDetailForm = forwardRef<CardDetailFormHandle, CardDetailFormPro
             </div>
           ) : showArchiveActions ? (
             /* Active card — expanded archive actions */
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Button size="sm" onClick={handleArchiveConfirm} disabled={archiveMutation.isPending}>
                 <Archive className="mr-1 h-4 w-4" />
                 {archiveMutation.isPending ? 'Archiving...' : 'Archive'}
@@ -1116,13 +1286,16 @@ export const CardDetailForm = forwardRef<CardDetailFormHandle, CardDetailFormPro
             </div>
           ) : (
             /* Active card — default state with archive button (all roles can archive) */
-            <Button variant="outline" size="sm" onClick={handleArchiveClick}>
-              <Archive className="mr-1 h-4 w-4" />
-              Archive
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant="outline" size="sm" onClick={handleArchiveClick}>
+                <Archive className="mr-1 h-4 w-4" />
+                Archive
+              </Button>
+              {duplicateButton}
+            </div>
           )}
           {!isArchived && !showArchiveActions && (
-            <div className="flex items-center gap-2">
+            <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
               {externalUpdateCount > 0 && (
                 // A solid amber chip (the accent surface paired with its own
                 // foreground) so the warning stays legible in both themes —
@@ -1156,7 +1329,7 @@ export const CardDetailForm = forwardRef<CardDetailFormHandle, CardDetailFormPro
             </div>
           )}
           {isArchived && (
-            <Button variant="outline" size="sm" onClick={handleClose}>
+            <Button variant="outline" size="sm" className="ml-auto" onClick={handleClose}>
               Close
             </Button>
           )}

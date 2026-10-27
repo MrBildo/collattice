@@ -1,8 +1,5 @@
 using System.Net.Http.Json;
 using System.Text.Json;
-using Collabot.Collattice.Api.Endpoints;
-using Collabot.Collattice.Api.Models;
-using Collabot.Collattice.Api.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
@@ -61,10 +58,10 @@ public class CardHistoryConcurrencyTests(CollatticeApiFactory factory) : IClassF
             rival.Id
         );
 
-        await CardHistoryHelper.SaveWithRevisionRetryAsync(rivalDb, rivalChange);
+        (await CardHistoryHelper.TrySaveWithRevisionRetryAsync(rivalDb, rivalChange)).ShouldBeTrue();
 
         // Act — the loser's staged revisions 1 and 2 are both already taken.
-        await CardHistoryHelper.SaveWithRevisionRetryAsync(loserDb, loserChange);
+        (await CardHistoryHelper.TrySaveWithRevisionRetryAsync(loserDb, loserChange)).ShouldBeTrue();
 
         // Assert — the losing edit landed instead of erroring, and landed as a real revision.
         await using var readScope = _factory.Services.CreateAsyncScope();
@@ -95,7 +92,7 @@ public class CardHistoryConcurrencyTests(CollatticeApiFactory factory) : IClassF
     }
 
     [Fact]
-    public async Task AnEditRacingALaterRevision_LandsOnTopWithoutReseeding()
+    public async Task DescriptionEdit_RacingALaterRevision_LandsOnTopWithoutReseeding()
     {
         // Arrange — a card whose trail already exists, so neither editor stages a seed row and the
         // collision is purely over the next ordinal.
@@ -131,10 +128,10 @@ public class CardHistoryConcurrencyTests(CollatticeApiFactory factory) : IClassF
             rival.Id
         );
 
-        await CardHistoryHelper.SaveWithRevisionRetryAsync(rivalDb, rivalChange);
+        (await CardHistoryHelper.TrySaveWithRevisionRetryAsync(rivalDb, rivalChange)).ShouldBeTrue();
 
         // Act
-        await CardHistoryHelper.SaveWithRevisionRetryAsync(loserDb, loserChange);
+        (await CardHistoryHelper.TrySaveWithRevisionRetryAsync(loserDb, loserChange)).ShouldBeTrue();
 
         // Assert — four revisions, dense and in commit order, nothing lost and nothing duplicated.
         await using var readScope = _factory.Services.CreateAsyncScope();
@@ -149,7 +146,7 @@ public class CardHistoryConcurrencyTests(CollatticeApiFactory factory) : IClassF
     }
 
     [Fact]
-    public async Task TheRetriedEditIsVisibleThroughTheReadSurface()
+    public async Task DescriptionEdit_RetriedAfterARace_IsVisibleThroughTheReadSurface()
     {
         // The rows being right is necessary but not the promise; the promise is that a reader sees
         // both edits attributed, with a diff from one to the other.
@@ -183,8 +180,8 @@ public class CardHistoryConcurrencyTests(CollatticeApiFactory factory) : IClassF
             rival.Id
         );
 
-        await CardHistoryHelper.SaveWithRevisionRetryAsync(rivalDb, rivalChange);
-        await CardHistoryHelper.SaveWithRevisionRetryAsync(loserDb, loserChange);
+        (await CardHistoryHelper.TrySaveWithRevisionRetryAsync(rivalDb, rivalChange)).ShouldBeTrue();
+        (await CardHistoryHelper.TrySaveWithRevisionRetryAsync(loserDb, loserChange)).ShouldBeTrue();
 
         // Act
         var response = await _client.GetAsync($"/api/v1/cards/{cardId}/history");
@@ -241,10 +238,10 @@ public class CardHistoryConcurrencyTests(CollatticeApiFactory factory) : IClassF
             rival.Id
         );
 
-        await CardHistoryHelper.SaveWithRevisionRetryAsync(rivalDb, rivalChange);
+        (await CardHistoryHelper.TrySaveWithRevisionRetryAsync(rivalDb, rivalChange)).ShouldBeTrue();
 
         // Act
-        await CardHistoryHelper.SaveWithRevisionRetryAsync(loserDb, loserChange);
+        (await CardHistoryHelper.TrySaveWithRevisionRetryAsync(loserDb, loserChange)).ShouldBeTrue();
 
         // Assert — exactly the trail these two edits leave when they arrive one after the other
         // instead of at once. The second one changes nothing and records nothing, either way.
@@ -277,7 +274,7 @@ public class CardHistoryConcurrencyTests(CollatticeApiFactory factory) : IClassF
     }
 
     [Fact]
-    public async Task ARetriedRevisionIsStampedWhenItLands_NotWhenTheRequestArrived()
+    public async Task DescriptionEdit_RetriedRevision_IsStampedWhenItLandsNotWhenTheRequestArrived()
     {
         // A revision that waited out a rival is written after that rival's, so it has to carry a
         // later instant too. Keeping the arrival time would file a higher revision under an earlier
@@ -318,10 +315,10 @@ public class CardHistoryConcurrencyTests(CollatticeApiFactory factory) : IClassF
             rival.Id
         );
 
-        await CardHistoryHelper.SaveWithRevisionRetryAsync(rivalDb, rivalChange);
+        (await CardHistoryHelper.TrySaveWithRevisionRetryAsync(rivalDb, rivalChange)).ShouldBeTrue();
 
         // Act
-        await CardHistoryHelper.SaveWithRevisionRetryAsync(loserDb, loserChange);
+        (await CardHistoryHelper.TrySaveWithRevisionRetryAsync(loserDb, loserChange)).ShouldBeTrue();
 
         // Assert
         await using var readScope = _factory.Services.CreateAsyncScope();
@@ -341,7 +338,7 @@ public class CardHistoryConcurrencyTests(CollatticeApiFactory factory) : IClassF
     }
 
     [Fact]
-    public async Task AUniqueConstraintFailureThatIsNotARevisionCollision_ReachesTheCallerUnretried()
+    public async Task DescriptionEdit_UniqueFailureThatIsNotARevisionCollision_ReachesTheCallerUnretried()
     {
         // The retry is for one collision only. Another unique-constraint violation riding in the
         // same save has to arrive at the caller as itself — retrying it cannot help, and rebuilding
@@ -372,12 +369,13 @@ public class CardHistoryConcurrencyTests(CollatticeApiFactory factory) : IClassF
         var stagedIdsBefore = StagedHistoryIds(db);
 
         // Act
-        var act = () => CardHistoryHelper.SaveWithRevisionRetryAsync(db, change);
+        var act = () => CardHistoryHelper.TrySaveWithRevisionRetryAsync(db, change);
         await Should.ThrowAsync<DbUpdateException>(act);
 
         // Assert — the discriminator. A retry detaches the staged rows and builds replacements, so
-        // surviving with the same identities is what proves no retry ran. The exception type alone
-        // does not: an exhausted retry loop rethrows this same type on its final attempt.
+        // surviving with the same identities is what proves no retry ran. The throw alone proves
+        // less: it says the failure was not treated as a revision collision on the last attempt, not
+        // that no attempt before it was.
         StagedHistoryIds(db).ShouldBe(stagedIdsBefore);
     }
 

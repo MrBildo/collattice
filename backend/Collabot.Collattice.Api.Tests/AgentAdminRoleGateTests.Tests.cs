@@ -2,8 +2,6 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Collabot.Collattice.Api.Models;
-using Collabot.Collattice.Api.Tests.Infrastructure;
 using Shouldly;
 
 namespace Collabot.Collattice.Api.Tests;
@@ -60,7 +58,7 @@ public class AgentAdminRoleGateTests(CollatticeApiFactory factory) : IClassFixtu
     [InlineData(UserRole.AgentAdministrator, HttpStatusCode.Created)]
     [InlineData(UserRole.HumanUser, HttpStatusCode.Forbidden)]
     [InlineData(UserRole.AgentUser, HttpStatusCode.Forbidden)]
-    public async Task PostLane_RoleGate(UserRole role, HttpStatusCode expected)
+    public async Task PostLane_ByRole_AdminLevelSucceedsOthersForbidden(UserRole role, HttpStatusCode expected)
     {
         // Arrange
         var client = await ClientForRoleAsync(role, "post-lane");
@@ -81,7 +79,7 @@ public class AgentAdminRoleGateTests(CollatticeApiFactory factory) : IClassFixtu
     [InlineData(UserRole.AgentAdministrator, HttpStatusCode.OK)]
     [InlineData(UserRole.HumanUser, HttpStatusCode.Forbidden)]
     [InlineData(UserRole.AgentUser, HttpStatusCode.Forbidden)]
-    public async Task PatchLane_RoleGate(UserRole role, HttpStatusCode expected)
+    public async Task PatchLane_ByRole_AdminLevelSucceedsOthersForbidden(UserRole role, HttpStatusCode expected)
     {
         // Arrange
         var laneId = await CreateLaneAsAdminAsync("RoleGate Patch Lane", NextLanePosition());
@@ -103,7 +101,7 @@ public class AgentAdminRoleGateTests(CollatticeApiFactory factory) : IClassFixtu
     [InlineData(UserRole.AgentAdministrator, HttpStatusCode.NoContent)]
     [InlineData(UserRole.HumanUser, HttpStatusCode.Forbidden)]
     [InlineData(UserRole.AgentUser, HttpStatusCode.Forbidden)]
-    public async Task DeleteLane_RoleGate(UserRole role, HttpStatusCode expected)
+    public async Task DeleteLane_ByRole_AdminLevelSucceedsOthersForbidden(UserRole role, HttpStatusCode expected)
     {
         // Arrange
         var laneId = await CreateLaneAsAdminAsync("RoleGate Delete Lane", NextLanePosition());
@@ -123,7 +121,7 @@ public class AgentAdminRoleGateTests(CollatticeApiFactory factory) : IClassFixtu
     [InlineData(UserRole.AgentAdministrator, HttpStatusCode.Created)]
     [InlineData(UserRole.HumanUser, HttpStatusCode.Forbidden)]
     [InlineData(UserRole.AgentUser, HttpStatusCode.Forbidden)]
-    public async Task PostLabel_RoleGate(UserRole role, HttpStatusCode expected)
+    public async Task PostLabel_ByRole_AdminLevelSucceedsOthersForbidden(UserRole role, HttpStatusCode expected)
     {
         // Arrange
         var client = await ClientForRoleAsync(role, "post-label");
@@ -144,7 +142,7 @@ public class AgentAdminRoleGateTests(CollatticeApiFactory factory) : IClassFixtu
     [InlineData(UserRole.AgentAdministrator, HttpStatusCode.OK)]
     [InlineData(UserRole.HumanUser, HttpStatusCode.Forbidden)]
     [InlineData(UserRole.AgentUser, HttpStatusCode.Forbidden)]
-    public async Task PatchLabel_RoleGate(UserRole role, HttpStatusCode expected)
+    public async Task PatchLabel_ByRole_AdminLevelSucceedsOthersForbidden(UserRole role, HttpStatusCode expected)
     {
         // Arrange
         var labelId = await CreateLabelAsAdminAsync();
@@ -166,7 +164,7 @@ public class AgentAdminRoleGateTests(CollatticeApiFactory factory) : IClassFixtu
     [InlineData(UserRole.AgentAdministrator, HttpStatusCode.NoContent)]
     [InlineData(UserRole.HumanUser, HttpStatusCode.Forbidden)]
     [InlineData(UserRole.AgentUser, HttpStatusCode.Forbidden)]
-    public async Task DeleteLabel_RoleGate(UserRole role, HttpStatusCode expected)
+    public async Task DeleteLabel_ByRole_AdminLevelSucceedsOthersForbidden(UserRole role, HttpStatusCode expected)
     {
         // Arrange
         var labelId = await CreateLabelAsAdminAsync();
@@ -186,7 +184,7 @@ public class AgentAdminRoleGateTests(CollatticeApiFactory factory) : IClassFixtu
     [InlineData(UserRole.AgentAdministrator, HttpStatusCode.Created)]
     [InlineData(UserRole.HumanUser, HttpStatusCode.Forbidden)]
     [InlineData(UserRole.AgentUser, HttpStatusCode.Forbidden)]
-    public async Task PostSize_RoleGate(UserRole role, HttpStatusCode expected)
+    public async Task PostSize_ByRole_AdminLevelSucceedsOthersForbidden(UserRole role, HttpStatusCode expected)
     {
         // Arrange
         var client = await ClientForRoleAsync(role, "post-size");
@@ -207,7 +205,7 @@ public class AgentAdminRoleGateTests(CollatticeApiFactory factory) : IClassFixtu
     [InlineData(UserRole.AgentAdministrator, HttpStatusCode.OK)]
     [InlineData(UserRole.HumanUser, HttpStatusCode.Forbidden)]
     [InlineData(UserRole.AgentUser, HttpStatusCode.Forbidden)]
-    public async Task PatchSize_RoleGate(UserRole role, HttpStatusCode expected)
+    public async Task PatchSize_ByRole_AdminLevelSucceedsOthersForbidden(UserRole role, HttpStatusCode expected)
     {
         // Arrange
         var sizeId = await CreateSizeAsAdminAsync();
@@ -229,7 +227,7 @@ public class AgentAdminRoleGateTests(CollatticeApiFactory factory) : IClassFixtu
     [InlineData(UserRole.AgentAdministrator, HttpStatusCode.NoContent)]
     [InlineData(UserRole.HumanUser, HttpStatusCode.Forbidden)]
     [InlineData(UserRole.AgentUser, HttpStatusCode.Forbidden)]
-    public async Task DeleteSize_RoleGate(UserRole role, HttpStatusCode expected)
+    public async Task DeleteSize_ByRole_AdminLevelSucceedsOthersForbidden(UserRole role, HttpStatusCode expected)
     {
         // Arrange
         var sizeId = await CreateSizeAsAdminAsync();
@@ -249,7 +247,7 @@ public class AgentAdminRoleGateTests(CollatticeApiFactory factory) : IClassFixtu
     [InlineData(UserRole.AgentAdministrator, HttpStatusCode.Created)]
     [InlineData(UserRole.HumanUser, HttpStatusCode.Forbidden)]
     [InlineData(UserRole.AgentUser, HttpStatusCode.Forbidden)]
-    public async Task PostBoard_RoleGate(UserRole role, HttpStatusCode expected)
+    public async Task PostBoard_ByRole_AdminLevelSucceedsOthersForbidden(UserRole role, HttpStatusCode expected)
     {
         // Arrange
         var client = await ClientForRoleAsync(role, "post-board");
@@ -270,7 +268,7 @@ public class AgentAdminRoleGateTests(CollatticeApiFactory factory) : IClassFixtu
     [InlineData(UserRole.AgentAdministrator, HttpStatusCode.OK)]
     [InlineData(UserRole.HumanUser, HttpStatusCode.Forbidden)]
     [InlineData(UserRole.AgentUser, HttpStatusCode.Forbidden)]
-    public async Task PatchBoard_RoleGate(UserRole role, HttpStatusCode expected)
+    public async Task PatchBoard_ByRole_AdminLevelSucceedsOthersForbidden(UserRole role, HttpStatusCode expected)
     {
         // Arrange
         var boardId = await CreateBoardAsAdminAsync();
@@ -312,7 +310,7 @@ public class AgentAdminRoleGateTests(CollatticeApiFactory factory) : IClassFixtu
     [InlineData(UserRole.AgentAdministrator, HttpStatusCode.OK)]
     [InlineData(UserRole.HumanUser, HttpStatusCode.Forbidden)]
     [InlineData(UserRole.AgentUser, HttpStatusCode.Forbidden)]
-    public async Task PrunePreview_RoleGate(UserRole role, HttpStatusCode expected)
+    public async Task PrunePreview_ByRole_AdminLevelSucceedsOthersForbidden(UserRole role, HttpStatusCode expected)
     {
         // Arrange
         var client = await ClientForRoleAsync(role, "prune-preview");
@@ -333,7 +331,7 @@ public class AgentAdminRoleGateTests(CollatticeApiFactory factory) : IClassFixtu
     [InlineData(UserRole.AgentAdministrator, HttpStatusCode.OK)]
     [InlineData(UserRole.HumanUser, HttpStatusCode.Forbidden)]
     [InlineData(UserRole.AgentUser, HttpStatusCode.Forbidden)]
-    public async Task PruneArchive_RoleGate(UserRole role, HttpStatusCode expected)
+    public async Task PruneArchive_ByRole_AdminLevelSucceedsOthersForbidden(UserRole role, HttpStatusCode expected)
     {
         // Arrange
         var client = await ClientForRoleAsync(role, "prune-archive");

@@ -1,8 +1,3 @@
-using Collabot.Collattice.Api.Auth;
-using Collabot.Collattice.Api.Events;
-using Collabot.Collattice.Api.Mcp;
-using Collabot.Collattice.Api.Models;
-using Collabot.Collattice.Api.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -10,7 +5,8 @@ using Shouldly;
 
 namespace Collabot.Collattice.Api.Tests;
 
-public class McpArchiveToolTests(CollatticeApiFactory factory) : IClassFixture<CollatticeApiFactory>, IDisposable
+// Sealed so the plain IDisposable shape below is complete; no derived class can add state to dispose.
+public sealed class McpArchiveToolTests(CollatticeApiFactory factory) : IClassFixture<CollatticeApiFactory>, IDisposable
 {
     private readonly CollatticeApiFactory _factory = factory;
     private readonly List<IServiceScope> _scopes = [];
@@ -115,7 +111,7 @@ public class McpArchiveToolTests(CollatticeApiFactory factory) : IClassFixture<C
     // ── get_lanes excludes archive lane ──────────────────────────────────────
 
     [Fact]
-    public async Task GetLanes_ExcludesArchiveLane()
+    public async Task GetLanes_DefaultBoard_ExcludesArchiveLane()
     {
         // Arrange
         var (db, _, _, boardTools, _, _, _, authKey) = CreateAllTools();

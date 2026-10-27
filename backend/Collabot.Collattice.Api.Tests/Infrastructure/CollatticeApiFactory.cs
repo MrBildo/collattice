@@ -1,10 +1,7 @@
-using Collabot.Collattice.Api.Hosting.Webhooks;
-using Collabot.Collattice.Api.Models;
+using System.Collections.Concurrent;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -13,10 +10,15 @@ namespace Collabot.Collattice.Api.Tests.Infrastructure;
 public class CollatticeApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
     private SqliteConnection _connection = null!;
+    private readonly ConcurrentQueue<Uri> _gitHubAttempts = new();
 
     public const string TestAdminAuthKey = "test-admin-auth-key-12345678";
     public string AdminAuthKey { get; private set; } = string.Empty;
     public Guid DefaultBoardId { get; private set; }
+
+    // Every request this host attempted to api.github.com, in arrival order. Empty is the only
+    // acceptable state at disposal.
+    public IReadOnlyCollection<Uri> GitHubAttempts => _gitHubAttempts;
 
     // In-memory config overrides applied after the baseline test config. Lets a test
     // flip Hosting:ServeSpa, populate Cors:AllowedOrigins, set ASPNETCORE_ENVIRONMENT,
@@ -44,8 +46,11 @@ public class CollatticeApiFactory : WebApplicationFactory<Program>, IAsyncLifeti
             builder.UseEnvironment(EnvironmentName);
         }
 
-        // ConnectionStrings:Board is required configuration with no fallback;
-        // Program.cs hard-fails at host-build time if it is unset.
+        builder.ConfigureLogging(TestHostLogging.RemoveEventLog);
+
+        // ConnectionStrings:Board must always be set here: unset, Program.cs falls
+        // back to the per-user default database in the real home folder, which no
+        // test may touch. Program.cs reads it at host-build time.
         // That eager read happens before ConfigureServices swaps in the shared
         // in-memory connection, so the value must be visible to
         // builder.Configuration — i.e. injected via UseSetting, not
@@ -75,6 +80,13 @@ public class CollatticeApiFactory : WebApplicationFactory<Program>, IAsyncLifeti
             config.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["Admin:AuthKey"] = TestAdminAuthKey,
+
+                // The temp-card and delivery-log sweeps run in every test host, and neither touches
+                // the database until its first timer tick. Pinning the temp-card interval to a day
+                // keeps that tick out of reach of any test host whatever the production default
+                // becomes. The delivery-log sweep's interval is a fixed day in code. A test that
+                // needs the running temp-card loop overrides this and brings a database of its own.
+                ["TempCardSweep:SweepInterval"] = "1.00:00:00",
             });
 
             if (ConfigOverrides is not null)
@@ -96,7 +108,7 @@ public class CollatticeApiFactory : WebApplicationFactory<Program>, IAsyncLifeti
 
             services.AddDbContext<BoardDbContext>((serviceProvider, options) =>
             {
-                options.UseSqlite(_connection);
+                UseTestDatabase(options);
                 ConfigureDbContext(serviceProvider, options);
             });
 
@@ -115,21 +127,31 @@ public class CollatticeApiFactory : WebApplicationFactory<Program>, IAsyncLifeti
                 services.Remove(dispatcher);
             }
 
-            // Same hazard, second source: the temp-card sweep runs an immediate startup sweep
-            // (a DB query) before entering its timer loop, so under suite load that startup query
-            // races a test thread's query on the single shared in-memory connection. WebhookDeliveryLogSweep
-            // avoids this by deferring its first sweep one interval; the temp-card sweep does not, so
-            // remove its hosted service here. Its logic is exercised directly through the static
-            // TempCardSweepService.SweepAsync in its own tests, so this costs no coverage.
-            var tempSweep = services.SingleOrDefault(d =>
-                d.ServiceType == typeof(IHostedService) &&
-                d.ImplementationType == typeof(TempCardSweepService));
-            if (tempSweep is not null)
+            // Keep every test host off the real GitHub API. The update-check hosted service still
+            // runs (it does no database work, so it cannot race the shared connection), but it
+            // polls a source that answers "no release known" instead of api.github.com. Tests that
+            // need a release replace this source with their own.
+            var versionSource = services.SingleOrDefault(d => d.ServiceType == typeof(ILatestVersionSource));
+            if (versionSource is not null)
             {
-                services.Remove(tempSweep);
+                services.Remove(versionSource);
             }
+
+            services.AddSingleton<ILatestVersionSource, NoNetworkVersionSource>();
+
+            // Backstop for any path the swap above does not cover: every IHttpClientFactory client
+            // refuses api.github.com and records the attempt, and DisposeAsync fails on a record.
+            services.ConfigureHttpClientDefaults(http =>
+                http.AddHttpMessageHandler(() => new GitHubEgressGuardHandler(_gitHubAttempts)));
         });
     }
+
+    // Every context in a standard test host shares the one in-memory connection, so all database
+    // work must stay on the test's own thread. A derived factory that runs a hosted service doing
+    // database work alongside requests overrides this with a database each context opens its own
+    // connection to: one SqliteConnection cannot be used from two threads, and opening a second
+    // context on it while another thread's statement is active fails outright.
+    protected virtual void UseTestDatabase(DbContextOptionsBuilder options) => options.UseSqlite(_connection);
 
     // Lets a derived factory add to the test DbContext without re-registering it. Re-registration
     // would drop the shared in-memory connection this class owns, which is the whole harness.
@@ -163,5 +185,18 @@ public class CollatticeApiFactory : WebApplicationFactory<Program>, IAsyncLifeti
         // lands — before the dispatcher has finished persisting its attempt row.)
         await base.DisposeAsync();
         await _connection.DisposeAsync();
+
+        // Checked after teardown so a failure here never leaks the host or the connection. An
+        // IClassFixture's disposal failure is reported against its test class, so an attempt from
+        // a hosted service (whose own failures are swallowed) still turns the run red.
+        if (!_gitHubAttempts.IsEmpty)
+        {
+            throw new InvalidOperationException
+            (
+                $"A test host attempted {_gitHubAttempts.Count} request(s) to "
+                + $"{GitHubEgressGuardHandler.BlockedHost}; tests must not reach the real GitHub API: "
+                + string.Join(", ", _gitHubAttempts)
+            );
+        }
     }
 }

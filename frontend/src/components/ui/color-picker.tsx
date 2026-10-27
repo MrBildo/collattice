@@ -1084,7 +1084,10 @@ function ColorPickerEyeDropper(props: React.ComponentProps<typeof Button>) {
 
 interface ColorPickerFormatSelectProps
   extends
-    Omit<React.ComponentProps<typeof Select>, 'value' | 'onValueChange'>,
+    Omit<
+      React.ComponentProps<typeof Select>,
+      'value' | 'onValueChange' | 'aria-label' | 'aria-labelledby'
+    >,
     Pick<React.ComponentProps<typeof SelectTrigger>, 'size' | 'className'> {}
 
 function ColorPickerFormatSelect(props: ColorPickerFormatSelectProps) {
@@ -1106,6 +1109,7 @@ function ColorPickerFormatSelect(props: ColorPickerFormatSelectProps) {
   return (
     <Select
       data-slot="color-picker-format-select"
+      aria-label="Color format"
       {...selectProps}
       value={format}
       onValueChange={(value) => onFormatChange(value as ColorFormat)}

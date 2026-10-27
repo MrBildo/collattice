@@ -1,9 +1,5 @@
 using System.Globalization;
 using System.Text.Json;
-using Collabot.Collattice.Api.Auth;
-using Collabot.Collattice.Api.Mcp;
-using Collabot.Collattice.Api.Models;
-using Collabot.Collattice.Api.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
@@ -164,7 +160,7 @@ public class McpSearchToolTests(CollatticeApiFactory factory) : IClassFixture<Co
     }
 
     [Fact]
-    public async Task SearchCards_SpansMultipleBoards()
+    public async Task SearchCards_TermOnTwoBoards_SpansMultipleBoards()
     {
         // Arrange — same term on two boards; cross-board search returns both groups
         var (db, searchTools) = CreateTools();
@@ -231,7 +227,7 @@ public class McpSearchToolTests(CollatticeApiFactory factory) : IClassFixture<Co
     }
 
     [Fact]
-    public async Task SearchCards_LimitClampedToMax50()
+    public async Task SearchCards_Limit100_IsClampedToMax50()
     {
         // Arrange
         var (db, searchTools) = CreateTools();
@@ -267,7 +263,7 @@ public class McpSearchToolTests(CollatticeApiFactory factory) : IClassFixture<Co
     }
 
     [Fact]
-    public async Task SearchCards_ExcludesArchivedCardsByDefault()
+    public async Task SearchCards_DefaultOptions_ExcludesArchivedCards()
     {
         // Arrange — one live card and one archived card share the term
         var (db, searchTools) = CreateTools();
@@ -312,7 +308,7 @@ public class McpSearchToolTests(CollatticeApiFactory factory) : IClassFixture<Co
     }
 
     [Fact]
-    public async Task SearchCards_CardSummaryCarriesEnrichedFields()
+    public async Task SearchCards_MatchingCard_CardSummaryCarriesEnrichedFields()
     {
         // Arrange
         var (db, searchTools) = CreateTools();

@@ -1,9 +1,5 @@
 using System.Net.Http.Json;
 using System.Text.Json;
-using Collabot.Collattice.Api.Auth;
-using Collabot.Collattice.Api.Events;
-using Collabot.Collattice.Api.Mcp;
-using Collabot.Collattice.Api.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
@@ -16,6 +12,7 @@ namespace Collabot.Collattice.Api.Tests;
 // the board's FULL new left-to-right order (the one-bell reorder coalesce contract). Each site rings the
 // same single SSE bell it always did, so the SSE wire stays byte-for-byte unchanged. The
 // CapturingWebhookSink IS the observable (no HTTP delivery here).
+// Sealed so the plain IDisposable shape below is complete; no derived class can add state to dispose.
 public sealed class WebhookLaneCatalogTests : IClassFixture<WebhookTestFactory>, IDisposable
 {
     private readonly WebhookTestFactory _factory;
@@ -70,7 +67,7 @@ public sealed class WebhookLaneCatalogTests : IClassFixture<WebhookTestFactory>,
     }
 
     [Fact]
-    public async Task McpCreateLane_FiresLaneCreated()
+    public async Task CreateLane_OverMcp_FiresLaneCreated()
     {
         var sink = Sink;
         var tools = CreateLaneTools();
@@ -87,7 +84,7 @@ public sealed class WebhookLaneCatalogTests : IClassFixture<WebhookTestFactory>,
     // ── lane.renamed (name axis) ──────────────────────────────────────────────────
 
     [Fact]
-    public async Task RestUpdateLaneName_FiresLaneRenamed()
+    public async Task UpdateLaneName_OverRest_FiresLaneRenamed()
     {
         var sink = Sink;
         var laneId = await CreateLaneAsync("rename-me");
@@ -101,7 +98,7 @@ public sealed class WebhookLaneCatalogTests : IClassFixture<WebhookTestFactory>,
     }
 
     [Fact]
-    public async Task McpUpdateLaneName_FiresLaneRenamed()
+    public async Task UpdateLaneName_OverMcp_FiresLaneRenamed()
     {
         var sink = Sink;
         var tools = CreateLaneTools();
@@ -187,7 +184,7 @@ public sealed class WebhookLaneCatalogTests : IClassFixture<WebhookTestFactory>,
     }
 
     [Fact]
-    public async Task McpUpdateLaneNameAndPosition_CoFiresRenamedAndReordered()
+    public async Task UpdateLaneNameAndPosition_OverMcp_CoFiresRenamedAndReordered()
     {
         var sink = Sink;
         var tools = CreateLaneTools();
@@ -227,6 +224,25 @@ public sealed class WebhookLaneCatalogTests : IClassFixture<WebhookTestFactory>,
         {
             broadcaster.Unsubscribe(_factory.DefaultBoardId, reader);
         }
+    }
+
+    [Fact]
+    public async Task UpdateLaneSamePosition_EmitsNoLaneReordered_OnEitherSurface()
+    {
+        var sink = Sink;
+        var tools = CreateLaneTools();
+        var laneId = await CreateLaneAsync("parked");
+        var position = await LanePositionAsync(laneId);
+        sink.Clear();
+
+        // Re-send the lane's own position — the per-axis no-op guard suppresses lane.reordered on
+        // REST and MCP alike (a changed position is covered by the reorder tests above).
+        var response = await _client.PatchAsJsonAsync($"/api/v1/lanes/{laneId}", new { position });
+        response.EnsureSuccessStatusCode();
+
+        (await tools.UpdateLaneAsync(CollatticeApiFactory.TestAdminAuthKey, laneId, position: position)).ShouldNotContain("Error");
+
+        sink.Captured.ShouldBeEmpty();
     }
 
     // ── lane.reordered (bulk reorder) — exactly ONE event, the FULL new order ──────
@@ -300,7 +316,7 @@ public sealed class WebhookLaneCatalogTests : IClassFixture<WebhookTestFactory>,
     }
 
     [Fact]
-    public async Task McpDeleteLane_FiresLaneDeleted()
+    public async Task DeleteLane_OverMcp_FiresLaneDeleted()
     {
         var sink = Sink;
         var tools = CreateLaneTools();
@@ -314,7 +330,7 @@ public sealed class WebhookLaneCatalogTests : IClassFixture<WebhookTestFactory>,
     }
 
     [Fact]
-    public async Task CreateLane_RingsExactlyOneSseBell()
+    public async Task CreateLane_SubscribedToBoardStream_RingsExactlyOneSseBell()
     {
         var sink = Sink;
         var broadcaster = _factory.Services.GetRequiredService<BoardEventBroadcaster>();
@@ -375,6 +391,17 @@ public sealed class WebhookLaneCatalogTests : IClassFixture<WebhookTestFactory>,
                 .MaxAsync(l => (int?)l.Position);
 
         return (max ?? -1) + 1;
+    }
+
+    private async Task<int> LanePositionAsync(Guid laneId)
+    {
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<BoardDbContext>();
+
+        return await db.Lanes
+            .Where(l => l.Id == laneId)
+                .Select(l => l.Position)
+                    .SingleAsync();
     }
 
     private async Task<List<Guid>> NonArchiveLaneIdsInOrderAsync()

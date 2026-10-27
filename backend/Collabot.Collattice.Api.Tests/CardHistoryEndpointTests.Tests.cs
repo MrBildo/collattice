@@ -2,10 +2,6 @@ using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Collabot.Collattice.Api.Events;
-using Collabot.Collattice.Api.Mcp;
-using Collabot.Collattice.Api.Models;
-using Collabot.Collattice.Api.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
@@ -20,7 +16,7 @@ public class CardHistoryEndpointTests(CollatticeApiFactory factory) : IClassFixt
     private static JsonSerializerOptions JsonOptions => TestAuthHelper.JsonOptions;
 
     [Fact]
-    public async Task EditDescription_RecordsThePriorValueWithEditorAndTimestamp()
+    public async Task PatchDescription_FirstEdit_RecordsThePriorValueWithEditorAndTimestamp()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -44,14 +40,91 @@ public class CardHistoryEndpointTests(CollatticeApiFactory factory) : IClassFixt
         oldest.GetProperty("value").GetString().ShouldBe("original text");
         oldest.GetProperty("diff").GetString().ShouldBe(string.Empty);
 
-        // The trail's oldest value predates recording, so its provenance is admitted as unknown
-        // rather than attributed to the card's creator or to whoever triggered the capture.
+        // The trail's oldest value predates recording, so its observed provenance stays unknown.
+        // The card's creator appears only in the separate inferred field, never in these.
         oldest.GetProperty("editedByUserId").ValueKind.ShouldBe(JsonValueKind.Null);
         oldest.GetProperty("editedAtUtc").ValueKind.ShouldBe(JsonValueKind.Null);
 
         // Nothing was lost and the card still carries the new text.
         var card = await GetCardAsync(cardId);
         card.GetProperty("card").GetProperty("descriptionMarkdown").GetString().ShouldBe("replacement text");
+    }
+
+    [Fact]
+    public async Task OldestRevision_NamesTheCardCreatorAsAnInferredEditor_NotWhoeverTriggeredTheCapture()
+    {
+        // Arrange — one user creates the card and a different user makes the first edit, so an
+        // inference that credited the first capture's trigger would name the wrong person.
+        TestAuthHelper.SetAdminAuth(_client, _factory);
+        var creator = await TestAuthHelper.CreateUserAsync(_client, _factory, "History Card Creator", UserRole.AgentUser);
+
+        using var creatorClient = _factory.CreateClient();
+        TestAuthHelper.SetAuth(creatorClient, creator.AuthKey);
+        var cardId = await CreateCardAsync(creatorClient, "History Inferred Creator", "as the creator wrote it");
+
+        await PatchDescriptionAsync(cardId, "edited by the admin");
+
+        // Act
+        var entries = await GetTrailEntriesAsync(cardId);
+
+        // Assert — the inference names the creator, says it is an inference, and leaves the
+        // observed attribution exactly as null as it was.
+        var oldest = entries[1];
+        oldest.GetProperty("editedByUserId").ValueKind.ShouldBe(JsonValueKind.Null);
+        oldest.GetProperty("editedByName").ValueKind.ShouldBe(JsonValueKind.Null);
+        oldest.GetProperty("editedAtUtc").ValueKind.ShouldBe(JsonValueKind.Null);
+
+        var inferred = oldest.GetProperty("inferredEditor");
+        inferred.GetProperty("userId").GetGuid().ShouldBe(creator.Id);
+        inferred.GetProperty("name").GetString().ShouldBe("History Card Creator");
+        inferred.GetProperty("basis").GetString().ShouldBe("creator");
+
+        // The observed revision is untouched: its own editor, and no inferred one beside it.
+        var newest = entries[0];
+        newest.GetProperty("editedByName").GetString().ShouldBe("Admin");
+        newest.TryGetProperty("inferredEditor", out _).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task GetHistory_InferredEditor_IsNeverWrittenIntoTheStoredRevision()
+    {
+        // The inference is resolved on read. The stored row keeps recording only what was
+        // observed, so reading the trail must leave the oldest row's author and time null.
+        TestAuthHelper.SetAdminAuth(_client, _factory);
+        var cardId = await CreateCardAsync("History Inferred Read Only", "before");
+        await PatchDescriptionAsync(cardId, "after");
+
+        // Act — read it, so there is something that could have written back.
+        var entries = await GetTrailEntriesAsync(cardId);
+        entries[1].GetProperty("inferredEditor").GetProperty("name").GetString().ShouldBe("Admin");
+
+        // Assert
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<BoardDbContext>();
+        var oldestRow = await db.CardFieldHistories.SingleAsync(h => h.CardId == cardId && h.Revision == 1);
+        oldestRow.EditedByUserId.ShouldBeNull();
+        oldestRow.EditedAtUtc.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task GetHistory_PageStoppingShortOfTheOldestRevision_CarriesNoInferredEditor()
+    {
+        // Arrange — four revisions; the newest page of two holds only observed revisions.
+        TestAuthHelper.SetAdminAuth(_client, _factory);
+        var cardId = await CreateRevisionsAsync("History Inferred Paging", 4);
+
+        // Act
+        var newestPage = await GetTrailAsync(cardId, "limit=2");
+        var oldestPage = await GetTrailAsync(cardId, "offset=2&limit=2");
+
+        // Assert — only the oldest revision carries the inference, wherever it lands.
+        newestPage.GetProperty("entries").EnumerateArray()
+            .Any(e => e.TryGetProperty("inferredEditor", out _))
+                .ShouldBeFalse();
+
+        var oldestPageEntries = oldestPage.GetProperty("entries").EnumerateArray().ToArray();
+        oldestPageEntries[0].TryGetProperty("inferredEditor", out _).ShouldBeFalse();
+        oldestPageEntries[1].GetProperty("inferredEditor").GetProperty("basis").GetString().ShouldBe("creator");
     }
 
     [Fact]
@@ -77,7 +150,7 @@ public class CardHistoryEndpointTests(CollatticeApiFactory factory) : IClassFixt
     }
 
     [Fact]
-    public async Task FormatFull_ReturnsWholeValuesAndOmitsDiffs()
+    public async Task GetHistory_FormatFull_ReturnsWholeValuesAndOmitsDiffs()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -94,7 +167,7 @@ public class CardHistoryEndpointTests(CollatticeApiFactory factory) : IClassFixt
     }
 
     [Fact]
-    public async Task RestDefaultFormat_IsBoth()
+    public async Task GetHistory_NoFormatParameter_DefaultsToBoth()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -110,7 +183,7 @@ public class CardHistoryEndpointTests(CollatticeApiFactory factory) : IClassFixt
     }
 
     [Fact]
-    public async Task ArbitraryPair_ReturnsTheDiffBetweenTwoRevisions()
+    public async Task GetHistory_ArbitraryPair_ReturnsTheDiffBetweenTwoRevisions()
     {
         // Arrange — three versions
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -149,7 +222,7 @@ public class CardHistoryEndpointTests(CollatticeApiFactory factory) : IClassFixt
     }
 
     [Fact]
-    public async Task NoOpDescriptionSave_RecordsNoEntry()
+    public async Task PatchDescription_SameValue_RecordsNoEntry()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -180,7 +253,7 @@ public class CardHistoryEndpointTests(CollatticeApiFactory factory) : IClassFixt
     }
 
     [Fact]
-    public async Task PatchThatLeavesTheDescriptionAlone_RecordsNoEntry()
+    public async Task PatchCard_LaneMoveOnly_RecordsNoEntry()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -197,7 +270,7 @@ public class CardHistoryEndpointTests(CollatticeApiFactory factory) : IClassFixt
     }
 
     [Fact]
-    public async Task ArchivedCard_RejectsTheEditAndKeepsExistingHistoryReadable()
+    public async Task PatchDescription_ArchivedCard_RejectsTheEditAndKeepsExistingHistoryReadable()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -219,7 +292,7 @@ public class CardHistoryEndpointTests(CollatticeApiFactory factory) : IClassFixt
     }
 
     [Fact]
-    public async Task NeverEditedCard_ReturnsAnEmptyTrail()
+    public async Task GetHistory_NeverEditedCard_ReturnsAnEmptyTrail()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -254,7 +327,7 @@ public class CardHistoryEndpointTests(CollatticeApiFactory factory) : IClassFixt
     }
 
     [Fact]
-    public async Task History_IsReadableByANonAdminUser()
+    public async Task GetHistory_NonAdminUser_CanReadTheTrail()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -348,7 +421,7 @@ public class CardHistoryEndpointTests(CollatticeApiFactory factory) : IClassFixt
     }
 
     [Fact]
-    public async Task RestAndMcpEdits_ShareOneTrailWithPerEditAttribution()
+    public async Task PatchDescription_RestAndMcpEdits_ShareOneTrailWithPerEditAttribution()
     {
         // Arrange — the two description write paths must record through the same seam, so an edit
         // from either surface continues the same trail rather than starting a parallel one.
@@ -376,7 +449,7 @@ public class CardHistoryEndpointTests(CollatticeApiFactory factory) : IClassFixt
     }
 
     [Fact]
-    public async Task DeletingACard_CascadesToItsHistoryRows()
+    public async Task DeleteCard_WithHistory_CascadesToItsHistoryRows()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -395,7 +468,7 @@ public class CardHistoryEndpointTests(CollatticeApiFactory factory) : IClassFixt
     }
 
     [Fact]
-    public async Task GenesisRevision_RoundTripsItsNullTimestampThroughThePersistenceLayer()
+    public async Task GetHistory_GenesisRevision_RoundTripsItsNullTimestampThroughThePersistenceLayer()
     {
         // Arrange — the shared DateTimeOffset value converter is applied to a nullable column here
         // for the first time in the model; a null that failed to round-trip would surface as a
@@ -419,7 +492,7 @@ public class CardHistoryEndpointTests(CollatticeApiFactory factory) : IClassFixt
     }
 
     [Fact]
-    public async Task TrailWithoutPagingParameters_ReturnsEverythingAndReportsNoLimit()
+    public async Task GetHistory_NoPagingParameters_ReturnsEverythingAndReportsNoLimit()
     {
         // The behaviour a caller written before paging existed must keep seeing.
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -436,7 +509,7 @@ public class CardHistoryEndpointTests(CollatticeApiFactory factory) : IClassFixt
     }
 
     [Fact]
-    public async Task TrailWithALimit_ReturnsTheNewestPageAndTheWholeTrailsCount()
+    public async Task GetHistory_WithALimit_ReturnsTheNewestPageAndTheWholeTrailsCount()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -454,7 +527,7 @@ public class CardHistoryEndpointTests(CollatticeApiFactory factory) : IClassFixt
     }
 
     [Fact]
-    public async Task PagesWalkTheWholeTrailWithoutGapsOrOverlap()
+    public async Task GetHistory_WalkedTwoAtATime_PagesCoverTheWholeTrailWithoutGapsOrOverlap()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -473,7 +546,7 @@ public class CardHistoryEndpointTests(CollatticeApiFactory factory) : IClassFixt
     }
 
     [Fact]
-    public async Task TheOldestEntryOnATruncatedPage_DiffsAgainstItsRealPredecessor()
+    public async Task GetHistory_OldestEntryOnATruncatedPage_DiffsAgainstItsRealPredecessor()
     {
         // The failure this guards: a paged read that only fetches its own page has nothing older
         // than the page's last entry, so that entry would come back with an empty diff and be
@@ -506,7 +579,7 @@ public class CardHistoryEndpointTests(CollatticeApiFactory factory) : IClassFixt
     }
 
     [Fact]
-    public async Task TheTrailsFirstRevision_StillHasAnEmptyDiffWhenItLandsOnAPage()
+    public async Task GetHistory_FirstRevisionLandingOnAPage_StillHasAnEmptyDiff()
     {
         // The other side of the boundary: reaching the true oldest revision through paging must
         // still report "nothing older to compare against" rather than inventing a predecessor.
@@ -524,7 +597,7 @@ public class CardHistoryEndpointTests(CollatticeApiFactory factory) : IClassFixt
     }
 
     [Fact]
-    public async Task OutOfRangePagingValues_ClampLikeTheRestOfTheApi()
+    public async Task GetHistory_OutOfRangePagingValues_ClampLikeTheRestOfTheApi()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -545,7 +618,7 @@ public class CardHistoryEndpointTests(CollatticeApiFactory factory) : IClassFixt
     }
 
     [Fact]
-    public async Task OffsetWithNoLimit_ReturnsTheRestOfTheTrailDownToItsFirstRevision()
+    public async Task GetHistory_OffsetWithNoLimit_ReturnsTheRestOfTheTrailDownToItsFirstRevision()
     {
         // An offset with no limit is the one paged read whose page runs to the end of the trail, so
         // its oldest entry has no predecessor because there genuinely is none — not because one
@@ -575,7 +648,7 @@ public class CardHistoryEndpointTests(CollatticeApiFactory factory) : IClassFixt
     }
 
     [Fact]
-    public async Task OffsetPastTheEndOfTheTrail_ReturnsNoEntriesAndTheRealCount()
+    public async Task GetHistory_OffsetPastTheEnd_ReturnsNoEntriesAndTheRealCount()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -590,7 +663,7 @@ public class CardHistoryEndpointTests(CollatticeApiFactory factory) : IClassFixt
     }
 
     [Fact]
-    public async Task PagingAFromToComparison_Returns400()
+    public async Task GetHistory_FromToWithPaging_Returns400()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -626,7 +699,7 @@ public class CardHistoryEndpointTests(CollatticeApiFactory factory) : IClassFixt
     }
 
     [Fact]
-    public async Task CardDetail_ReportsZeroHistoryForANeverEditedCard()
+    public async Task GetCard_NeverEditedCard_ReportsZeroHistory()
     {
         // The common case at launch, and the one the count exists to let a consumer detect: no
         // affordance should be offered for a card with nothing to show.
@@ -677,10 +750,13 @@ public class CardHistoryEndpointTests(CollatticeApiFactory factory) : IClassFixt
         return await response.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
     }
 
-    private async Task<Guid> CreateCardAsync(string name, string descriptionMarkdown)
+    private Task<Guid> CreateCardAsync(string name, string descriptionMarkdown) =>
+        CreateCardAsync(_client, name, descriptionMarkdown);
+
+    private async Task<Guid> CreateCardAsync(HttpClient client, string name, string descriptionMarkdown)
     {
-        var laneId = await TestDataHelper.GetFirstLaneIdAsync(_client, _factory.DefaultBoardId);
-        var response = await _client.PostAsJsonAsync
+        var laneId = await TestDataHelper.GetFirstLaneIdAsync(client, _factory.DefaultBoardId);
+        var response = await client.PostAsJsonAsync
         (
             $"/api/v1/boards/{_factory.DefaultBoardId}/cards",
             new { name, laneId, descriptionMarkdown }

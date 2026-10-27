@@ -1,0 +1,9 @@
+# Keep host build output and local state out of the image build context. A host
+# obj/ folder carries restore metadata with host-specific paths, which would make
+# the in-container restore and publish unreliable.
+**/bin/
+**/obj/
+**/node_modules/
+.git/
+.agents/
+.claude/

@@ -35,29 +35,45 @@ function statusUpToDate(): VersionStatus {
   };
 }
 
+// The update state is checked twice: through the trigger's accessible name, which is what a
+// screen reader announces, and through the drawn dot, which is what a sighted operator sees.
+// A label on the dot alone would satisfy a label query and still not be announced.
+function expectUpdateAnnounced() {
+  const trigger = screen.getByRole('button', { name: 'Main menu, update available' });
+  expect(trigger.querySelector('[data-update-dot]')).not.toBeNull();
+}
+
+function expectNoUpdateAnnounced() {
+  const trigger = screen.getByRole('button', { name: 'Main menu' });
+  expect(trigger.querySelector('[data-update-dot]')).toBeNull();
+}
+
+async function openMenu(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole('button', { name: /^Main menu/ }));
+}
+
 describe('GearMenu update indicator', () => {
   beforeEach(() => {
     localStorage.clear();
   });
 
-  test('shows the dot on the gear trigger when an update is available', () => {
+  test('announces the update in the trigger name and draws the dot when an update is available', () => {
     render(<GearMenu {...baseProps} versionStatus={statusWithUpdate()} />);
 
-    expect(screen.getByLabelText('Update available')).toBeInTheDocument();
+    expectUpdateAnnounced();
   });
 
-  test('hides the dot when up to date', () => {
+  test('names the trigger Main menu and draws no dot when up to date', () => {
     render(<GearMenu {...baseProps} versionStatus={statusUpToDate()} />);
 
-    expect(screen.queryByLabelText('Update available')).not.toBeInTheDocument();
+    expectNoUpdateAnnounced();
   });
 
   test('shows the update link row with the release URL inside the menu', async () => {
     const user = userEvent.setup();
     render(<GearMenu {...baseProps} versionStatus={statusWithUpdate()} />);
 
-    // The trigger is the only button before the menu opens.
-    await user.click(screen.getByRole('button'));
+    await openMenu(user);
     // The dropdown content is rendered once the trigger is opened.
     const link = await screen.findByRole('link', { name: /v1.16.0.*v1.17.0 available/i });
 
@@ -69,15 +85,15 @@ describe('GearMenu update indicator', () => {
     const user = userEvent.setup();
     const { rerender } = render(<GearMenu {...baseProps} versionStatus={statusWithUpdate()} />);
 
-    await user.click(screen.getByRole('button'));
+    await openMenu(user);
     await user.click(await screen.findByLabelText('Dismiss update reminder'));
 
     expect(localStorage.getItem('collattice-dismissed-update')).toBe('1.17.0');
-    expect(screen.queryByLabelText('Update available')).not.toBeInTheDocument();
+    expectNoUpdateAnnounced();
 
     // A newer version than the dismissed one re-shows the dot.
     rerender(<GearMenu {...baseProps} versionStatus={statusWithUpdate('1.18.0')} />);
-    expect(screen.getByLabelText('Update available')).toBeInTheDocument();
+    expectUpdateAnnounced();
   });
 
   test('a previously-dismissed version stays hidden across mounts', () => {
@@ -85,17 +101,17 @@ describe('GearMenu update indicator', () => {
 
     render(<GearMenu {...baseProps} versionStatus={statusWithUpdate('1.17.0')} />);
 
-    expect(screen.queryByLabelText('Update available')).not.toBeInTheDocument();
+    expectNoUpdateAnnounced();
   });
 
   test('falls back to the plain version footer when no status is provided', async () => {
     const user = userEvent.setup();
     render(<GearMenu {...baseProps} version="1.16.0" />);
 
-    await user.click(screen.getByRole('button'));
+    await openMenu(user);
 
     expect(await screen.findByText('v1.16.0')).toBeInTheDocument();
-    expect(screen.queryByLabelText('Update available')).not.toBeInTheDocument();
+    expectNoUpdateAnnounced();
   });
 
   test('prefers the fresher /version value over a stale status payload for the footer', async () => {
@@ -105,7 +121,7 @@ describe('GearMenu update indicator', () => {
     // fresher value, not the stale one.
     render(<GearMenu {...baseProps} version="1.16.1" versionStatus={statusUpToDate()} />);
 
-    await user.click(screen.getByRole('button'));
+    await openMenu(user);
 
     expect(await screen.findByText('v1.16.1')).toBeInTheDocument();
     expect(screen.queryByText('v1.16.0')).not.toBeInTheDocument();
@@ -115,7 +131,7 @@ describe('GearMenu update indicator', () => {
     const user = userEvent.setup();
     render(<GearMenu {...baseProps} version="1.16.1" versionStatus={statusWithUpdate()} />);
 
-    await user.click(screen.getByRole('button'));
+    await openMenu(user);
 
     expect(
       await screen.findByRole('link', { name: /v1.16.1.*v1.17.0 available/i }),
@@ -126,7 +142,7 @@ describe('GearMenu update indicator', () => {
     const user = userEvent.setup();
     render(<GearMenu {...baseProps} versionStatus={statusUpToDate()} />);
 
-    await user.click(screen.getByRole('button'));
+    await openMenu(user);
 
     expect(await screen.findByText('v1.16.0')).toBeInTheDocument();
   });
@@ -138,9 +154,9 @@ describe('GearMenu update indicator', () => {
     // "v1.17.0 -> v1.17.0 available".
     render(<GearMenu {...baseProps} version="1.17.0" versionStatus={statusWithUpdate('1.17.0')} />);
 
-    expect(screen.queryByLabelText('Update available')).not.toBeInTheDocument();
+    expectNoUpdateAnnounced();
 
-    await user.click(screen.getByRole('button'));
+    await openMenu(user);
 
     expect(await screen.findByText('v1.17.0')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /available/i })).not.toBeInTheDocument();
@@ -155,9 +171,9 @@ describe('GearMenu update indicator', () => {
       <GearMenu {...baseProps} version="1.17.0-rc1" versionStatus={statusWithUpdate('1.17.0')} />,
     );
 
-    expect(screen.queryByLabelText('Update available')).not.toBeInTheDocument();
+    expectNoUpdateAnnounced();
 
-    await user.click(screen.getByRole('button'));
+    await openMenu(user);
 
     expect(await screen.findByText('v1.17.0-rc1')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /available/i })).not.toBeInTheDocument();
@@ -167,9 +183,9 @@ describe('GearMenu update indicator', () => {
     const user = userEvent.setup();
     render(<GearMenu {...baseProps} version="1.18.0" versionStatus={statusWithUpdate('1.17.0')} />);
 
-    expect(screen.queryByLabelText('Update available')).not.toBeInTheDocument();
+    expectNoUpdateAnnounced();
 
-    await user.click(screen.getByRole('button'));
+    await openMenu(user);
 
     expect(await screen.findByText('v1.18.0')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /available/i })).not.toBeInTheDocument();
@@ -179,9 +195,9 @@ describe('GearMenu update indicator', () => {
     const user = userEvent.setup();
     render(<GearMenu {...baseProps} version="1.17.0" versionStatus={statusWithUpdate('1.18.0')} />);
 
-    expect(screen.getByLabelText('Update available')).toBeInTheDocument();
+    expectUpdateAnnounced();
 
-    await user.click(screen.getByRole('button'));
+    await openMenu(user);
 
     expect(
       await screen.findByRole('link', { name: /v1.17.0.*v1.18.0 available/i }),
@@ -197,9 +213,9 @@ describe('GearMenu update indicator', () => {
       <GearMenu {...baseProps} version="1.0.0.0" versionStatus={statusWithUpdate('1.17.0')} />,
     );
 
-    expect(screen.getByLabelText('Update available')).toBeInTheDocument();
+    expectUpdateAnnounced();
 
-    await user.click(screen.getByRole('button'));
+    await openMenu(user);
 
     expect(
       await screen.findByRole('link', { name: /v1.0.0.0.*v1.17.0 available/i }),
@@ -219,9 +235,9 @@ describe('GearMenu update indicator', () => {
     };
     render(<GearMenu {...baseProps} version="1.16.0" versionStatus={freshStatus} />);
 
-    expect(screen.getByLabelText('Update available')).toBeInTheDocument();
+    expectUpdateAnnounced();
 
-    await user.click(screen.getByRole('button'));
+    await openMenu(user);
 
     expect(
       await screen.findByRole('link', { name: /v1.16.0.*v1.18.0 available/i }),

@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Configuration;
 using Shouldly;
 
 namespace Collabot.Collattice.Api.Tests;
@@ -22,6 +21,7 @@ namespace Collabot.Collattice.Api.Tests;
 // bottom (a) assert the env re-add still follows WebApplication.CreateBuilder so a
 // future-added JSON source cannot silently re-shadow env vars and (b) assert the
 // .Local.json load is gone.
+// Sealed so the plain IDisposable shape below is complete; no derived class can add state to dispose.
 public sealed class ConfigPrecedenceTests : IDisposable
 {
     private const string _key = "ConfigPrecedence:Probe";
@@ -104,7 +104,7 @@ public sealed class ConfigPrecedenceTests : IDisposable
     }
 
     [Fact]
-    public void HardcodedDefault_WinsWhenNoProviderSuppliesTheKey()
+    public void Resolve_NoProviderSuppliesTheKey_HardcodedDefaultWins()
     {
         var resolved = Resolve(BuildProgramConfigChain(), "hardcoded-default");
 
@@ -117,11 +117,11 @@ public sealed class ConfigPrecedenceTests : IDisposable
     // able to catch it (Program.cs would once again load operator-editable JSON the
     // smart-merge contract assumes does not exist).
     [Fact]
-    public void ProgramCs_DoesNotLoadAppsettingsLocalJson()
+    public void ProgramCs_SourceText_DoesNotLoadAppsettingsLocalJson()
     {
         var programPath = Path.Combine
         (
-            FindRepoRoot(),
+            TestRepositoryHelper.FindRoot(),
             "backend",
             "Collabot.Collattice.Api",
             "Program.cs"
@@ -148,11 +148,11 @@ public sealed class ConfigPrecedenceTests : IDisposable
     // re-shadow env vars. The original fix was about ordering against .Local.json;
     // .Local.json is gone now, but the re-add stays as structural insurance.
     [Fact]
-    public void ProgramCs_ReaddsEnvVarsAfterWebApplicationCreateBuilder()
+    public void ProgramCs_SourceText_ReaddsEnvVarsAfterWebApplicationCreateBuilder()
     {
         var programPath = Path.Combine
         (
-            FindRepoRoot(),
+            TestRepositoryHelper.FindRoot(),
             "backend",
             "Collabot.Collattice.Api",
             "Program.cs"
@@ -183,17 +183,5 @@ public sealed class ConfigPrecedenceTests : IDisposable
             "AddEnvironmentVariables() must appear AFTER WebApplication.CreateBuilder so it "
             + "sits at the top of the provider chain regardless of any future-added JSON source"
         );
-    }
-
-    private static string FindRepoRoot()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null && !Directory.Exists(Path.Combine(dir.FullName, ".git")))
-        {
-            dir = dir.Parent;
-        }
-
-        dir.ShouldNotBeNull("Could not locate repo root (.git) from test base dir");
-        return dir.FullName;
     }
 }

@@ -1,16 +1,13 @@
 using System.ComponentModel;
 using System.Globalization;
 using System.Text.Json;
-using Collabot.Collattice.Api.Endpoints;
-using Collabot.Collattice.Api.Events;
-using Collabot.Collattice.Api.Models;
 using Microsoft.Extensions.Options;
 using ModelContextProtocol.Server;
 
 namespace Collabot.Collattice.Api.Mcp;
 
 [McpServerToolType]
-public sealed class AttachmentTools
+public class AttachmentTools
 (
     BoardDbContext db,
     McpAuthService auth,
@@ -27,13 +24,13 @@ public sealed class AttachmentTools
         CancellationToken ct = default
     )
     {
-        var (_, error) = await auth.RequireUserAsync(authKey, ct);
+        var (user, error) = await auth.RequireUserAsync(authKey, ct);
         if (error is not null)
         {
             return error;
         }
 
-        var attachment = await db.Attachments.FindAsync([attachmentId], ct);
+        var attachment = await McpCardResolver.FindVisibleAttachmentAsync(db, user!, attachmentId, ct);
         return attachment is null
             ? "Error: Attachment not found."
             : JsonSerializer.Serialize(new
@@ -61,7 +58,7 @@ public sealed class AttachmentTools
             return error;
         }
 
-        var attachment = await db.Attachments.FindAsync([attachmentId], ct);
+        var attachment = await McpCardResolver.FindVisibleAttachmentAsync(db, user!, attachmentId, ct);
         if (attachment is null)
         {
             return "Error: Attachment not found.";
@@ -108,7 +105,7 @@ public sealed class AttachmentTools
             return error;
         }
 
-        var (resolvedCardId, resolveError) = await McpCardResolver.ResolveCardIdAsync(db, cardId, cardNumber, boardId, boardSlug, ct);
+        var (resolvedCardId, resolveError) = await McpCardResolver.ResolveCardIdAsync(db, user!, cardId, cardNumber, boardId, boardSlug, ct);
         if (resolveError is not null)
         {
             return resolveError;

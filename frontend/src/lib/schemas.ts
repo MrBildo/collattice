@@ -107,16 +107,29 @@ export const pagedCardSummarySchema = z.object({
   limit: z.number().nullable(),
 });
 
+// The best available attribution for a revision nobody observed being written.
+// `basis` says how it was inferred ('creator' = the card's creator). It is a
+// plain string rather than an enum so that a basis added later on the server
+// degrades to a generic label here instead of failing the whole trail's parse.
+export const cardHistoryInferredEditorSchema = z.object({
+  userId: z.string(),
+  name: z.string(),
+  basis: z.string(),
+});
+
 // One revision in a card field's history trail (GET /cards/{id}/history).
 // The attribution fields are null on the trail's oldest revision only: history
 // is not back-filled, so nobody observed that value being written, and the
-// backend refuses to invent provenance for it. `value`/`diff` are absent from
-// the wire entirely (not null) when the requested format excludes them.
+// backend never stores a guess for it. That revision alone carries
+// `inferredEditor` instead — a separate field, so an inferred name can't be
+// mistaken for an observed one. `value`/`diff`/`inferredEditor` are absent from
+// the wire entirely (not null) when they don't apply.
 export const cardHistoryEntrySchema = z.object({
   revision: z.number(),
   editedByUserId: z.string().nullable(),
   editedByName: z.string().nullable(),
   editedAtUtc: z.string().nullable(),
+  inferredEditor: cardHistoryInferredEditorSchema.optional(),
   value: z.string().optional(),
   diff: z.string().optional(),
 });

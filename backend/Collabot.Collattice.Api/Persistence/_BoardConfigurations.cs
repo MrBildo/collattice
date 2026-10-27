@@ -1,4 +1,3 @@
-using Collabot.Collattice.Api.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 

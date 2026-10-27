@@ -1,7 +1,3 @@
-using Collabot.Collattice.Api.Events;
-using Collabot.Collattice.Api.Hosting.Webhooks;
-using Collabot.Collattice.Api.Models;
-using Collabot.Collattice.Api.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
@@ -14,7 +10,7 @@ namespace Collabot.Collattice.Api.Tests;
 // CapturingHttpMessageHandler for the happy-path
 // bytes/headers, and the REAL SSRF-guarded SocketsHttpHandler for the no-side-channel proof — a
 // private target with the flag off is connect-blocked here exactly as on a real event.
-public sealed class WebhookTesterTests
+public class WebhookTesterTests
 {
     [Fact]
     public async Task Test_DeliversPing_SignsWithSecret_WritesOneAttempt_ReturnsSuccess()

@@ -2,11 +2,6 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
-using Collabot.Collattice.Api.Auth;
-using Collabot.Collattice.Api.Events;
-using Collabot.Collattice.Api.Mcp;
-using Collabot.Collattice.Api.Models;
-using Collabot.Collattice.Api.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -19,6 +14,7 @@ namespace Collabot.Collattice.Api.Tests;
 // webhook event — so the SSE wire stays byte-for-byte unchanged while the catalog grows. The
 // CapturingWebhookSink IS the observable (no HTTP delivery here), alongside the
 // SSE-byte-equivalence safety property.
+// Sealed so the plain IDisposable shape below is complete; no derived class can add state to dispose.
 public sealed class WebhookResourceCatalogTests : IClassFixture<WebhookTestFactory>, IDisposable
 {
     private readonly WebhookTestFactory _factory;
@@ -80,7 +76,7 @@ public sealed class WebhookResourceCatalogTests : IClassFixture<WebhookTestFacto
     }
 
     [Fact]
-    public async Task RestUpdateComment_FiresCommentUpdated()
+    public async Task UpdateComment_OverRest_FiresCommentUpdated()
     {
         var sink = Sink;
         var (cardId, _) = await CreateCardAsync("Editable comment");
@@ -110,7 +106,7 @@ public sealed class WebhookResourceCatalogTests : IClassFixture<WebhookTestFacto
     }
 
     [Fact]
-    public async Task McpAddComment_FiresCommentCreated()
+    public async Task AddComment_OverMcp_FiresCommentCreated()
     {
         var sink = Sink;
         var (cardId, _) = await CreateCardAsync("Mcp Commentable");
@@ -124,7 +120,7 @@ public sealed class WebhookResourceCatalogTests : IClassFixture<WebhookTestFacto
     }
 
     [Fact]
-    public async Task McpUpdateComment_FiresCommentUpdated()
+    public async Task UpdateComment_OverMcp_FiresCommentUpdated()
     {
         var sink = Sink;
         var (cardId, _) = await CreateCardAsync("Mcp Editable");
@@ -139,7 +135,7 @@ public sealed class WebhookResourceCatalogTests : IClassFixture<WebhookTestFacto
     }
 
     [Fact]
-    public async Task McpDeleteComment_FiresCommentDeleted()
+    public async Task DeleteComment_OverMcp_FiresCommentDeleted()
     {
         var sink = Sink;
         var (cardId, _) = await CreateCardAsync("Mcp Deletable");
@@ -154,7 +150,7 @@ public sealed class WebhookResourceCatalogTests : IClassFixture<WebhookTestFacto
     }
 
     [Fact]
-    public async Task AddComment_RingsExactlyOneSseBell()
+    public async Task AddComment_SubscribedToBoardStream_RingsExactlyOneSseBell()
     {
         var sink = Sink;
         var broadcaster = _factory.Services.GetRequiredService<BoardEventBroadcaster>();
@@ -199,7 +195,7 @@ public sealed class WebhookResourceCatalogTests : IClassFixture<WebhookTestFacto
     }
 
     [Fact]
-    public async Task RestUpdateLabel_FiresLabelUpdated()
+    public async Task UpdateLabel_OverRest_FiresLabelUpdated()
     {
         var sink = Sink;
         var labelId = await CreateLabelViaRestAsync("rename-me", "#111111");
@@ -229,7 +225,7 @@ public sealed class WebhookResourceCatalogTests : IClassFixture<WebhookTestFacto
     }
 
     [Fact]
-    public async Task McpCreateLabel_FiresLabelCreated()
+    public async Task CreateLabel_OverMcp_FiresLabelCreated()
     {
         var sink = Sink;
         var tools = CreateLabelTools();
@@ -243,7 +239,7 @@ public sealed class WebhookResourceCatalogTests : IClassFixture<WebhookTestFacto
     }
 
     [Fact]
-    public async Task McpUpdateLabel_FiresLabelUpdated()
+    public async Task UpdateLabel_OverMcp_FiresLabelUpdated()
     {
         var sink = Sink;
         var tools = CreateLabelTools();
@@ -257,7 +253,7 @@ public sealed class WebhookResourceCatalogTests : IClassFixture<WebhookTestFacto
     }
 
     [Fact]
-    public async Task McpDeleteLabel_FiresLabelDeleted()
+    public async Task DeleteLabel_OverMcp_FiresLabelDeleted()
     {
         var sink = Sink;
         var tools = CreateLabelTools();
@@ -271,7 +267,7 @@ public sealed class WebhookResourceCatalogTests : IClassFixture<WebhookTestFacto
     }
 
     [Fact]
-    public async Task CreateLabel_RingsExactlyOneSseBell()
+    public async Task CreateLabel_SubscribedToBoardStream_RingsExactlyOneSseBell()
     {
         var sink = Sink;
         var broadcaster = _factory.Services.GetRequiredService<BoardEventBroadcaster>();
@@ -317,7 +313,7 @@ public sealed class WebhookResourceCatalogTests : IClassFixture<WebhookTestFacto
     }
 
     [Fact]
-    public async Task AttachmentEvent_CarriesNoFileBytes()
+    public async Task UploadAttachment_OverRest_EventCarriesNoFileBytes()
     {
         var sink = Sink;
         var (cardId, _) = await CreateCardAsync("No-bytes attach");
@@ -348,7 +344,7 @@ public sealed class WebhookResourceCatalogTests : IClassFixture<WebhookTestFacto
     }
 
     [Fact]
-    public async Task McpUploadAttachment_FiresAttachmentCreated()
+    public async Task UploadAttachment_OverMcp_FiresAttachmentCreated()
     {
         var sink = Sink;
         var (cardId, _) = await CreateCardAsync("Mcp Attachable");
@@ -364,7 +360,7 @@ public sealed class WebhookResourceCatalogTests : IClassFixture<WebhookTestFacto
     }
 
     [Fact]
-    public async Task McpDeleteAttachment_FiresAttachmentDeleted()
+    public async Task DeleteAttachment_OverMcp_FiresAttachmentDeleted()
     {
         var sink = Sink;
         var (cardId, _) = await CreateCardAsync("Mcp Detachable");
@@ -380,7 +376,7 @@ public sealed class WebhookResourceCatalogTests : IClassFixture<WebhookTestFacto
     }
 
     [Fact]
-    public async Task UploadAttachment_RingsExactlyOneSseBell()
+    public async Task UploadAttachment_SubscribedToBoardStream_RingsExactlyOneSseBell()
     {
         var sink = Sink;
         var broadcaster = _factory.Services.GetRequiredService<BoardEventBroadcaster>();

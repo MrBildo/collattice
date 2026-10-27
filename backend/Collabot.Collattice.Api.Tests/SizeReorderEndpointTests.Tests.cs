@@ -1,8 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Collabot.Collattice.Api.Models;
-using Collabot.Collattice.Api.Tests.Infrastructure;
 using Shouldly;
 
 namespace Collabot.Collattice.Api.Tests;
@@ -87,7 +85,7 @@ public class SizeReorderEndpointTests(CollatticeApiFactory factory) : IClassFixt
     }
 
     [Fact]
-    public async Task Reorder_NormalizesExistingGap()
+    public async Task Reorder_SizesWithGappedOrdinals_NormalizesExistingGap()
     {
         // Arrange — a board whose ordinals have a gap. The default set is dense
         // 0..3; deleting the middle two and adding fresh ones via the auto-ordinal

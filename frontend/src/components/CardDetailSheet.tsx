@@ -8,6 +8,7 @@ import { UnsavedChangesDialog } from '@/components/UnsavedChangesDialog';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { CardItem, CardSize, Lane } from '@/types';
 import type { UnsavedChangesAction } from '@/components/UnsavedChangesDialog';
+import type { CardPrefill, DuplicateRequest } from '@/lib/duplicate-card';
 
 // Snapshot navigation context so lane changes don't shift prev/next nav.
 // Uses "setState during render" pattern — React allows this when value differs.
@@ -38,7 +39,10 @@ function useNavSnapshot(card: CardItem | null, cardsInLane: CardItem[] | undefin
   return snapshot.cards;
 }
 
-type PendingAction = { type: 'close' } | { type: 'navigate'; cardNumber: number };
+type PendingAction =
+  | { type: 'close' }
+  | { type: 'navigate'; cardNumber: number }
+  | { type: 'duplicate'; request: DuplicateRequest };
 
 type CardDetailSheetProps = {
   card: CardItem | null;
@@ -51,6 +55,11 @@ type CardDetailSheetProps = {
   sizes?: CardSize[];
   cardsInLane?: CardItem[];
   onNavigateCard?: (cardNumber: number) => void;
+  onDuplicate?: (prefill: CardPrefill) => void;
+  // Where focus goes when the dialog closes: the board's control for the card
+  // that is open at that moment, or null when the board has none (an archived
+  // card, say).
+  findReturnFocus?: (cardId: string) => HTMLElement | null;
 };
 
 export function CardDetailSheet({
@@ -64,10 +73,22 @@ export function CardDetailSheet({
   sizes,
   cardsInLane,
   onNavigateCard,
+  onDuplicate,
+  findReturnFocus,
 }: CardDetailSheetProps) {
   const isDirtyRef = useRef(false);
   const formRef = useRef<CardDetailFormHandle>(null);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+  // Duplicating closes this dialog to open the new-card dialog, which takes
+  // focus itself. Returning focus to the board on that close would pull it out
+  // from behind the new dialog, so that one close leaves focus alone.
+  const isFocusHandedOffRef = useRef(false);
+
+  useEffect(() => {
+    if (open) {
+      isFocusHandedOffRef.current = false;
+    }
+  }, [open]);
 
   const navSnapshot = useNavSnapshot(card, cardsInLane);
 
@@ -82,14 +103,19 @@ export function CardDetailSheet({
   }, [card, navSnapshot]);
 
   const executePendingAction = useCallback(
-    (action: PendingAction) => {
+    (action: PendingAction, isDiscarding = false) => {
       if (action.type === 'close') {
         onOpenChange(false);
       } else if (action.type === 'navigate' && onNavigateCard) {
         onNavigateCard(action.cardNumber);
+      } else if (action.type === 'duplicate' && onDuplicate) {
+        isFocusHandedOffRef.current = true;
+        // Discarding the unsaved edits means the copy starts from the card as
+        // stored; saving them (or having none) means it starts from the form.
+        onDuplicate(isDiscarding ? action.request.saved : action.request.draft);
       }
     },
-    [onOpenChange, onNavigateCard],
+    [onOpenChange, onNavigateCard, onDuplicate],
   );
 
   // Ref to hold the pending action that should be executed after save completes
@@ -102,6 +128,13 @@ export function CardDetailSheet({
       executePendingAction(action);
     }
   }, [executePendingAction]);
+
+  // A failed save cancels the action that was waiting on it. Left queued, it
+  // would run after the user's next successful save, which they did not ask
+  // for, and a queued duplicate would carry the draft from the failed attempt.
+  const handleSaveError = useCallback(() => {
+    pendingAfterSaveRef.current = null;
+  }, []);
 
   const handleUnsavedAction = useCallback(
     (action: UnsavedChangesAction) => {
@@ -119,7 +152,7 @@ export function CardDetailSheet({
 
       // discard
       isDirtyRef.current = false;
-      if (pending) executePendingAction(pending);
+      if (pending) executePendingAction(pending, true);
     },
     [pendingAction, executePendingAction],
   );
@@ -182,6 +215,16 @@ export function CardDetailSheet({
     <>
       <Dialog open={open} onOpenChange={handleDialogOpenChange}>
         <DialogContent
+          // The dialog opens from the URL rather than from a trigger, so it has
+          // nothing of its own to return focus to and would leave it on the
+          // page. It goes to the card that is open when the dialog closes: after
+          // moving with previous/next, that is the card just read, not the one
+          // first opened. With no such element, the dialog's default applies.
+          finalFocus={
+            findReturnFocus
+              ? () => (isFocusHandedOffRef.current ? false : (findReturnFocus(card.id) ?? true))
+              : undefined
+          }
           data-mobile-fullscreen
           className="flex flex-col p-0 md:max-h-[85vh] md:!w-[80vw] md:!max-w-[80vw]"
           style={{ overflow: 'visible' }}
@@ -246,6 +289,7 @@ export function CardDetailSheet({
               card={card}
               onClose={() => handleDialogOpenChange(false)}
               onSaveComplete={handleSaveComplete}
+              onSaveError={handleSaveError}
               currentUserId={currentUserId}
               currentUserRole={currentUserRole}
               lanes={lanes}
@@ -255,6 +299,9 @@ export function CardDetailSheet({
               navPosition={navPosition}
               onNavigatePrev={prevCard ? () => handleNavigate('prev') : undefined}
               onNavigateNext={nextCard ? () => handleNavigate('next') : undefined}
+              onDuplicate={
+                onDuplicate ? (request) => requestAction({ type: 'duplicate', request }) : undefined
+              }
             />
           </div>
         </DialogContent>

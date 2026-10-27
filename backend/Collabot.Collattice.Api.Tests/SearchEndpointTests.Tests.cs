@@ -2,8 +2,6 @@ using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Collabot.Collattice.Api.Models;
-using Collabot.Collattice.Api.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
@@ -184,7 +182,7 @@ public class SearchEndpointTests(CollatticeApiFactory factory) : IClassFixture<C
     }
 
     [Fact]
-    public async Task SearchCards_LimitClampedToMax50()
+    public async Task SearchCards_Limit100_IsClampedToMax50()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -222,7 +220,7 @@ public class SearchEndpointTests(CollatticeApiFactory factory) : IClassFixture<C
     }
 
     [Fact]
-    public async Task SearchCards_CardSummaryIncludesExpectedFields()
+    public async Task SearchCards_MatchingCard_CardSummaryIncludesExpectedFields()
     {
         // Arrange
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -313,7 +311,7 @@ public class SearchEndpointTests(CollatticeApiFactory factory) : IClassFixture<C
     }
 
     [Fact]
-    public async Task SearchCards_RequiresAuth()
+    public async Task SearchCards_NoAuthHeader_Returns401()
     {
         // Arrange — no auth header
         _client.DefaultRequestHeaders.Remove("X-User-Key");

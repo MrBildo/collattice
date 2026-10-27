@@ -1,10 +1,5 @@
 using System.Net.Http.Json;
 using System.Text.Json;
-using Collabot.Collattice.Api.Auth;
-using Collabot.Collattice.Api.Events;
-using Collabot.Collattice.Api.Mcp;
-using Collabot.Collattice.Api.Models;
-using Collabot.Collattice.Api.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
@@ -16,6 +11,7 @@ namespace Collabot.Collattice.Api.Tests;
 // multi-axis co-fire rule, the archive/restore-never-card.moved fence, and the
 // one-SSE-bell coalesce for a co-fire. The CapturingWebhookSink IS the observable (no
 // HTTP delivery here), alongside the SSE-byte-equivalence safety property.
+// Sealed so the plain IDisposable shape below is complete; no derived class can add state to dispose.
 public sealed class WebhookCardCatalogTests(WebhookTestFactory factory) : IClassFixture<WebhookTestFactory>, IDisposable
 {
     private readonly WebhookTestFactory _factory = factory;
@@ -59,7 +55,7 @@ public sealed class WebhookCardCatalogTests(WebhookTestFactory factory) : IClass
     }
 
     [Fact]
-    public async Task McpUpdateCardSizeOnly_FiresCardUpdated()
+    public async Task UpdateCard_OverMcpSizeOnly_FiresCardUpdated()
     {
         var sink = Sink;
         var (laneA, _) = await GetTwoLanesAsync();
@@ -206,7 +202,7 @@ public sealed class WebhookCardCatalogTests(WebhookTestFactory factory) : IClass
     }
 
     [Fact]
-    public async Task RestRemoveLabel_FiresCardUnlabeled()
+    public async Task RemoveLabel_OverRest_FiresCardUnlabeled()
     {
         var sink = Sink;
         var (laneA, _) = await GetTwoLanesAsync();
@@ -223,7 +219,7 @@ public sealed class WebhookCardCatalogTests(WebhookTestFactory factory) : IClass
     }
 
     [Fact]
-    public async Task McpAddAndRemoveLabel_FireLabeledThenUnlabeled()
+    public async Task AddThenRemoveLabel_OverMcp_FireLabeledThenUnlabeled()
     {
         var sink = Sink;
         var (laneA, _) = await GetTwoLanesAsync();
@@ -275,7 +271,7 @@ public sealed class WebhookCardCatalogTests(WebhookTestFactory factory) : IClass
     // ── Bulk — one event per card, never card.moved for archive/restore ─────────
 
     [Fact]
-    public async Task BulkArchiveThenRestore_FireOneArchivedAndOneRestoredPerCard()
+    public async Task BulkArchiveThenRestore_OverMcp_FireOneArchivedAndOneRestoredPerCard()
     {
         var sink = Sink;
         var (laneA, laneB) = await GetTwoLanesAsync();
@@ -298,7 +294,7 @@ public sealed class WebhookCardCatalogTests(WebhookTestFactory factory) : IClass
     }
 
     [Fact]
-    public async Task BulkUpdateSizeAndLabels_CoFiresUpdatedAndLabeledPerCard()
+    public async Task BulkUpdate_SizeAndLabels_CoFiresUpdatedAndLabeledPerCard()
     {
         var sink = Sink;
         var (laneA, _) = await GetTwoLanesAsync();
@@ -327,7 +323,7 @@ public sealed class WebhookCardCatalogTests(WebhookTestFactory factory) : IClass
     // ── Prune-archive — one card.archived per pruned card ───────────────────────
 
     [Fact]
-    public async Task RestPruneArchive_FiresOneCardArchivedPerCard()
+    public async Task PruneArchive_OverRest_FiresOneCardArchivedPerCard()
     {
         var sink = Sink;
         var lane = await CreateEmptyLaneAsync("Prune Lane REST");
@@ -349,7 +345,7 @@ public sealed class WebhookCardCatalogTests(WebhookTestFactory factory) : IClass
     }
 
     [Fact]
-    public async Task McpPruneArchive_FiresOneCardArchivedPerCard()
+    public async Task PruneArchive_OverMcp_FiresOneCardArchivedPerCard()
     {
         var sink = Sink;
         var lane = await CreateEmptyLaneAsync("Prune Lane MCP");
@@ -418,7 +414,7 @@ public sealed class WebhookCardCatalogTests(WebhookTestFactory factory) : IClass
     }
 
     [Fact]
-    public async Task RestPruneDelete_FiresOneCardDeletedPerCard()
+    public async Task PruneDelete_OverRest_FiresOneCardDeletedPerCard()
     {
         var sink = Sink;
         var lane = await CreateEmptyLaneAsync("Prune Delete Lane");
@@ -440,7 +436,7 @@ public sealed class WebhookCardCatalogTests(WebhookTestFactory factory) : IClass
     }
 
     [Fact]
-    public async Task TempCancel_FiresNoCardDeleted()
+    public async Task CancelCard_TempCard_FiresNoCardDeleted()
     {
         var sink = Sink;
         var (laneA, _) = await GetTwoLanesAsync();

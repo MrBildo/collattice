@@ -1,17 +1,13 @@
 using System.Globalization;
 using System.Text.Json;
-using Collabot.Collattice.Api.Auth;
-using Collabot.Collattice.Api.Events;
-using Collabot.Collattice.Api.Mcp;
-using Collabot.Collattice.Api.Models;
-using Collabot.Collattice.Api.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 
 namespace Collabot.Collattice.Api.Tests;
 
-public class McpCardToolsTests(CollatticeApiFactory factory) : IClassFixture<CollatticeApiFactory>, IDisposable
+// Sealed so the plain IDisposable shape below is complete; no derived class can add state to dispose.
+public sealed class McpCardToolsTests(CollatticeApiFactory factory) : IClassFixture<CollatticeApiFactory>, IDisposable
 {
     private readonly CollatticeApiFactory _factory = factory;
     private readonly List<IServiceScope> _scopes = [];
@@ -94,7 +90,7 @@ public class McpCardToolsTests(CollatticeApiFactory factory) : IClassFixture<Col
     }
 
     [Fact]
-    public async Task UpdateCard_ReturnsEnrichedCardSummary()
+    public async Task UpdateCard_ExistingCard_ReturnsEnrichedCardSummary()
     {
         // Arrange — parity with create_card: the JSON payload carries sizeName,
         // labels, commentCount, attachmentCount, isArchived so the caller has
@@ -709,7 +705,7 @@ public class McpCardToolsTests(CollatticeApiFactory factory) : IClassFixture<Col
     // ── get_cards pagination ─────────────────────────────────────────────
 
     [Fact]
-    public async Task GetCards_ReturnsPagedEnvelope()
+    public async Task GetCards_DefaultBoard_ReturnsPagedEnvelope()
     {
         // Arrange
         var (db, tools, authKey) = CreateTools();

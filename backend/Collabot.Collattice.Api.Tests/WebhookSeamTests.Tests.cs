@@ -1,9 +1,6 @@
+using System.Globalization;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Collabot.Collattice.Api.Auth;
-using Collabot.Collattice.Api.Events;
-using Collabot.Collattice.Api.Mcp;
-using Collabot.Collattice.Api.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
@@ -14,6 +11,7 @@ namespace Collabot.Collattice.Api.Tests;
 // delivery yet — the CapturingWebhookSink IS the observable. These assert on the typed
 // BoardEvent the seam enqueues (and its JSON-serialized wire shape), plus the SSE
 // byte-for-byte-unchanged safety property.
+// Sealed so the plain IDisposable shape below is complete; no derived class can add state to dispose.
 public sealed class WebhookSeamTests(WebhookTestFactory factory) : IClassFixture<WebhookTestFactory>, IDisposable
 {
     private readonly WebhookTestFactory _factory = factory;
@@ -132,7 +130,7 @@ public sealed class WebhookSeamTests(WebhookTestFactory factory) : IClassFixture
     // ── Scenario 2: REST and MCP create produce identical event shape ────────────
 
     [Fact]
-    public async Task RestAndMcpCreate_ProduceIdenticalEnvelopeAndDataFieldSet()
+    public async Task CreateCard_OverRestAndMcp_ProduceIdenticalEnvelopeAndDataFieldSet()
     {
         // Arrange
         var sink = Sink;
@@ -287,7 +285,7 @@ public sealed class WebhookSeamTests(WebhookTestFactory factory) : IClassFixture
     }
 
     [Fact]
-    public async Task McpBulkUpdateWithLaneId_FiresOneCardMovedPerMovedCard()
+    public async Task BulkUpdate_WithLaneId_FiresOneCardMovedPerMovedCard()
     {
         var sink = Sink;
         var (laneA, laneB) = await GetTwoLanesAsync();
@@ -318,7 +316,7 @@ public sealed class WebhookSeamTests(WebhookTestFactory factory) : IClassFixture
     // ── Scenario 4b: no-lane-change emits no card.moved; archive/restore emit none ─
 
     [Fact]
-    public async Task UpdateWithoutLaneChange_FiresNoCardMoved()
+    public async Task UpdateCard_WithoutLaneChange_FiresNoCardMoved()
     {
         var sink = Sink;
         var (laneId, _) = await GetTwoLanesAsync();
@@ -326,7 +324,8 @@ public sealed class WebhookSeamTests(WebhookTestFactory factory) : IClassFixture
         var cardId = await CreateCardViaMcpAsync(tools, laneId, "Name Only");
         sink.Clear();
 
-        // Name-only update (no laneId) — and a same-lane "move" via PATCH.
+        // Name-only update (no laneId) — and a PATCH re-asserting the current lane on the lane's last
+        // card, which re-appends it to exactly the position it already holds.
         var nameResult = await tools.UpdateCardAsync(CollatticeApiFactory.TestAdminAuthKey, cardId: cardId, name: "Renamed");
         nameResult.ShouldNotContain("Error");
 
@@ -334,7 +333,73 @@ public sealed class WebhookSeamTests(WebhookTestFactory factory) : IClassFixture
         var sameLanePatch = await _client.PatchAsJsonAsync($"/api/v1/cards/{cardId}", new { laneId });
         sameLanePatch.EnsureSuccessStatusCode();
 
-        // No card.moved for either: name-only, and a PATCH whose laneId == the current lane.
+        // No card.moved for either: nothing about the card's placement changed.
+        sink.Captured.ShouldNotContain(e => e.EventType == "card.moved");
+    }
+
+    // ── Scenario 4d: re-asserting the current lane is a move when the card lands somewhere new ──
+
+    [Fact]
+    public async Task RestPatchSameLaneNoPosition_NonLastCard_FiresCardMoved_WithinLane()
+    {
+        var sink = Sink;
+        TestAuthHelper.SetAdminAuth(_client, _factory);
+        var (laneA, _) = await GetTwoLanesAsync();
+        var cardId = await CreateCardInLaneViaRestAsync(laneA, "Reshuffled");
+        await CreateCardInLaneViaRestAsync(laneA, "Behind It");
+        var fromPosition = await CardPositionAsync(cardId);
+        sink.Clear();
+
+        // The current lane with no position re-appends the card to the lane's end — a visible move
+        // for a card that was not already last, so it reports exactly one within-lane card.moved.
+        var response = await _client.PatchAsJsonAsync($"/api/v1/cards/{cardId}", new { laneId = laneA });
+        response.EnsureSuccessStatusCode();
+
+        (await CardPositionAsync(cardId)).ShouldBeGreaterThan(fromPosition);
+
+        var laneName = await LaneNameAsync(laneA);
+        await AssertSingleMoveAsync(sink, cardId, laneA, laneName, fromPosition, laneA, laneName);
+    }
+
+    [Fact]
+    public async Task McpUpdateCardSameLane_PositionChanged_FiresCardMoved_WithinLane()
+    {
+        var sink = Sink;
+        var (laneA, _) = await GetTwoLanesAsync();
+        var tools = CreateCardTools();
+        await CreateCardViaMcpAsync(tools, laneA, "Already Here");
+        var cardId = await CreateCardViaMcpAsync(tools, laneA, "Moves To Top");
+        var fromPosition = await CardPositionAsync(cardId);
+        sink.Clear();
+
+        // update_card with the current lane and no index places the card at the top of that lane —
+        // the MCP twin of the REST re-assert, held to the same resolved-position rule.
+        var result = await tools.UpdateCardAsync(CollatticeApiFactory.TestAdminAuthKey, cardId: cardId, laneId: laneA);
+        result.ShouldNotContain("Error");
+
+        (await CardPositionAsync(cardId)).ShouldNotBe(fromPosition);
+
+        var laneName = await LaneNameAsync(laneA);
+        await AssertSingleMoveAsync(sink, cardId, laneA, laneName, fromPosition, laneA, laneName);
+    }
+
+    [Fact]
+    public async Task McpUpdateCardSameLane_PositionUnchanged_FiresNoCardMoved()
+    {
+        var sink = Sink;
+        var (laneA, _) = await GetTwoLanesAsync();
+        var tools = CreateCardTools();
+        var cardId = await CreateCardViaMcpAsync(tools, laneA, "Stays On Top");
+
+        // The first call puts the card at the top; the second asks for exactly where it already is.
+        (await tools.UpdateCardAsync(CollatticeApiFactory.TestAdminAuthKey, cardId: cardId, laneId: laneA, index: 0)).ShouldNotContain("Error");
+        var settledPosition = await CardPositionAsync(cardId);
+        sink.Clear();
+
+        var result = await tools.UpdateCardAsync(CollatticeApiFactory.TestAdminAuthKey, cardId: cardId, laneId: laneA, index: 0);
+        result.ShouldNotContain("Error");
+
+        (await CardPositionAsync(cardId)).ShouldBe(settledPosition);
         sink.Captured.ShouldNotContain(e => e.EventType == "card.moved");
     }
 
@@ -387,7 +452,7 @@ public sealed class WebhookSeamTests(WebhookTestFactory factory) : IClassFixture
     }
 
     [Fact]
-    public async Task RestPatchPositionUnchanged_FiresNoCardMoved()
+    public async Task PatchCard_OverRestPositionUnchanged_FiresNoCardMoved()
     {
         var sink = Sink;
         TestAuthHelper.SetAdminAuth(_client, _factory);
@@ -420,6 +485,164 @@ public sealed class WebhookSeamTests(WebhookTestFactory factory) : IClassFixture
 
         var laneName = await LaneNameAsync(laneA);
         await AssertSingleMoveAsync(sink, cardId, laneA, laneName, fromPosition, laneA, laneName);
+    }
+
+    // bulk_update_cards within the cards' own lane. The batch saves once, so "from" is each
+    // card's placement before the call and "to" its saved placement; a card reports only when
+    // the two differ. Each test seeds its own board so the lane holds exactly the cards it
+    // names, at dense positions.
+
+    [Fact]
+    public async Task McpBulkUpdateSameLane_PositionChanged_FiresCardMovedWithinLane()
+    {
+        // Arrange — [A, B, C]; moving C to the top renumbers A and B too
+        var sink = Sink;
+        var (laneId, _, cards) = await SeedBoardAsync(3);
+        var laneName = await LaneNameAsync(laneId);
+        sink.Clear();
+
+        // Act — the current lane with no index places C at the top
+        var result = await CreateBulkTools().BulkUpdateCardsAsync
+        (
+            CollatticeApiFactory.TestAdminAuthKey,
+            cardIds: $"{cards[2]}",
+            laneId: laneId
+        );
+
+        // Assert — one card.moved, for C only: A and B were nudged by C's move, not moved
+        result.ShouldContain("\"succeeded\":1");
+        (await CardPositionAsync(cards[2])).ShouldBe(0);
+        await AssertSingleMoveAsync(sink, cards[2], laneId, laneName, 20, laneId, laneName);
+    }
+
+    [Fact]
+    public async Task McpBulkUpdateSameLane_PositionUnchanged_FiresNoCardMoved()
+    {
+        // Arrange — [A, B, C]
+        var sink = Sink;
+        var (laneId, _, cards) = await SeedBoardAsync(3);
+        sink.Clear();
+
+        // Act — A is already at the top of its lane
+        var result = await CreateBulkTools().BulkUpdateCardsAsync
+        (
+            CollatticeApiFactory.TestAdminAuthKey,
+            cardIds: $"{cards[0]}",
+            laneId: laneId,
+            index: 0
+        );
+
+        // Assert
+        result.ShouldContain("\"succeeded\":1");
+        (await CardPositionAsync(cards[0])).ShouldBe(0);
+        sink.Captured.ShouldNotContain(e => e.EventType == "card.moved");
+    }
+
+    [Fact]
+    public async Task McpBulkUpdateSameLane_MultiCard_ReportsExactlyTheCardsWhoseSavedPlacementChanged()
+    {
+        // Arrange — [A, B, C, D]
+        var sink = Sink;
+        var (laneId, _, cards) = await SeedBoardAsync(4);
+        Guid[] batch = [cards[0], cards[2]];
+        var before = await PlacementsAsync(cards);
+        sink.Clear();
+
+        // Act — A and C to index 3. A's step renumbers the lane and shifts C from 20 to 10 before
+        // C's own turn, so C's position at its turn is neither where it was before the call nor
+        // where it ends up.
+        var result = await CreateBulkTools().BulkUpdateCardsAsync
+        (
+            CollatticeApiFactory.TestAdminAuthKey,
+            cardIds: $"{batch[0]},{batch[1]}",
+            laneId: laneId,
+            index: 3
+        );
+
+        // Assert — the expectation is derived from the saved state, so it holds whatever order
+        // the batch places the cards in: one card.moved per batch card whose placement differs
+        // from before the call, carrying exactly the before and after placements
+        result.ShouldContain("\"succeeded\":2");
+        var after = await PlacementsAsync(cards);
+        var changed = batch.Where(id => before[id] != after[id]).ToList();
+
+        changed.ShouldNotBeEmpty("fixture must move at least one batch card");
+
+        sink.Captured.ShouldAllBe(e => e.EventType == "card.moved");
+        sink.Captured.Count.ShouldBe(changed.Count);
+
+        foreach (var data in sink.Captured.Select(e => Serialize(e).GetProperty("data")))
+        {
+            var cardId = data.GetProperty("card").GetProperty("id").GetGuid();
+            changed.ShouldContain(cardId);
+
+            data.GetProperty("from").GetProperty("laneId").GetGuid().ShouldBe(before[cardId].LaneId);
+            data.GetProperty("from").GetProperty("position").GetInt32().ShouldBe(before[cardId].Position);
+            data.GetProperty("to").GetProperty("laneId").GetGuid().ShouldBe(after[cardId].LaneId);
+            data.GetProperty("to").GetProperty("position").GetInt32().ShouldBe(after[cardId].Position);
+        }
+    }
+
+    [Fact]
+    public async Task BulkUpdate_CrossLane_FromIsEachCardsPositionBeforeTheBatch()
+    {
+        // Arrange — [A, B, C] in the source lane, an empty target lane
+        var sink = Sink;
+        var (sourceLaneId, targetLaneId, cards) = await SeedBoardAsync(3);
+        sink.Clear();
+
+        // Act — B leaves first, which renumbers C from 20 to 10 before C's own turn
+        var result = await CreateBulkTools().BulkUpdateCardsAsync
+        (
+            CollatticeApiFactory.TestAdminAuthKey,
+            cardIds: $"{cards[1]},{cards[2]}",
+            laneId: targetLaneId
+        );
+
+        // Assert — each card's from is where it sat before the call
+        result.ShouldContain("\"succeeded\":2");
+        sink.Captured.Count.ShouldBe(2);
+        sink.Captured.ShouldAllBe(e => e.EventType == "card.moved");
+
+        var fromByCard = sink.Captured
+            .Select(e => Serialize(e).GetProperty("data"))
+                .ToDictionary(d => d.GetProperty("card").GetProperty("id").GetGuid(), d => d.GetProperty("from"));
+
+        fromByCard[cards[1]].GetProperty("laneId").GetGuid().ShouldBe(sourceLaneId);
+        fromByCard[cards[1]].GetProperty("position").GetInt32().ShouldBe(10);
+        fromByCard[cards[2]].GetProperty("laneId").GetGuid().ShouldBe(sourceLaneId);
+        fromByCard[cards[2]].GetProperty("position").GetInt32().ShouldBe(20);
+    }
+
+    [Fact]
+    public async Task McpBulkUpdateSameLane_TwoCardsToTheTop_ReportsWhereTheBatchPlacedThem()
+    {
+        // Arrange — [A, B, C, D]
+        var sink = Sink;
+        var (laneId, _, cards) = await SeedBoardAsync(4);
+        sink.Clear();
+
+        // Act — C and D to the top, in that order
+        var result = await CreateBulkTools().BulkUpdateCardsAsync
+        (
+            CollatticeApiFactory.TestAdminAuthKey,
+            cardIds: $"{cards[2]},{cards[3]}",
+            laneId: laneId
+        );
+
+        // Assert — the lane is [C, D, A, B]; only the batch reports, C from 20 to 0 and D from 30 to 10
+        result.ShouldContain("\"succeeded\":2");
+        sink.Captured.Count.ShouldBe(2);
+        sink.Captured.ShouldAllBe(e => e.EventType == "card.moved");
+
+        var moves = sink.Captured
+            .Select(e => Serialize(e).GetProperty("data"))
+                .ToDictionary(d => d.GetProperty("card").GetProperty("id").GetGuid());
+
+        moves[cards[2]].GetProperty("from").GetProperty("position").GetInt32().ShouldBe(20);
+        moves[cards[2]].GetProperty("to").GetProperty("position").GetInt32().ShouldBe(0);
+        moves[cards[3]].GetProperty("from").GetProperty("position").GetInt32().ShouldBe(30);
+        moves[cards[3]].GetProperty("to").GetProperty("position").GetInt32().ShouldBe(10);
     }
 
     // ── Scenario 5: SSE byte-for-byte unchanged across all converted sites ────────
@@ -497,6 +720,41 @@ public sealed class WebhookSeamTests(WebhookTestFactory factory) : IClassFixture
         return json.GetProperty("id").GetGuid();
     }
 
+    // A fresh board with two lanes and cardCount cards in the first, at the dense positions
+    // 0, 10, 20, ... the bulk tests reason about. The positions are asserted rather than
+    // assumed, so a change to how cards are created fails here and not as a wrong event.
+    private async Task<(Guid SourceLaneId, Guid TargetLaneId, List<Guid> Cards)> SeedBoardAsync(int cardCount)
+    {
+        TestAuthHelper.SetAdminAuth(_client, _factory);
+
+        var boardResponse = await _client.PostAsJsonAsync("/api/v1/boards", new { name = $"Bulk Move {Guid.NewGuid():N}" });
+        boardResponse.EnsureSuccessStatusCode();
+        var boardId = (await boardResponse.Content.ReadFromJsonAsync<JsonElement>(TestAuthHelper.JsonOptions)).GetProperty("id").GetGuid();
+
+        var sourceResponse = await _client.PostAsJsonAsync($"/api/v1/boards/{boardId}/lanes", new { name = "Source", position = 0 });
+        sourceResponse.EnsureSuccessStatusCode();
+        var sourceLaneId = (await sourceResponse.Content.ReadFromJsonAsync<JsonElement>(TestAuthHelper.JsonOptions)).GetProperty("id").GetGuid();
+
+        var targetResponse = await _client.PostAsJsonAsync($"/api/v1/boards/{boardId}/lanes", new { name = "Target", position = 1 });
+        targetResponse.EnsureSuccessStatusCode();
+        var targetLaneId = (await targetResponse.Content.ReadFromJsonAsync<JsonElement>(TestAuthHelper.JsonOptions)).GetProperty("id").GetGuid();
+
+        List<Guid> cards = [];
+        for (var i = 0; i < cardCount; i++)
+        {
+            var cardResponse = await _client.PostAsJsonAsync($"/api/v1/boards/{boardId}/cards", new { name = $"Card {i.ToString(CultureInfo.InvariantCulture)}", laneId = sourceLaneId });
+            cardResponse.EnsureSuccessStatusCode();
+            cards.Add((await cardResponse.Content.ReadFromJsonAsync<JsonElement>(TestAuthHelper.JsonOptions)).GetProperty("id").GetGuid());
+        }
+
+        for (var i = 0; i < cardCount; i++)
+        {
+            (await CardPositionAsync(cards[i])).ShouldBe(i * 10);
+        }
+
+        return (sourceLaneId, targetLaneId, cards);
+    }
+
     private static async Task<Guid> CreateCardViaMcpAsync(CardTools tools, Guid laneId, string name)
     {
         var result = await tools.CreateCardAsync(CollatticeApiFactory.TestAdminAuthKey, name, laneId);
@@ -537,6 +795,16 @@ public sealed class WebhookSeamTests(WebhookTestFactory factory) : IClassFixture
         // The embedded fat card reflects the target lane.
         data.GetProperty("card").GetProperty("laneId").GetGuid().ShouldBe(toLaneId);
         data.GetProperty("card").GetProperty("position").GetInt32().ShouldBe(actualPosition);
+    }
+
+    private async Task<Dictionary<Guid, (Guid LaneId, int Position)>> PlacementsAsync(List<Guid> cardIds)
+    {
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<BoardDbContext>();
+
+        return await db.Cards
+            .Where(c => cardIds.Contains(c.Id))
+                .ToDictionaryAsync(c => c.Id, c => (c.LaneId, c.Position));
     }
 
     private async Task<int> CardPositionAsync(Guid cardId)

@@ -1,9 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Collabot.Collattice.Api.Events;
-using Collabot.Collattice.Api.Models;
-using Collabot.Collattice.Api.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
@@ -15,7 +12,7 @@ namespace Collabot.Collattice.Api.Tests;
 // asserted against the actual serialized bytes; the SSRF registration check un-bypassable from REST;
 // the secret set/keep/clear contract; and the ping endpoint (a private target with the flag off
 // reports the connect block — no validation-bypassing side-channel).
-public sealed class WebhookSubscriptionEndpointTests
+public class WebhookSubscriptionEndpointTests
 {
     private const string _publicUrl = "https://8.8.8.8/hook";
     private const string _privateUrl = "http://127.0.0.1/hook";
@@ -143,7 +140,7 @@ public sealed class WebhookSubscriptionEndpointTests
     }
 
     [Fact]
-    public async Task Patch_SecretSetKeepClear()
+    public async Task Patch_KeepThenClearThenSetSecret_SignedFlagFollowsEachStep()
     {
         await using var factory = new CollatticeApiFactory();
         await factory.InitializeAsync();

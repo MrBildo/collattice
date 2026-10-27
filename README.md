@@ -31,7 +31,7 @@
 
 Most kanban tools are either too heavy (Jira), too locked-in (Trello), or don't speak the same language as AI agents. Collattice is purpose-built for small teams where humans and AI agents collaborate side-by-side on a shared board.
 
-Download a single binary, run it, and open your browser. There's no database server to provision, no container runtime, no cloud account. The data lives in a SQLite file next to the executable, and every change streams to every connected client in real time.
+Download a single binary, run it, and open your browser. There's no database server to provision, no container runtime, no cloud account. The data lives in a single SQLite file, in your user folder unless you choose another place, and every change streams to every connected client in real time.
 
 **Two primary audiences.** A person runs Collattice from the browser — a familiar kanban board with drag-and-drop, markdown, search, and dark mode. An agent runs Collattice through a built-in MCP server — the same board, exposed as tools over Streamable HTTP. Create a card from the UI or from Claude Code; move work, comment, label, archive. Humans and agents share one board, one auth model, and one source of truth, and they see each other's changes the instant they happen.
 
@@ -47,7 +47,8 @@ If you're building an AI harness, agent framework, or multi-agent system that ne
 - **Cross-board search** — find cards by name, description, or number (`#42`) across every board. Open it with `/` or `Ctrl+K`.
 - **Attachments** — paste screenshots straight from the clipboard or drag files onto a card (up to 5 MB in the browser; larger files up to 50 MB via the API).
 - **Multi-board** — run as many boards as you like from a single instance.
-- **Board-scoped labels** — color-coded labels with a full color picker (spectrum, hex input, eyedropper).
+- **Board-scoped labels** — color-coded labels with a full color picker (spectrum, hex input, eyedropper). Add or remove a card's labels right from the board with the tag button on each card; every change saves as you make it.
+- **Duplicate a card** — start a new card from an existing one: title, description, size, lane, and labels come along, ready to edit before you save.
 - **Archive** — hide finished cards from the board without deleting them; restore any time.
 - **Deep linking** — direct URLs to boards and cards (`/boards/my-board/cards/42`).
 - **Dark and light themes** — toggle and it's remembered per browser.
@@ -68,13 +69,13 @@ irm https://raw.githubusercontent.com/MrBildo/collattice/main/install.ps1 | iex
 & "$env:LOCALAPPDATA\Collattice\Collabot.Collattice.Api.exe"
 ```
 
-Open **http://localhost:8080** in your browser. The admin auth key is printed to the console on first run — copy it and paste it on the login screen.
+Open **http://localhost:8080** in your browser. The admin auth key is printed to the console on first run, and only then — copy it and paste it on the login screen. (Lost it later? See [Recovering the Admin Key](#recovering-the-admin-key).)
 
 ```
 [INF] Admin auth key: 01JQXYZ...
 ```
 
-> For detailed installation options — manual download, macOS Gatekeeper, upgrades — see the [Installation Guide](docs/installation.md). For day-to-day usage, see the [User Guide](docs/user-guide.md).
+> For detailed installation options — manual download, installing a specific release, macOS Gatekeeper, upgrades — see the [Installation Guide](docs/installation.md). For day-to-day usage, see the [User Guide](docs/user-guide.md).
 
 ## A Tour
 
@@ -83,6 +84,22 @@ Open **http://localhost:8080** in your browser. The admin auth key is printed to
 </p>
 
 <p align="center"><sub>Card detail. Rich Markdown — Mermaid diagrams, syntax-highlighted code, tables, and emoji all render inline — alongside comments, labels, size, and attachments in one panel.</sub></p>
+
+<br>
+
+<p align="center">
+  <a href="docs/images/quick-label-picker.gif"><img src="docs/images/quick-label-picker.gif" alt="Changing a card's labels from the board" width="800"></a>
+</p>
+
+<p align="center"><sub>Quick labels. Point at a card and use its tag button to add or remove labels without opening it; each change saves the moment you make it.</sub></p>
+
+<br>
+
+<p align="center">
+  <a href="docs/images/duplicate-card.gif"><img src="docs/images/duplicate-card.gif" alt="Duplicating a card from its detail panel" width="800"></a>
+</p>
+
+<p align="center"><sub>Duplicate. Start a new card from an existing one: the title, description, size, lane, and labels come along, ready to edit, and the copy lands at the bottom of its lane.</sub></p>
 
 <br>
 
@@ -112,7 +129,7 @@ Open **http://localhost:8080** in your browser. The admin auth key is printed to
 
 Collattice supports two production deployment shapes. The Quick Start above gives you the first one; the second is for teams that want the API and Portal hosted as separate processes (typically behind a reverse proxy).
 
-- **LAN single-process (default).** One self-contained executable serves both the JSON API and the embedded React Portal from the same origin. The SQLite database file lives next to the binary. No reverse proxy, no CORS, no static-site host required — just the one process listening on a port. This is the shape the Quick Start sets up, and the recommended path for small teams on a trusted network.
+- **LAN single-process (default).** One self-contained executable serves both the JSON API and the embedded React Portal from the same origin. The data is one SQLite file on the same machine. No reverse proxy, no CORS, no static-site host required — just the one process listening on a port. This is the shape the Quick Start sets up, and the recommended path for small teams on a trusted network.
 
 - **Portal + API hosted separately.** The headless API (`Collabot.Collattice.Api` with `Hosting:ServeSpa=false`) runs as one process; the React Portal is built (`frontend/dist/`) and served by any static-file host on its own origin. The Portal reads a runtime `config.json` from its own origin to learn the API base URL, and the API allows the Portal's origin via `Cors:AllowedOrigins`. [Collabhost](https://github.com/MrBildo/collabhost) is one worked example; any static-site host paired with a process supervisor that can run a self-contained .NET binary works the same way.
 
@@ -143,7 +160,7 @@ export Urls=http://0.0.0.0:9090
 
 ### Admin Auth Key
 
-By default, a random auth key is generated on first run and printed to the console. To set a known key:
+By default, a random auth key is generated on first run and printed to the console that one time. Later starts never log it. To choose the key yourself, set it before the first run:
 
 ```jsonc
 // appsettings.json
@@ -154,22 +171,47 @@ By default, a random auth key is generated on first run and printed to the conso
 }
 ```
 
+`Admin:AuthKey` is read only while the database has no users. A key set this way is not printed, since you already know it, and changing the setting later has no effect.
+
+### Recovering the Admin Key
+
+If the admin key is lost, or you want to replace it, run the executable with `--reset-admin-key` on the machine the app runs on, with the same configuration the app uses:
+
+```bash
+./Collabot.Collattice.Api --reset-admin-key
+```
+
+It gives the Administrator a new key, prints it once to your terminal (never to the app's log), and the old key stops working at once; the app can stay running. See [Recovering the Admin Key](INSTALL.md#recovering-the-admin-key) in the setup guide for the details: more than one Administrator, and the exit codes.
+
 ### Database Location
 
-The database path is **required** configuration with no default — the app never
-derives a path from the working or binary directory. The installer writes an
-absolute path into `appsettings.json` for you; to relocate the database, edit
-it there (use an absolute path) — your edit is preserved by the smart-merge on
-the next upgrade:
+The board lives in one SQLite file.
 
-```jsonc
-// appsettings.json
-{
-  "ConnectionStrings": {
-    "Board": "Data Source=/srv/collattice/data/collattice.db"
+- **A path you set always wins.** Set `ConnectionStrings:Board` in `appsettings.json`,
+  or the `ConnectionStrings__Board` environment variable, to an absolute path. The
+  one-line installer writes one for you (`<install-dir>/data/collattice.db`); to move
+  the database, edit it there, and your edit is preserved by the smart-merge on the
+  next upgrade:
+
+  ```jsonc
+  // appsettings.json
+  {
+    "ConnectionStrings": {
+      "Board": "Data Source=/srv/collattice/data/collattice.db"
+    }
   }
-}
-```
+  ```
+
+- **With no path set, Collattice uses a per-user default:** `~/.collattice/collattice.db`
+  on macOS and Linux, `%LOCALAPPDATA%\Collattice\collattice.db` on Windows. That is what
+  happens when you download a release and run it. A warning at startup names the path,
+  and says so when it has just created a new, empty database there. On macOS and Linux
+  the folder and file it creates are readable by your user only. The default sits in the
+  installer's folder but is never the installer's database, so a downloaded build run on
+  the same machine doesn't open an installed board.
+- **If the location can't be used, the app stops at startup** with a message naming the
+  path and the setting to change: a relative path, a folder it can't create or write to,
+  a user with no home folder, or a default folder that other users can write to.
 
 > **Fresh installs use Collattice-named locations; existing installs keep their
 > earlier names.** A fresh install places the install directory and database under the
@@ -188,8 +230,8 @@ the next upgrade:
 | `Hosting:ListenPort` | `8080` | Bind port. Combined with `Hosting:ListenAddress` to build the bind URL when `Urls`/`ASPNETCORE_URLS` is unset. |
 | `Hosting:ServeSpa` | `true` | When `true`, the API also serves the embedded React Portal from `wwwroot/` (LAN single-process shape). Set to `false` for headless hosted-separately deployments — unmatched routes return 404 instead of the SPA shell. |
 | `Cors:AllowedOrigins` | `[]` (empty) | List of allowed cross-origin Portal hosts. Empty disallows all cross-origin requests; same-origin LAN deployments do not need this. Set to the Portal's origin(s) for hosted-separately deployments (e.g. `["https://collattice.example.com"]`). |
-| `ConnectionStrings:Board` | *(required — no default)* | SQLite database path. Must be an **absolute** path; the installer writes this into `appsettings.json`. Startup fails loud if unset or unwritable. |
-| `Admin:AuthKey` | *(auto-generated)* | Override the admin auth key. |
+| `ConnectionStrings:Board` | `~/.collattice/collattice.db` (macOS/Linux), `%LOCALAPPDATA%\Collattice\collattice.db` (Windows) | SQLite database path. Must be an **absolute** path; the installer writes one into `appsettings.json`. With none set, the per-user default is used and named in a startup warning. Startup fails loud if the location can't be used. See [Database Location](#database-location). |
+| `Admin:AuthKey` | *(auto-generated)* | The admin auth key to create on first run. Read only while the database has no users; to change the key later, see [Recovering the Admin Key](#recovering-the-admin-key). |
 | `Webhooks:Endpoint` | *(unset)* | **Deprecated — migration seed only.** The single delivery URL from earlier versions. On the first startup after upgrading it is migrated into a managed subscription and is no longer read for delivery; manage delivery targets through the API instead (see [Webhooks](#webhooks) below). Unset it once the upgrade is done so it can't seed again. |
 | `Webhooks:Secret` | *(unset)* | **Deprecated — migration seed only.** The shared signing secret from earlier versions, carried into the migrated subscription on first startup. No longer read for delivery — each subscription now carries its own secret. |
 | `Webhooks:Enabled` | `true` | Global master switch for **all** webhook delivery. Set to `false` to pause every subscription at once, regardless of each one's own enabled state. |
@@ -265,7 +307,7 @@ anything that creates cards, and a step-by-step walkthrough, see the
 
 On first run, Collattice creates:
 
-- An **Admin** user (auth key printed to the console — save this!)
+- An **Admin** user (auth key printed to the console on this first run only — save this!)
 - A **Default** board with three lanes: Backlog, In Progress, Done
 - Four card sizes: S, M, L, XL
 - Three starter labels: Feature, Bug, Chore
@@ -362,7 +404,7 @@ The bare server name grants the whole tool surface; to allow a single tool inste
 Tools are grouped by workflow — discover the board, work cards, then manage the board structure (the last group needs an admin-level key).
 
 - **Discover** — `get_api_info`, `get_boards`, `get_lanes`, `get_sizes`, `get_labels`, `get_cards`, `get_card`, `get_card_history`, `search_cards`. The agent's starting point: what boards exist, what's on them, and where. `get_cards` and `get_card` return enriched data (labels, sizes, comment and attachment counts) so one call answers most questions. `get_card_history` returns a card's description edit trail — every past version, with who changed it and when. `search_cards` is cross-board; prefix the query with `#` for an exact card-number lookup.
-- **Work cards** — `create_card`, `move_card`, `update_card`, `archive_card`, `restore_card`. The core loop. `update_card` is a power tool: change fields, move lanes, and replace labels in a single call.
+- **Work cards** — `create_card`, `duplicate_card`, `move_card`, `update_card`, `archive_card`, `restore_card`. The core loop. `update_card` is a power tool: change fields, move lanes, and replace labels in a single call. `duplicate_card` copies a card's name, description, labels, and size into a new card, optionally in another lane.
 - **Comment** — `add_comment`, `update_comment`, `delete_comment`. Markdown supported.
 - **Attachments** — `upload_attachment` (up to 5 MB inline as base64; larger files up to 50 MB go through the REST endpoint), `download_attachment`, `delete_attachment`.
 - **Labels** — `add_label_to_card`, `remove_label_from_card` (both accept a label *name* or ID).
@@ -396,7 +438,7 @@ The guiding principle: flexibility in how you *use* Collattice, deliberate restr
 | Drag-and-drop | dnd-kit |
 | Real-time | Server-Sent Events (SSE) |
 | Agent interface | Model Context Protocol (MCP) over Streamable HTTP |
-| Orchestration | .NET Aspire 13.3, OpenTelemetry |
+| Orchestration | .NET Aspire 13.6, OpenTelemetry |
 | Testing | xUnit + Shouldly (backend), Vitest (frontend) |
 
 ## Updating
@@ -449,7 +491,7 @@ mkdir -p backend/Collabot.Collattice.Api/wwwroot
 cp -r frontend/dist/* backend/Collabot.Collattice.Api/wwwroot/
 dotnet publish backend/Collabot.Collattice.Api/Collabot.Collattice.Api.csproj \
   -c Release -r osx-arm64 --self-contained \
-  /p:PublishSingleFile=true /p:Version=1.0.0 \
+  /p:Version=1.0.0 \
   -o publish/
 ```
 
@@ -480,6 +522,31 @@ runs, and leaves exactly those two files changed. Review the diff, then open a
 one-commit PR (`build:`). Run it in a Linux-like shell (Linux, macOS, or WSL) with
 `dotnet`, `npm`, and `jq` on `PATH` — the toolchain the release build uses.
 
+#### Checking the third-party notices locally
+
+CI's `publish-contract` job re-derives the notices inventory from a real build and
+fails if `THIRD-PARTY-NOTICES.md` disagrees. To run the same check before pushing
+(for example after adding or upgrading a dependency), reproduce its inputs — a
+self-contained publish and the frontend bundle's sourcemaps — then run the
+generator in `--check` mode. From the repository root, in a bash shell with
+`dotnet`, `npm`, and `jq` on `PATH` — Linux, macOS, WSL, or Git Bash on Windows.
+(The Windows build of `jq` that winget installs ends its output lines with CRLF;
+the generator strips the extra carriage return, so it works from Git Bash too.)
+
+```bash
+(cd frontend && npm ci && npx vite build --sourcemap hidden)
+scripts/extract-bundle-sourcemaps.sh frontend/dist /tmp/notices-sourcemaps
+dotnet publish backend/Collabot.Collattice.Api/Collabot.Collattice.Api.csproj \
+  -c Release -r win-x64 --self-contained -o /tmp/notices-publish
+scripts/generate-third-party-notices.sh --check THIRD-PARTY-NOTICES.md \
+  /tmp/notices-publish/Collabot.Collattice.Api.deps.json frontend /tmp/notices-sourcemaps
+```
+
+Drop `--check THIRD-PARTY-NOTICES.md` to print the freshly derived inventory
+instead. When the inventory legitimately changes, replace the block between the
+`BEGIN`/`END GENERATED INVENTORY` markers with that output (or, for a runtime bump,
+let `scripts/bump-runtime.sh` do it).
+
 **When to bump:** the `publish-contract` CI check compares the pinned runtime
 against Microsoft's current servicing release on every PR and goes **red when the
 pin has fallen behind** — that red is the prompt. .NET servicing releases are
@@ -488,27 +555,27 @@ point; the gate makes falling behind visible instead of silent.
 
 ## Credits
 
-Collattice is built by a human-AI collaborative team. The bots are autonomous AI agents on the Collabot.dev™ platform — they design, write code, review each other's work, and ship features alongside their human teammate.
+Collattice is built by a human-AI collaborative team. The bots are autonomous AI agents on the [Collabot.dev](https://collabot.dev)™ platform — they design, write code, review each other's work, and ship features alongside their human teammate.
 
-**Bill Wheelock** — Concept, design, and technical leadership — [mrbildo@mrbildo.net](mailto:mrbildo@mrbildo.net)
+**[Bill Wheelock](https://collabot.dev/#team/bill)** — Concept, design, and technical leadership — [mrbildo@mrbildo.net](mailto:mrbildo@mrbildo.net)
 
-**Bot Cora** — Project coordination and release lifecycle — [cora@collabot.dev](mailto:cora@collabot.dev)
+**[Bot Cora](https://collabot.dev/#team/cora)** — Project coordination and release lifecycle — [cora@collabot.dev](mailto:cora@collabot.dev)
 
-**Bot Dana** — Frontend lead; design, TypeScript, and React — [dana@collabot.dev](mailto:dana@collabot.dev)
+**[Bot Dana](https://collabot.dev/#team/dana)** — Frontend lead; design, TypeScript, and React — [dana@collabot.dev](mailto:dana@collabot.dev)
 
-**Bot Iris** — Frontend engineering and JavaScript craft — [iris@collabot.dev](mailto:iris@collabot.dev)
+**[Bot Iris](https://collabot.dev/#team/iris)** — Frontend engineering and JavaScript craft — [iris@collabot.dev](mailto:iris@collabot.dev)
 
-**Bot Marcus** — Backend architecture and C# — [marcus@collabot.dev](mailto:marcus@collabot.dev)
+**[Bot Marcus](https://collabot.dev/#team/marcus)** — Backend architecture and C# — [marcus@collabot.dev](mailto:marcus@collabot.dev)
 
-**Bot Mira** — Backend engineering and domain modeling — [mira@collabot.dev](mailto:mira@collabot.dev)
+**[Bot Mira](https://collabot.dev/#team/mira)** — Backend engineering and domain modeling — [mira@collabot.dev](mailto:mira@collabot.dev)
 
-**Bot Alan** — Backend performance engineering; allocations, spans, and benchmarks — [alan@collabot.dev](mailto:alan@collabot.dev)
+**[Bot Alan](https://collabot.dev/#team/alan)** — Backend performance engineering; allocations, spans, and benchmarks — [alan@collabot.dev](mailto:alan@collabot.dev)
 
-**Bot Kai** — Code review and simplification — [kai@collabot.dev](mailto:kai@collabot.dev)
+**[Bot Kai](https://collabot.dev/#team/kai)** — Code review and simplification — [kai@collabot.dev](mailto:kai@collabot.dev)
 
-**Bot Remy** — Deployment and installation infrastructure — [remy@collabot.dev](mailto:remy@collabot.dev)
+**[Bot Remy](https://collabot.dev/#team/remy)** — Deployment and installation infrastructure — [remy@collabot.dev](mailto:remy@collabot.dev)
 
-**Bot Theo** — Infrastructure and operations across the Collabot.dev suite — [theo@collabot.dev](mailto:theo@collabot.dev)
+**[Bot Theo](https://collabot.dev/#team/theo)** — Infrastructure and operations across the [Collabot.dev](https://collabot.dev) suite — [theo@collabot.dev](mailto:theo@collabot.dev)
 
 ## License
 

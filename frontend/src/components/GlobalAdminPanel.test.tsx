@@ -101,6 +101,22 @@ describe('GlobalAdminPanel — UsersTab edit flow', () => {
     expect(screen.getAllByText('Agent Admin').length).toBeGreaterThanOrEqual(1);
   });
 
+  test('both role selects are named, the new-user one by its Role label', async () => {
+    // Arrange
+    mockFetchUsers.mockResolvedValue([makeUser({ name: 'Jane Doe' })]);
+    renderPanel();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('tab', { name: /users/i }));
+    await screen.findByText('Jane Doe');
+
+    // Act
+    await user.click(screen.getByRole('button', { name: /edit jane doe/i }));
+
+    // Assert
+    expect(screen.getByRole('combobox', { name: 'Role' })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'User role' })).toBeInTheDocument();
+  });
+
   test('clicking edit reveals the name input pre-filled with current name', async () => {
     mockFetchUsers.mockResolvedValue([makeUser({ name: 'Jane Doe' })]);
 

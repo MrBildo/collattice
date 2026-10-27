@@ -1,5 +1,3 @@
-using Collabot.Collattice.Api.Installation;
-
 using Shouldly;
 
 namespace Collabot.Collattice.Api.Tests;
@@ -317,7 +315,7 @@ public class AppSettingsMergeCliTests : IDisposable
     }
 
     [Fact]
-    public void ProgramCs_DoesNotGateMergeOnVersionOutput()
+    public void ProgramCs_MergeAppsettingsBranch_DoesNotGateOnVersionOutput()
     {
         // Structural guarantee that Collattice never reintroduces a version-coupled gate around
         // the merge subcommand (the root cause was such a gate in Collabhost's bash). Read
@@ -325,7 +323,7 @@ public class AppSettingsMergeCliTests : IDisposable
         // --version output.
         var programPath = Path.Combine
         (
-            FindRepoRoot(),
+            TestRepositoryHelper.FindRoot(),
             "backend",
             "Collabot.Collattice.Api",
             "Program.cs"
@@ -389,17 +387,5 @@ public class AppSettingsMergeCliTests : IDisposable
         var path = Path.Combine(_scratchDir, fileName);
         File.WriteAllText(path, content);
         return path;
-    }
-
-    private static string FindRepoRoot()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null && !Directory.Exists(Path.Combine(dir.FullName, ".git")))
-        {
-            dir = dir.Parent;
-        }
-
-        dir.ShouldNotBeNull("Could not locate repo root (.git) from test base dir");
-        return dir.FullName;
     }
 }

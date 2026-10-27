@@ -7,7 +7,7 @@ namespace Collabot.Collattice.Api.Hosting.UpdateCheck;
 // live GitHub call. Single-writer (only UpdateCheckService writes) / many-reader (request
 // threads), so a volatile reference swap of an immutable snapshot is sufficient — readers
 // always see a consistent prior or next snapshot, never a torn one.
-internal sealed class VersionStatusCache
+internal class VersionStatusCache
 {
     private sealed record Snapshot(SemVer Current, LatestVersionResult? Latest, DateTimeOffset? LastChecked);
 

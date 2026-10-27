@@ -1,9 +1,5 @@
 using System.Net.Http.Json;
 using System.Text.Json;
-using Collabot.Collattice.Api.Auth;
-using Collabot.Collattice.Api.Events;
-using Collabot.Collattice.Api.Mcp;
-using Collabot.Collattice.Api.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
@@ -16,6 +12,7 @@ namespace Collabot.Collattice.Api.Tests;
 // raises exactly ONE size.reordered carrying the board's FULL new order (the one-bell reorder coalesce
 // contract). Each site rings the same single SSE bell it always did, so the SSE wire stays
 // byte-for-byte unchanged. The CapturingWebhookSink IS the observable (no HTTP delivery here).
+// Sealed so the plain IDisposable shape below is complete; no derived class can add state to dispose.
 public sealed class WebhookSizeCatalogTests : IClassFixture<WebhookTestFactory>, IDisposable
 {
     private readonly WebhookTestFactory _factory;
@@ -70,7 +67,7 @@ public sealed class WebhookSizeCatalogTests : IClassFixture<WebhookTestFactory>,
     }
 
     [Fact]
-    public async Task McpCreateSize_FiresSizeCreated()
+    public async Task CreateSize_OverMcp_FiresSizeCreated()
     {
         var sink = Sink;
         var tools = CreateSizeTools();
@@ -86,7 +83,7 @@ public sealed class WebhookSizeCatalogTests : IClassFixture<WebhookTestFactory>,
     // ── size.renamed (name axis) ──────────────────────────────────────────────────
 
     [Fact]
-    public async Task RestUpdateSizeName_FiresSizeRenamed()
+    public async Task UpdateSizeName_OverRest_FiresSizeRenamed()
     {
         var sink = Sink;
         var sizeId = await CreateSizeAsync("rename-me");
@@ -100,7 +97,7 @@ public sealed class WebhookSizeCatalogTests : IClassFixture<WebhookTestFactory>,
     }
 
     [Fact]
-    public async Task McpUpdateSizeName_FiresSizeRenamed()
+    public async Task UpdateSizeName_OverMcp_FiresSizeRenamed()
     {
         var sink = Sink;
         var tools = CreateSizeTools();
@@ -186,7 +183,7 @@ public sealed class WebhookSizeCatalogTests : IClassFixture<WebhookTestFactory>,
     }
 
     [Fact]
-    public async Task McpUpdateSizeNameAndOrdinal_CoFiresRenamedAndReordered()
+    public async Task UpdateSizeNameAndOrdinal_OverMcp_CoFiresRenamedAndReordered()
     {
         var sink = Sink;
         var tools = CreateSizeTools();
@@ -226,6 +223,25 @@ public sealed class WebhookSizeCatalogTests : IClassFixture<WebhookTestFactory>,
         {
             broadcaster.Unsubscribe(_factory.DefaultBoardId, reader);
         }
+    }
+
+    [Fact]
+    public async Task UpdateSizeSameOrdinal_EmitsNoSizeReordered_OnEitherSurface()
+    {
+        var sink = Sink;
+        var tools = CreateSizeTools();
+        var sizeId = await CreateSizeAsync("parked");
+        var ordinal = await SizeOrdinalAsync(sizeId);
+        sink.Clear();
+
+        // Re-send the size's own ordinal — the per-axis no-op guard suppresses size.reordered on REST
+        // and MCP alike (a changed ordinal is covered by the reorder tests above).
+        var response = await _client.PatchAsJsonAsync($"/api/v1/sizes/{sizeId}", new { ordinal });
+        response.EnsureSuccessStatusCode();
+
+        (await tools.UpdateSizeAsync(CollatticeApiFactory.TestAdminAuthKey, sizeId, ordinal: ordinal)).ShouldNotContain("Error");
+
+        sink.Captured.ShouldBeEmpty();
     }
 
     // ── size.reordered (bulk reorder) — exactly ONE event, the FULL new order ──────
@@ -299,7 +315,7 @@ public sealed class WebhookSizeCatalogTests : IClassFixture<WebhookTestFactory>,
     }
 
     [Fact]
-    public async Task McpDeleteSize_FiresSizeDeleted()
+    public async Task DeleteSize_OverMcp_FiresSizeDeleted()
     {
         var sink = Sink;
         var tools = CreateSizeTools();
@@ -313,7 +329,7 @@ public sealed class WebhookSizeCatalogTests : IClassFixture<WebhookTestFactory>,
     }
 
     [Fact]
-    public async Task CreateSize_RingsExactlyOneSseBell()
+    public async Task CreateSize_SubscribedToBoardStream_RingsExactlyOneSseBell()
     {
         var sink = Sink;
         var broadcaster = _factory.Services.GetRequiredService<BoardEventBroadcaster>();
@@ -374,6 +390,17 @@ public sealed class WebhookSizeCatalogTests : IClassFixture<WebhookTestFactory>,
                 .MaxAsync(s => (int?)s.Ordinal);
 
         return (max ?? -1) + 1;
+    }
+
+    private async Task<int> SizeOrdinalAsync(Guid sizeId)
+    {
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<BoardDbContext>();
+
+        return await db.CardSizes
+            .Where(s => s.Id == sizeId)
+                .Select(s => s.Ordinal)
+                    .SingleAsync();
     }
 
     private async Task<List<Guid>> SizeIdsInOrderAsync()

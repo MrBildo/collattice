@@ -384,8 +384,11 @@ a small server, a script, an AI agent — nothing here is specific to one produc
 3. In your receiver, apply the [recursion guard](#read-this-first-the-recursion-guard)
    immediately — drop the event when `actor.role` is not in
    `["Administrator", "HumanUser"]`.
-4. Branch on what you care about — e.g. `event === "card.moved"` and
-   `data.to.laneName === "Ready"` — and wire the rest of your automation off that.
+4. Branch on what you care about — e.g. `event === "card.moved"`,
+   `data.to.laneName === "Ready"`, and `data.from.laneId !== data.to.laneId` — and wire
+   the rest of your automation off that. The last check matters: `card.moved` also
+   fires when a card is reordered *within* a lane, so without it, reshuffling the Ready
+   lane would look like cards arriving there.
 5. Create or move a card to see a real event land, then point the subscription at the
    work you actually mean.
 

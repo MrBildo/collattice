@@ -1,4 +1,3 @@
-using Collabot.Collattice.Api.Auth;
 using Microsoft.EntityFrameworkCore;
 
 namespace Collabot.Collattice.Api.Endpoints;
@@ -62,7 +61,7 @@ internal static class CardHistoryEndpoints
 
             var trail = await CardHistoryBuilder.BuildTrailAsync(db, id, resolvedField!, resolvedFormat, effectiveOffset, effectiveLimit, ct);
             return Results.Ok(trail);
-        }).RequireAuth();
+        }).RequireAuth().HidesOthersDrafts();
 
         return group;
     }

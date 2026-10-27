@@ -1,6 +1,3 @@
-using Collabot.Collattice.Api.Configuration;
-using Collabot.Collattice.Api.Events;
-
 namespace Collabot.Collattice.Api.Endpoints;
 
 internal static class EventEndpoints

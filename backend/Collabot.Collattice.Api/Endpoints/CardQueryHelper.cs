@@ -1,5 +1,3 @@
-using Collabot.Collattice.Api.Models;
-
 namespace Collabot.Collattice.Api.Endpoints;
 
 internal static class CardQueryHelper

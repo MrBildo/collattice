@@ -1,14 +1,11 @@
 using System.ComponentModel;
 using System.Text.Json;
-using Collabot.Collattice.Api.Endpoints;
-using Collabot.Collattice.Api.Events;
-using Collabot.Collattice.Api.Models;
 using ModelContextProtocol.Server;
 
 namespace Collabot.Collattice.Api.Mcp;
 
 [McpServerToolType]
-public sealed class CommentTools(BoardDbContext db, McpAuthService auth, BoardEventBroadcaster broadcaster)
+public class CommentTools(BoardDbContext db, McpAuthService auth, BoardEventBroadcaster broadcaster)
 {
     [McpServerTool(Name = "add_comment", Destructive = false)]
     [Description("Add a comment to a card. Provide either cardId or cardNumber to identify the card.")]
@@ -34,7 +31,7 @@ public sealed class CommentTools(BoardDbContext db, McpAuthService auth, BoardEv
             return "Error: contentMarkdown is required.";
         }
 
-        var (resolvedCardId, resolveError) = await McpCardResolver.ResolveCardIdAsync(db, cardId, cardNumber, boardId, boardSlug, ct);
+        var (resolvedCardId, resolveError) = await McpCardResolver.ResolveCardIdAsync(db, user!, cardId, cardNumber, boardId, boardSlug, ct);
         if (resolveError is not null)
         {
             return resolveError;
@@ -90,7 +87,7 @@ public sealed class CommentTools(BoardDbContext db, McpAuthService auth, BoardEv
             return "Error: contentMarkdown is required.";
         }
 
-        var comment = await db.Comments.FindAsync([commentId], ct);
+        var comment = await McpCardResolver.FindVisibleCommentAsync(db, user!, commentId, ct);
         if (comment is null)
         {
             return "Error: Comment not found.";
@@ -132,7 +129,7 @@ public sealed class CommentTools(BoardDbContext db, McpAuthService auth, BoardEv
             return error;
         }
 
-        var comment = await db.Comments.FindAsync([commentId], ct);
+        var comment = await McpCardResolver.FindVisibleCommentAsync(db, user!, commentId, ct);
         if (comment is null)
         {
             return "Error: Comment not found.";

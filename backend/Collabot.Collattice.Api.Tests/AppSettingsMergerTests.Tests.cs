@@ -1,7 +1,4 @@
 using System.Text.Json.Nodes;
-
-using Collabot.Collattice.Api.Installation;
-
 using Shouldly;
 
 namespace Collabot.Collattice.Api.Tests;
@@ -168,7 +165,7 @@ public class AppSettingsMergerTests
     }
 
     [Fact]
-    public void Merge_NullValueRoundTripsCorrectly()
+    public void Merge_NullInAllThreeInputs_RoundTripsWithNoChanges()
     {
         var shipped = Parse("""{"Admin":{"AuthKey":null}}""");
         var current = Parse("""{"Admin":{"AuthKey":null}}""");

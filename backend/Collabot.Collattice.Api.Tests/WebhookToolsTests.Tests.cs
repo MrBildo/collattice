@@ -1,11 +1,5 @@
 using System.Net.Http.Json;
 using System.Text.Json;
-using Collabot.Collattice.Api.Configuration;
-using Collabot.Collattice.Api.Events;
-using Collabot.Collattice.Api.Hosting.Webhooks;
-using Collabot.Collattice.Api.Mcp;
-using Collabot.Collattice.Api.Models;
-using Collabot.Collattice.Api.Tests.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Shouldly;
@@ -17,7 +11,7 @@ namespace Collabot.Collattice.Api.Tests;
 // with REST (anti-drift — create via MCP, read via REST → identical), the SSRF check is
 // un-bypassable from MCP, list_webhooks never leaks the secret, the secret set/keep/clear contract
 // matches REST, and the admin-level gate rejects a non-admin authKey.
-public sealed class WebhookToolsTests
+public class WebhookToolsTests
 {
     private const string _publicUrl = "https://8.8.8.8/hook";
     private const string _privateUrl = "http://127.0.0.1/hook";
@@ -112,7 +106,7 @@ public sealed class WebhookToolsTests
     }
 
     [Fact]
-    public async Task NonAdmin_IsRejected()
+    public async Task CreateWebhook_HumanUser_IsRejected()
     {
         await using var factory = new CollatticeApiFactory();
         await factory.InitializeAsync();
@@ -142,6 +136,7 @@ public sealed class WebhookToolsTests
 
 // A no-op sender for the MCP tests, which never exercise the ping path — keeps the tester
 // constructible without a real HttpClient.
+// sealed: a leaf test double for this file only; no subtype hierarchy is intended.
 file sealed class StubWebhookSender : IWebhookSender
 {
     public Task<WebhookDeliveryResult> SendAsync(BoardEvent boardEvent, WebhookTarget target, CancellationToken ct) =>

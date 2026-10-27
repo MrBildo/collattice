@@ -29,13 +29,13 @@ It uses the **streamable HTTP** transport. Point your MCP client at
 with `/mcp` appended. If you don't know the base URL at runtime, the
 `get_api_info` tool returns it along with the REST API prefix.
 
-The endpoint hosts **45 tools** across these groups:
+The endpoint hosts **46 tools** across these groups:
 
 | Group | Tools |
 |---|---|
 | System | `get_api_info` |
 | Boards | `get_boards`, `get_lanes`, `get_sizes`, `create_board`, `update_board` |
-| Cards | `create_card`, `move_card`, `update_card`, `get_cards`, `get_card` |
+| Cards | `create_card`, `duplicate_card`, `move_card`, `update_card`, `get_cards`, `get_card` |
 | History | `get_card_history` |
 | Archive | `archive_card`, `restore_card` |
 | Comments | `add_comment`, `update_comment`, `delete_comment` |
@@ -345,12 +345,33 @@ is on; use `get_cards` when you only need one board.
 ### Cards
 
 #### `create_card`
-Create a card. It is placed at the top of the target lane. Defaults to the board's
+Create a card. It is placed at the bottom of the target lane. Defaults to the board's
 lowest-ordinal size if you don't specify one. Returns the enriched card summary.
 - **Params:** `authKey`, `name`, `laneId` (GUID). Optional: `descriptionMarkdown`,
   `sizeId` **or** `sizeName`, `labelIds` (assign labels at creation — comma-
   separated GUIDs or a JSON-array string; all must belong to the lane's board).
 - Creating into an archive lane is rejected.
+- When many cards are being created on one board at the same moment, a create that
+  cannot get a card number returns an error ending in "try again" and creates
+  nothing. Retry the call. `duplicate_card` answers the same way.
+
+#### `duplicate_card`
+Create a new card that starts from an existing one. The copy carries the source's
+**name, description, labels, and size** — and nothing else: no comments, no
+attachments, no description history, no position. Nothing links the copy back to
+its source, and neither card records that a copy was made. Otherwise the copy is an
+ordinary new card: it takes the next card number on the board, lands at the bottom
+of its lane exactly as `create_card` would place it, and raises `card.created`.
+Returns the enriched card summary, like `create_card`.
+- **Params:** `authKey`, a card ref (the source). Optional: `laneId` (GUID) — where
+  the copy goes; defaults to the source's lane. Optional overrides: `name`,
+  `sizeName`, `labelIds` (**replaces** the copied label set — comma-separated GUIDs
+  or a JSON-array string; an empty string gives the copy no labels).
+- **Duplicating an archived card needs `laneId`.** An archived card lives in the
+  board's hidden archive lane, where no card can be created, so there is no default
+  to fall back on — without `laneId` the call returns an error and creates nothing.
+- The copy stays on the source's board (labels and sizes are board-scoped): a
+  `laneId` from another board is rejected, and so is the archive lane.
 
 #### `move_card`
 Move a card to a lane and/or to a position within it.
@@ -374,7 +395,10 @@ follow-up `get_card` needed.
   can keep it current rather than hoarding detail in comments.
 - Two editors changing one description at the same moment both land, each as its
   own attributed revision, in the order they committed. There is no conflict
-  response to handle. Note what that does and does not promise: the trail records
+  response to handle, with one exception: when many edits hit one description at
+  the same instant, an edit that loses the race on every attempt returns an error
+  ending in "try again" and saves nothing. Retry the call. Note what that does and
+  does not promise: the trail records
   both edits, and the card keeps whichever text was written last — the same
   last-one-wins the card has always had. If you need the value you read to still
   be current when you write, read it back and check.
@@ -422,14 +446,21 @@ get it. Pass `full` for the whole text at each revision, or `both`.
 - **The trail's oldest revision has a null author and timestamp — only the oldest.**
   History is not back-filled, so revision 1 holds whatever the description said
   when recording began; nobody observed it being written, so it is left
-  un-attributed rather than credited to a guess. Its `diff` is `""` — there is
+  un-attributed in those fields rather than credited to a guess. Its `diff` is `""` — there is
   nothing older to compare it against. Every later revision is fully attributed.
+  That oldest revision alone also carries `inferredEditor` —
+  `{ userId, name, basis }`, the best available attribution — where `basis`
+  `"creator"` means the card's creator. It is inferred, not observed (a card
+  older than history recording may have been edited by someone else first), so
+  say so when you report it: *"Bill Wheelock (card creator)"*. The key is absent
+  on every observed revision.
   **Only the oldest revision has an empty diff**, so an empty diff is a reliable
   test for "this is the start of the record" — no revision ever repeats the text
   of the one below it.
 - **Your edit and someone else's landing at the same instant both record**, as two
   attributed revisions in commit order; `update_card` does not fail on a collision
-  and there is no conflict response to handle. If you both set the same text, the
+  and there is no conflict response to handle (short of the "try again" error under
+  heavy contention, described under `update_card`). If you both set the same text, the
   second records nothing, exactly as it would have arriving a minute later. Not
   lost-update protection: the card's text is still last-one-wins.
   `editedAtUtc` never decreases as `revision` increases, but stamps can tie —
@@ -507,12 +538,14 @@ Delete an attachment. You may delete your own; admin-level roles may delete any.
 #### `add_label_to_card`
 Assign a label to a card. Identify the label by `labelId` or by `labelName`
 (case-insensitive, within the card's board). Idempotent — re-assigning an existing
-label reports it rather than erroring. The label must belong to the card's board.
+label reports it rather than erroring, and so does a call that loses to another caller
+assigning the same label at the same moment. The label must belong to the card's board.
 - **Params:** `authKey`, a card ref, `labelId` **or** `labelName`.
 - Archived cards are rejected.
 
 #### `remove_label_from_card`
-Remove a label from a card. Same identification options as above.
+Remove a label from a card. Same identification options as above. A label that is not
+on the card is an error, including one another caller removed at the same moment.
 - **Params:** `authKey`, a card ref, `labelId` **or** `labelName`.
 - Archived cards are rejected.
 
@@ -522,7 +555,8 @@ Create a label on a board. Names are unique within a board.
   string).
 
 #### `update_label` *(admin-level)*
-Update a label's name and/or color.
+Update a label's name and/or color. A name already held by another label on the
+board is a conflict and is rejected, and nothing in the call is saved.
 - **Params:** `authKey`, `labelId` (GUID). Optional: `name`, `color`.
 
 #### `delete_label` *(destructive, admin-level)*
@@ -533,12 +567,16 @@ not delete those cards.
 ### Lanes
 
 #### `create_lane` *(admin-level)*
-Create a lane on a board.
-- **Params:** `authKey`, `boardId` (GUID), `name`, `position` (ordering value).
+Create a lane on a board. If you omit `position`, the lane is appended after the
+board's last lane. A position already held by another lane on the board is a
+conflict and is rejected. `int.MaxValue` is reserved for the archive lane, and an
+omitted position is rejected when no position is free after the last lane — pass an
+explicit one.
+- **Params:** `authKey`, `boardId` (GUID), `name`. Optional: `position` (ordering value).
 
 #### `update_lane` *(admin-level)*
 Update a lane's name and/or position. A position already held by another lane on
-the board is a conflict and is rejected.
+the board is a conflict, and nothing in the call is saved.
 - **Params:** `authKey`, `laneId` (GUID). Optional: `name`, `position`.
 - The archive lane cannot be modified.
 
@@ -559,12 +597,13 @@ Delete a lane. The lane must be empty (no cards) first.
 
 #### `create_size` *(admin-level)*
 Create a card size on a board. If you omit `ordinal`, it is auto-assigned to one
-greater than the board's current highest.
+greater than the board's current highest. An ordinal or a name already held by another
+size on the board is a conflict and is rejected.
 - **Params:** `authKey`, `boardId` (GUID), `name`. Optional: `ordinal`.
 
 #### `update_size` *(admin-level)*
-Update a size's name and/or ordinal. An ordinal already held by another size on the
-board is a conflict.
+Update a size's name and/or ordinal. A name or an ordinal already held by another
+size on the board is a conflict, and nothing in the call is saved.
 - **Params:** `authKey`, `sizeId` (GUID). Optional: `name`, `ordinal`.
 
 #### `delete_size` *(destructive, admin-level)*
@@ -634,6 +673,8 @@ Archive N cards (each to its board's archive lane).
 Restore N archived cards into **one** target lane. All cards must be on that lane's
 board — cross-board mixing is rejected up front.
 - **Params:** `authKey`, `targetLaneId` (GUID), card refs.
+- Restored cards go to the top of the target lane, next to each other in the order
+  you list them.
 
 #### `bulk_update_cards`
 Apply a uniform update across N cards — a lane/position move, a size change, and/or
@@ -642,6 +683,9 @@ name/description edits are **not** offered. When any board-scoped field (lane, s
 labels) is set, all cards must share one board.
 - **Params:** `authKey`, card refs. At least one of: `laneId` (+ optional `index`),
   `sizeId`/`sizeName`, `labelIds` (replaces the set; empty clears).
+- With `laneId`, the moved cards land next to each other in the order you list them,
+  starting at `index` (default `0`, the top). `index` counts only the lane's cards
+  that are not being moved, and those keep their order.
 - Archived cards are rejected per-card.
 
 > There is no `bulk_delete_cards`. Deletion is irreversible and is intentionally
@@ -739,6 +783,11 @@ since you last looked.
 A failure is a string starting with `Error:` (or a short explanatory sentence), and
 a no-op edit returns `No changes specified.` Inspect the text rather than assuming
 success.
+
+**A write that races a delete says so.** If the card, lane, label or size a call
+refers to is deleted at the same moment, the call returns `Error: Something this
+change refers to was changed or deleted at the same moment. Reload and try again.` and nothing
+from it is applied. Re-read before retrying; the thing is usually gone.
 
 **Respect the archive freeze.** Archived cards reject edits, comments, label
 changes, and attachment changes. If you need to change an archived card, `restore`

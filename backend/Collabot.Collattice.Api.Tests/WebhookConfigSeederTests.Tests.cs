@@ -1,6 +1,3 @@
-using Collabot.Collattice.Api.Events;
-using Collabot.Collattice.Api.Hosting.Webhooks;
-using Collabot.Collattice.Api.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
@@ -11,7 +8,7 @@ namespace Collabot.Collattice.Api.Tests;
 // (the BoardSeeder / SweepAsync pattern). The WAF boot test proves the load-bearing gate-catch: the
 // seed fires on an upgrade where users ALREADY exist — because it gates on an empty subscription
 // table, not the !Users.AnyAsync() fresh-install gate.
-public sealed class WebhookConfigSeederTests
+public class WebhookConfigSeederTests
 {
     [Fact]
     public async Task Seed_OnEmptyTable_CreatesOneSubscription_WithV1ParitySelection()

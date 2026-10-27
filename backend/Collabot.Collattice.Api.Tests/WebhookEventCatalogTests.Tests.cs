@@ -1,9 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Collabot.Collattice.Api.Events;
-using Collabot.Collattice.Api.Models;
-using Collabot.Collattice.Api.Tests.Infrastructure;
 using Shouldly;
 
 namespace Collabot.Collattice.Api.Tests;
@@ -12,7 +9,7 @@ namespace Collabot.Collattice.Api.Tests;
 // truth for the subscription picker. Two layers: the pure drift guard (the catalog presents exactly
 // the deliver/select SoT, so the in-backend catalog can never desync from what actually fires) and
 // the endpoint (full catalog grouped by family, admin-gated like the rest of the webhook surface).
-public sealed class WebhookEventCatalogTests
+public class WebhookEventCatalogTests
 {
     // The crux: the catalog must present EXACTLY WebhookEventTypes.All. Adding an event to the
     // deliver/select SoT without display metadata here — or vice versa — fails this test, which is the
@@ -64,18 +61,26 @@ public sealed class WebhookEventCatalogTests
     }
 
     [Fact]
-    public void Catalog_Groups_AreNonEmpty_WithStableFamilyKeys()
+    public void Catalog_Groups_AreNonEmpty_AndEachFamilyIsItsEventsNamespace()
     {
         foreach (var group in WebhookEventCatalog.Groups)
         {
             group.Family.ShouldNotBeNullOrWhiteSpace();
             group.Label.ShouldNotBeNullOrWhiteSpace();
             group.Events.ShouldNotBeEmpty();
+            group.Events.ShouldAllBe(descriptor => descriptor.Type.StartsWith(group.Family + ".", StringComparison.Ordinal));
         }
+
+        // Exactly one group per event namespace in the deliver/select source of truth. Derived rather
+        // than listed, so a new family is expected the moment its first event type is declared — whether
+        // a write surface declares any event at all is the coverage test's question, not this one's.
+        var namespaces = WebhookEventTypes.All
+            .Select(eventType => eventType[..eventType.IndexOf('.', StringComparison.Ordinal)])
+            .Distinct(StringComparer.Ordinal);
 
         WebhookEventCatalog.Groups
             .Select(group => group.Family)
-            .ShouldBe(["card", "comment", "label", "attachment", "lane", "size", "board"]);
+            .ShouldBe(namespaces, ignoreOrder: true);
     }
 
     [Fact]
@@ -91,15 +96,18 @@ public sealed class WebhookEventCatalogTests
 
         var groups = await response.Content.ReadFromJsonAsync<JsonElement>(TestAuthHelper.JsonOptions);
 
+        // The endpoint serves the catalog's groups, in the catalog's order. Which order that is stays
+        // deliberately unpinned: the picker renders whatever the server sends, and a reorder is a
+        // visible edit to the catalog file.
         var families = groups.EnumerateArray()
             .Select(group => group.GetProperty("family").GetString())
-            .ToList();
-        families.ShouldBe(["card", "comment", "label", "attachment", "lane", "size", "board"]);
+                .ToList();
+        families.ShouldBe(WebhookEventCatalog.Groups.Select(group => group.Family));
 
         var types = groups.EnumerateArray()
             .SelectMany(group => group.GetProperty("events").EnumerateArray())
-            .Select(descriptor => descriptor.GetProperty("type").GetString()!)
-            .ToList();
+                .Select(descriptor => descriptor.GetProperty("type").GetString()!)
+                    .ToList();
         types.Count.ShouldBe(27);
         types.ShouldBe(WebhookEventTypes.All, ignoreOrder: true);
 
