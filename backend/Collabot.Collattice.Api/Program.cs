@@ -267,6 +267,7 @@ await using (var scope = app.Services.CreateAsyncScope())
     {
         var currentConnectionString = db.Database.GetConnectionString();
         var currentDbPath = new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder(currentConnectionString).DataSource;
+
         if (File.Exists(currentDbPath) && new FileInfo(currentDbPath).Length > 0)
         {
             var backupPath = $"{currentDbPath}.bak-{DateTime.UtcNow.ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture)}";
