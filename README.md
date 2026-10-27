@@ -465,7 +465,7 @@ The guiding principle: flexibility in how you *use* Collattice, deliberate restr
 
 ### Prerequisites
 
-- .NET 10 SDK, 10.0.400 or later (the floor is pinned in `global.json`)
+- .NET 10 SDK, 10.0.100 or later (the floor is pinned in `global.json`; keep your SDK on a current patch release)
 - Node.js 22+
 - Docker Desktop (for Aspire orchestration)
 

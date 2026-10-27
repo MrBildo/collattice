@@ -22,8 +22,8 @@
 # working tree is left with those two edits and no residue.
 #
 # It deliberately leaves the SDK line in global.json alone. That line is a floor, the
-# oldest SDK feature band whose built-in analyzers agree with CI's, not a tracked
-# version. The runtime packs this pin selects are downloaded from NuGet rather than
+# oldest SDK feature band the repository builds and passes its tests with (CI checks
+# it on that band), not a tracked version. The runtime packs this pin selects are downloaded from NuGet rather than
 # taken from the installed SDK, so a runtime bump does not need a newer SDK, and
 # raising the floor in step with the runtime would only make every developer install
 # a new SDK each month.
