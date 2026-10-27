@@ -21,10 +21,21 @@ public static class AdminKeyResetCli
 
     private const string _usage = "usage: Collabot.Collattice.Api --reset-admin-key [<administrator-user-id>]";
 
-    public static async Task<int> RunAsync
+    public static Task<int> RunAsync
     (
         string[] args,
         IConfiguration configuration,
+        TextWriter stdout,
+        TextWriter stderr,
+        CancellationToken ct = default
+    ) => RunAsync(args, configuration, DatabaseLocation.UserDataFolder, stdout, stderr, ct);
+
+    // userDataFolder is the base of the default database location, read only when no path is configured.
+    internal static async Task<int> RunAsync
+    (
+        string[] args,
+        IConfiguration configuration,
+        Func<string?> userDataFolder,
         TextWriter stdout,
         TextWriter stderr,
         CancellationToken ct = default
@@ -32,6 +43,7 @@ public static class AdminKeyResetCli
     {
         ArgumentNullException.ThrowIfNull(args);
         ArgumentNullException.ThrowIfNull(configuration);
+        ArgumentNullException.ThrowIfNull(userDataFolder);
         ArgumentNullException.ThrowIfNull(stdout);
         ArgumentNullException.ThrowIfNull(stderr);
 
@@ -41,7 +53,7 @@ public static class AdminKeyResetCli
             return ExitUsage;
         }
 
-        if (!TryResolveDatabase(configuration, stderr, out var databasePath, out var connectionString))
+        if (!TryResolveDatabase(configuration, userDataFolder, stderr, out var databasePath, out var connectionString))
         {
             return ExitDatabaseUnavailable;
         }
@@ -121,6 +133,7 @@ public static class AdminKeyResetCli
     private static bool TryResolveDatabase
     (
         IConfiguration configuration,
+        Func<string?> userDataFolder,
         TextWriter stderr,
         out string databasePath,
         out string connectionString
@@ -129,49 +142,40 @@ public static class AdminKeyResetCli
         databasePath = string.Empty;
         connectionString = string.Empty;
 
-        // The same requirements the app enforces at startup: an absolute path to a database file.
-        // Run with different configuration than the app's and this names the wrong database, so it
-        // prints the one it used.
-        const string sameConfiguration = "Run the command with the configuration the app runs with: "
+        // The app's own resolver, so the command names the database the app would open: the configured
+        // one, or the default when none is configured. Run with different configuration than the app's,
+        // or as a different user, and this names the wrong database, so it prints the one it used.
+        const string sameConfiguration = "Run the command as the user the app runs as, with the configuration the app runs with: "
             + "the environment variables its service sets (ConnectionStrings__Board in particular).";
 
-        var configured = configuration.GetConnectionString("Board");
-        if (string.IsNullOrWhiteSpace(configured))
+        if (!DatabaseLocation.TryResolve(configuration, userDataFolder, out var database, out var error))
         {
-            stderr.WriteLine($"reset-admin-key: 'ConnectionStrings:Board' is not set. {sameConfiguration}");
+            stderr.WriteLine($"reset-admin-key: {error} {sameConfiguration}");
             return false;
         }
 
-        SqliteConnectionStringBuilder builder;
-
-        try
+        if (database.FilePath is not { } filePath)
         {
-            builder = new SqliteConnectionStringBuilder(configured);
-        }
-        catch (ArgumentException ex)
-        {
-            stderr.WriteLine($"reset-admin-key: 'ConnectionStrings:Board' is not a valid SQLite connection string: {ex.Message}");
+            stderr.WriteLine($"reset-admin-key: '{DatabaseLocation.SettingKey}' names an in-memory or temporary database, not a database file. {sameConfiguration}");
             return false;
         }
 
-        var dataSource = builder.DataSource;
-        if (string.IsNullOrEmpty(dataSource) || dataSource == ":memory:" || !Path.IsPathRooted(dataSource))
+        // The checks are read-only: nothing here creates the default folder.
+        if (!DatabaseLocation.TryCheckDefaultFolder(database, out error))
         {
-            stderr.WriteLine($"reset-admin-key: 'ConnectionStrings:Board' must name an absolute path to the database file, not '{dataSource}'. {sameConfiguration}");
+            stderr.WriteLine($"reset-admin-key: {error}");
             return false;
         }
 
-        if (!File.Exists(dataSource))
+        if (!File.Exists(filePath))
         {
-            stderr.WriteLine($"reset-admin-key: there is no database at {dataSource}. {sameConfiguration}");
+            stderr.WriteLine($"reset-admin-key: there is no {DatabaseLocation.Describe(database)}. {sameConfiguration}");
             return false;
         }
 
         // Never create a database: a mistyped path must fail here, not leave an empty file behind.
-        builder.Mode = SqliteOpenMode.ReadWrite;
-
-        databasePath = dataSource;
-        connectionString = builder.ToString();
+        databasePath = filePath;
+        connectionString = new SqliteConnectionStringBuilder(database.ConnectionString) { Mode = SqliteOpenMode.ReadWrite }.ToString();
 
         return true;
     }

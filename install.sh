@@ -127,7 +127,8 @@ chmod +x "${INSTALL_DIR}/Collabot.Collattice.Api"
 # First install: copy the archive's shipped appsettings.json into place AND seed the
 # sidecar baseline (appsettings.shipped.json) so the next upgrade has a reference for
 # distinguishing operator-edited keys from untouched defaults. Then seed an absolute
-# ConnectionStrings:Board into appsettings.json (Collattice requires it; no default).
+# ConnectionStrings:Board into appsettings.json (the install's own data/ database, never
+# the app's per-user default).
 #
 # Upgrade: invoke `Collabot.Collattice.Api --merge-appsettings <shipped> <ondisk> --baseline
 # <baseline>` to perform the three-way merge. The binary owns the merge logic so the
@@ -144,9 +145,9 @@ if [ ! -f "${APPSETTINGS_DST}" ]; then
     cp "${SHIPPED_SRC}" "${BASELINE_DST}"
     echo "Seeded ${APPSETTINGS_DST} and ${BASELINE_DST} from shipped defaults"
 
-    # Seed the absolute ConnectionStrings:Board into appsettings.json. Collattice requires
-    # this key with no default and does not derive a path from the working or binary
-    # directory. Prefer python3 (always present on macOS, near-universal on modern Linux);
+    # Seed the absolute ConnectionStrings:Board into appsettings.json, so the install uses
+    # its own data/ database rather than the app's per-user default, and never a path
+    # derived from the working or binary directory. Prefer python3 (always present on macOS, near-universal on modern Linux);
     # fall back to awk against the known shape when python3 is unavailable.
     seed_with_python() {
         python3 - "${APPSETTINGS_DST}" "${DB_PATH}" <<'PY'

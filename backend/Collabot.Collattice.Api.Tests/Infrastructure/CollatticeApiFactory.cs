@@ -48,8 +48,9 @@ public class CollatticeApiFactory : WebApplicationFactory<Program>, IAsyncLifeti
 
         builder.ConfigureLogging(TestHostLogging.RemoveEventLog);
 
-        // ConnectionStrings:Board is required configuration with no fallback;
-        // Program.cs hard-fails at host-build time if it is unset.
+        // ConnectionStrings:Board must always be set here: unset, Program.cs falls
+        // back to the per-user default database in the real home folder, which no
+        // test may touch. Program.cs reads it at host-build time.
         // That eager read happens before ConfigureServices swaps in the shared
         // in-memory connection, so the value must be visible to
         // builder.Configuration — i.e. injected via UseSetting, not
