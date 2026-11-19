@@ -13,7 +13,7 @@ namespace Collabot.Collattice.Api.Hosting.Webhooks;
 // is whether the drop is observable). The actual POST — serialize-once + sign + headers — lives
 // behind IWebhookSender (a typed HttpClient seam, stubbable in tests). The dispatcher is DB-free
 // for the EVENT — the enriched BoardEvent is a self-contained POJO, fully resolved at emit-time.
-// The DB is touched only to persist attempt rows.
+// The DB is touched only to load the matching subscriptions and to persist attempt rows.
 //
 // Like TempCardSweepService, the per-event delivery logic is a deterministic static seam
 // (DeliverEventAsync — takes a BoardDbContext directly) and the PeriodicTimer drain loop is thin
@@ -89,19 +89,19 @@ internal sealed class WebhookDispatcherService
     {
         try
         {
-            while (_queue.TryDequeue(out var boardEvent) && boardEvent is not null)
+            // Peek, not dequeue: an event leaves the queue only once its subscriptions are loaded,
+            // so a failure before the first send leaves it at the head to be tried again.
+            while (_queue.TryPeek(out var boardEvent) && boardEvent is not null)
             {
-                // Dark: the event was dequeued (so the queue stays bounded) but no delivery is
+                // Dark: the event leaves the queue (so the queue stays bounded) but no delivery is
                 // attempted and no attempt row is persisted.
                 if (!IsConfigured)
                 {
+                    _queue.TryDequeue(out _);
                     continue;
                 }
 
-                await using var scope = _services.CreateAsyncScope();
-                var db = scope.ServiceProvider.GetRequiredService<BoardDbContext>();
-
-                await DeliverEventAsync(boardEvent, _sender, db, _settings, _logger, ct);
+                await DispatchHeadAsync(boardEvent, ct);
             }
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -114,6 +114,77 @@ internal sealed class WebhookDispatcherService
             // A transient failure draining one tick must not tear down the loop.
             _logger.LogError(ex, "Webhook dispatch tick failed; will retry on the next poll.");
         }
+    }
+
+    // Dispatches the event at the head of the queue. Loading its subscriptions is the one step that
+    // can fail before anything is sent (the scope or DbContext failing to initialise, the query
+    // failing after SQLite's busy wait), and it gets the same bounded retry a failed send gets:
+    // Webhooks:MaxAttempts tries with the same backoff, the event held at the head meanwhile so
+    // later events keep their order behind it. Nothing has been sent at that point, so a retry
+    // cannot deliver twice. After the last failed try the event is dropped with an error in the
+    // application log. The delivery log gets no row for it: the failing read is from the database
+    // the delivery log lives in, and a row with no subscription already means "the subscription
+    // was deleted since".
+    private async Task DispatchHeadAsync(BoardEvent boardEvent, CancellationToken ct)
+    {
+        var maxAttempts = Math.Max(1, _settings.MaxAttempts);
+        Exception? lastFailure = null;
+
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            if (attempt > 1)
+            {
+                await DelayBeforeRetryAsync(_settings, attempt, ct);
+            }
+
+            await using var scope = _services.CreateAsyncScope();
+
+            BoardDbContext db;
+            List<WebhookSubscription> subscriptions;
+
+            try
+            {
+                db = scope.ServiceProvider.GetRequiredService<BoardDbContext>();
+                subscriptions = await LoadMatchingSubscriptionsAsync(boardEvent, db, ct);
+            }
+            catch (Exception ex) when (!ct.IsCancellationRequested)
+            {
+                lastFailure = ex;
+
+                if (attempt < maxAttempts)
+                {
+                    _logger.LogWarning
+                    (
+                        ex,
+                        "Loading webhook subscriptions for event {EventId} ({EventType}) failed on attempt {Attempt} of {MaxAttempts}; the event stays queued and is tried again.",
+                        boardEvent.EventId,
+                        boardEvent.EventType,
+                        attempt,
+                        maxAttempts
+                    );
+                }
+
+                continue;
+            }
+
+            // From here every outcome is recorded per attempt, so the event leaves the queue.
+            _queue.TryDequeue(out _);
+
+            await DeliverToSubscriptionsAsync(boardEvent, subscriptions, _sender, db, _settings, _logger, ct);
+            return;
+        }
+
+        _queue.TryDequeue(out _);
+
+        _logger.LogError
+        (
+            lastFailure,
+            "Webhook event {EventId} ({EventType}) on board {BoardId} was dropped: its subscriptions could not be loaded after {Attempts} attempt(s), so it was sent to no subscription and has no row in the delivery log.",
+            boardEvent.EventId,
+            boardEvent.EventType,
+            boardEvent.BoardId,
+            maxAttempts
+        );
     }
 
     // Delivers ONE event to EVERY enabled subscription whose selection matches its type (v1
@@ -131,22 +202,66 @@ internal sealed class WebhookDispatcherService
         CancellationToken ct
     )
     {
-        // Load the enabled rows with a translatable predicate, then match the selection in CLR
-        // memory. A relational predicate over the value-converted EventTypes column does not
-        // translate to SQL, so the selection match must happen in memory after loading.
+        var subscriptions = await LoadMatchingSubscriptionsAsync(boardEvent, db, ct);
+
+        await DeliverToSubscriptionsAsync(boardEvent, subscriptions, sender, db, settings, logger, ct);
+    }
+
+    // Load the enabled rows with a translatable predicate, then match the selection in CLR memory.
+    // A relational predicate over the value-converted EventTypes column does not translate to SQL,
+    // so the selection match must happen in memory after loading.
+    private static async Task<List<WebhookSubscription>> LoadMatchingSubscriptionsAsync
+    (
+        BoardEvent boardEvent,
+        BoardDbContext db,
+        CancellationToken ct
+    )
+    {
         var enabled = await db.WebhookSubscriptions
             .Where(s => s.Enabled)
                 .ToListAsync(ct);
 
-        var matches = enabled
-            .Where(s => WebhookEventTypes.Matches(s.EventTypes, boardEvent.EventType))
-                .ToList();
+        return [.. enabled.Where(s => WebhookEventTypes.Matches(s.EventTypes, boardEvent.EventType))];
+    }
 
-        foreach (var subscription in matches)
+    private static async Task DeliverToSubscriptionsAsync
+    (
+        BoardEvent boardEvent,
+        List<WebhookSubscription> subscriptions,
+        IWebhookSender sender,
+        BoardDbContext db,
+        WebhookSettings settings,
+        ILogger logger,
+        CancellationToken ct
+    )
+    {
+        foreach (var subscription in subscriptions)
         {
             // One subscription's failure must not block the next — each fans out independently.
             var target = new WebhookTarget(subscription.Url, subscription.Secret);
-            await DeliverToSubscriptionAsync(boardEvent, target, subscription.Id, sender, db, settings, logger, ct);
+
+            try
+            {
+                await DeliverToSubscriptionAsync(boardEvent, target, subscription.Id, sender, db, settings, logger, ct);
+            }
+            catch (Exception ex) when (!ct.IsCancellationRequested)
+            {
+                // A failed POST comes back as a failed result, not an exception, so what lands here
+                // is almost always an attempt row failing to save. It is not retried: the POST may
+                // already have reached the subscriber, and sending again would deliver it twice.
+                // The unsaved row is discarded so it does not ride into the next subscription's save.
+                db.ChangeTracker.Clear();
+
+                logger.LogError
+                (
+                    ex,
+                    "Webhook delivery of event {EventId} ({EventType}) on board {BoardId} to subscription {SubscriptionId} failed before its outcome was recorded; the delivery log may be missing this attempt.",
+                    boardEvent.EventId,
+                    boardEvent.EventType,
+                    boardEvent.BoardId,
+                    subscription.Id
+                );
+            }
         }
     }
 

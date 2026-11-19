@@ -28,7 +28,17 @@ public sealed record BoardEvent
     [property: JsonPropertyName("boardSlug")] string BoardSlug,
     [property: JsonPropertyName("actor")] BoardEventActor Actor,
     [property: JsonPropertyName("data")] object Data
-);
+)
+{
+    // True when the event is about a card that is still an unsaved draft. It still rings the board
+    // bell, but it is never a webhook event: a subscriber hears of a card first through card.created
+    // when the draft is saved, so an event about the draft before then would reference a card it has
+    // never been told exists (and may never be, if the draft is cancelled). The webhook queue refuses
+    // these; on save, card.created is followed by an attachment.created / comment.created for each
+    // attachment and comment the draft still has. Not part of the wire envelope.
+    [JsonIgnore]
+    public bool AboutDraft { get; init; }
+}
 
 // Who caused the event — resolved at the call-site from the authenticated BoardUser,
 // never dropped. Role rides the wire as the enum NAME ("AgentUser"), not its integer

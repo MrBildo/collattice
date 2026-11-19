@@ -416,9 +416,10 @@ A subscription receives an event only when its `events` selection includes that 
 | | `board.renamed` | A board is renamed. |
 | | `board.deleted` | A board is deleted. |
 
-Two coverage rules are worth knowing:
+Three coverage rules are worth knowing:
 
 - **Multi-axis edits co-fire.** A single `PATCH /cards/{id}` / `update_card` / `bulk_update_cards` that changes more than one thing emits one event per axis — a call that renames a card **and** moves it **and** changes its labels emits `card.updated` **+** `card.moved` **+** `card.labeled` / `card.unlabeled`. An unchanged axis emits nothing.
+- **Nothing fires for a draft until it is saved.** While a card is an unsaved draft (the create dialog's card, before it is finalized), nothing done to it fires an event: not its attachments, comments, labels or moves. When the draft is saved, `card.created` fires first, followed by one `attachment.created` for each attachment it still has and then one `comment.created` for each comment, each in the order it was added and each carrying the saved card's number; its labels are already in the `card.created` card. An attachment or comment removed before the save is never announced, and a cancelled draft announces nothing.
 - **One `lane.reordered` / `size.reordered` per reorder.** Reordering a board's lanes emits a single `lane.reordered` carrying the board's full new order — never one event per lane. Both the bulk reorder and a single-lane position move emit this same shape. Card sizes behave identically: a reorder emits one `size.reordered` with the board's full new size order.
 
 `webhook.ping` is a separate event type that exists only for the [test-delivery endpoint](#managing-subscriptions): board activity never produces it, and a subscription can't select it.

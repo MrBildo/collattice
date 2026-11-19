@@ -21,11 +21,6 @@ internal sealed class WebhookDeliveryLogSweepService
     ILogger<WebhookDeliveryLogSweepService> logger
 ) : BackgroundService
 {
-    // Daily is plenty — the retention window is measured in days. Not operator-tunable: an internal
-    // liveness cadence, not a delivery-semantics setting (mirrors the dispatcher's poll interval).
-    // The retention window itself is Webhooks:DeliveryLogRetentionDays.
-    private static readonly TimeSpan _sweepInterval = TimeSpan.FromHours(24);
-
     private readonly IServiceProvider _services = services
         ?? throw new ArgumentNullException(nameof(services));
     private readonly WebhookSettings _settings = settings.Value;
@@ -45,14 +40,15 @@ internal sealed class WebhookDeliveryLogSweepService
         (
             "Webhook delivery-log sweep started — retaining {Days} day(s), interval {Interval}.",
             _settings.DeliveryLogRetentionDays,
-            _sweepInterval
+            _settings.DeliveryLogSweepInterval
         );
 
         // No startup sweep: retention is not time-urgent, and a startup DB sweep would add a needless
         // collision surface with the WAF's shared in-memory connection in tests (a BackgroundService
         // should do no startup DB work the test thread can race). The first sweep is one interval
-        // after boot, the same shape as the temp-card sweep.
-        using var timer = new PeriodicTimer(_sweepInterval);
+        // after boot, the same shape as the temp-card sweep, so the interval is what decides whether
+        // a frequently restarted API sweeps at all (Webhooks:DeliveryLogSweepInterval).
+        using var timer = new PeriodicTimer(_settings.DeliveryLogSweepInterval);
         while (await timer.WaitForNextTickAsync(stoppingToken))
         {
             await RunSweepSafelyAsync(stoppingToken);

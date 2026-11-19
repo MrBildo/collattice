@@ -82,11 +82,12 @@ public class CollatticeApiFactory : WebApplicationFactory<Program>, IAsyncLifeti
                 ["Admin:AuthKey"] = TestAdminAuthKey,
 
                 // The temp-card and delivery-log sweeps run in every test host, and neither touches
-                // the database until its first timer tick. Pinning the temp-card interval to a day
-                // keeps that tick out of reach of any test host whatever the production default
-                // becomes. The delivery-log sweep's interval is a fixed day in code. A test that
-                // needs the running temp-card loop overrides this and brings a database of its own.
+                // the database until its first timer tick. Pinning both intervals to a day keeps that
+                // tick out of reach of any test host whatever the production defaults become. A test
+                // that needs a running sweep loop overrides its interval and brings a database of its
+                // own.
                 ["TempCardSweep:SweepInterval"] = "1.00:00:00",
+                ["Webhooks:DeliveryLogSweepInterval"] = "1.00:00:00",
             });
 
             if (ConfigOverrides is not null)

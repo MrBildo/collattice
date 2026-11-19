@@ -239,7 +239,8 @@ The board lives in one SQLite file.
 | `Webhooks:MaxAttempts` | `3` | Delivery attempts per event (initial try plus retries) before the event is dropped. |
 | `Webhooks:RetryBackoffBase` | `00:00:02` | Wait before the first retry. Later retries grow it (roughly 4× per step) with a little jitter. |
 | `Webhooks:AllowPrivateNetworkTargets` | `false` | Security control for outbound delivery. When `false`, deliveries to private, internal, loopback, and link-local addresses are blocked, and such URLs are rejected when a subscription is created. Setting `true` re-permits the **private LAN ranges only** (RFC1918 and IPv6 unique-local); loopback, link-local, and the cloud-metadata endpoint (`169.254.169.254`) stay blocked regardless. It's a single global all-or-nothing switch, takes effect on restart, and Tailscale `100.x` targets work without it. **This is a breaking change when upgrading — see [Webhooks](#webhooks) below.** |
-| `Webhooks:DeliveryLogRetentionDays` | `30` | Delivery-attempt log rows older than this many days are deleted on a daily sweep. Set to `0` to keep the log forever. |
+| `Webhooks:DeliveryLogRetentionDays` | `30` | Delivery-attempt log rows older than this many days are deleted by a periodic sweep. Set to `0` to keep the log forever. |
+| `Webhooks:DeliveryLogSweepInterval` | `01:00:00` | How often that sweep runs. The first sweep runs one interval after startup, so an API restarted more often than this never sweeps. |
 
 ### Webhooks
 

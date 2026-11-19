@@ -46,9 +46,15 @@ public class WebhookSettings
     public bool AllowPrivateNetworkTargets { get; init; }
 
     // Delivery-attempt log retention. The WebhookDeliveryLogSweepService deletes
-    // WebhookDeliveryAttempt rows older than this many days on a daily tick. 0 (or negative) keeps
+    // WebhookDeliveryAttempt rows older than this many days on each sweep. 0 (or negative) keeps
     // the log forever (the sweep stays dormant). The catalog × subscription fan-out makes the log
     // grow faster than v1's single endpoint, so a default cap keeps it bounded. Overridable via
     // Webhooks__DeliveryLogRetentionDays.
     public int DeliveryLogRetentionDays { get; init; } = 30;
+
+    // How often the delivery-log retention sweep runs; the first sweep is one interval after
+    // startup. An hour, not a day: the timer restarts with the process, so an API that never stayed
+    // up a full interval would never sweep, and a daily interval would starve under daily restarts.
+    // Overridable via Webhooks__DeliveryLogSweepInterval.
+    public TimeSpan DeliveryLogSweepInterval { get; init; } = TimeSpan.FromHours(1);
 }

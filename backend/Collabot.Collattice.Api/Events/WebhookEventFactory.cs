@@ -5,7 +5,8 @@ namespace Collabot.Collattice.Api.Events;
 // The anti-drift core for webhook event emission. Per the project convention —
 // every card mutation has two callers (REST + MCP) sharing a helper core; drift between
 // them is the top bug class — the eight converted sites must NOT each hand-build a
-// BoardEvent. All three create sites call PublishCardCreatedAsync; all five move sites
+// BoardEvent. The three direct create sites call PublishCardCreatedAsync and the draft save calls
+// PublishDraftSavedAsync, both through BuildCardCreatedAsync; all five move sites
 // call PublishCardMovedAsync. So REST and MCP emit identical events by construction
 // (the same remedy as CardSummaryBuilder / SearchHelper).
 //
@@ -29,20 +30,65 @@ internal static class WebhookEventFactory
         CancellationToken ct
     )
     {
-        var summary = await BuildSummaryAsync(db, card, ct);
-        var (boardSlug, laneName) = await ResolveBoardSlugAndLaneNameAsync(db, card.BoardId, card.LaneId, ct);
-
-        var boardEvent = BuildEvent
-        (
-            WebhookEventTypes.CardCreated,
-            card.BoardId,
-            boardSlug,
-            actor,
-            new WebhookCardCreatedData(summary, laneName)
-        );
-
+        var boardEvent = await BuildCardCreatedAsync(db, card, actor, ct);
         broadcaster.Publish(boardEvent);
     }
+
+    // card.created for a draft that was just saved. While it was a draft its attachments and
+    // comments raised no webhook event (BoardEvent.AboutDraft), so each one it still has is announced
+    // here, after card.created and in the order it was added: a subscriber that mirrors attachments
+    // or comments ends up with every one the saved card carries, each referencing a card it already
+    // knows by its real number. Ones removed before the save were never announced and stay that way.
+    // All of it rides one coalesced bell, the one bell a finalize has always rung.
+    public static async Task PublishDraftSavedAsync
+    (
+        BoardDbContext db,
+        BoardEventBroadcaster broadcaster,
+        CardItem card,
+        BoardUser actor,
+        CancellationToken ct
+    )
+    {
+        var created = await BuildCardCreatedAsync(db, card, actor, ct);
+        var cardRef = new WebhookCardRef(card.Id, card.Number);
+
+        List<BoardEvent> events = [created];
+
+        // Projected rather than loaded: the event carries the payload's length, never its bytes.
+        var attachments = await db.Attachments
+            .Where(a => a.CardId == card.Id)
+                .OrderBy(a => a.AddedAtUtc)
+                    .ThenBy(a => a.Id)
+                        .Select(a => new WebhookAttachmentData(a.Id, a.CardId, a.FileName, a.ContentType, a.Payload.Length, a.AddedByUserId, a.AddedAtUtc))
+                            .ToListAsync(ct);
+
+        foreach (var attachment in attachments)
+        {
+            events.Add(BuildEvent(WebhookEventTypes.AttachmentCreated, card.BoardId, created.BoardSlug, actor, new WebhookAttachmentCreatedData(attachment, cardRef)));
+        }
+
+        var comments = await db.Comments
+            .Where(c => c.CardId == card.Id)
+                .OrderBy(c => c.CreatedAtUtc)
+                    .ThenBy(c => c.Id)
+                        .ToListAsync(ct);
+
+        foreach (var comment in comments)
+        {
+            events.Add(await BuildCommentEventAsync(db, WebhookEventTypes.CommentCreated, comment, actor, (c, commentCard) => new WebhookCommentCreatedData(c, commentCard), ct));
+        }
+
+        broadcaster.PublishCoalesced(card.BoardId, events);
+    }
+
+    private static Task<BoardEvent> BuildCardCreatedAsync
+    (
+        BoardDbContext db,
+        CardItem card,
+        BoardUser actor,
+        CancellationToken ct
+    ) =>
+        BuildCardSummaryEventAsync(db, WebhookEventTypes.CardCreated, card, actor, (summary, laneName) => new WebhookCardCreatedData(summary, laneName), ct);
 
     // fromLane / fromPosition are captured by the call-site BEFORE the move mutates the
     // card (MoveCardToLaneAsync renumbers both lanes, so the source position is gone once
@@ -93,7 +139,7 @@ internal static class WebhookEventFactory
             new WebhookLaneRef(toLane.Id, toLane.Name, card.Position)
         );
 
-        return BuildEvent(WebhookEventTypes.CardMoved, card.BoardId, boardSlug, actor, data);
+        return BuildEvent(WebhookEventTypes.CardMoved, card.BoardId, boardSlug, actor, data) with { AboutDraft = card.IsTemp };
     }
 
     // ── Card-family emit helpers ──────────────────────────────────────────
@@ -724,7 +770,7 @@ internal static class WebhookEventFactory
         var summary = await BuildSummaryAsync(db, card, ct);
         var (boardSlug, laneName) = await ResolveBoardSlugAndLaneNameAsync(db, card.BoardId, card.LaneId, ct);
 
-        return BuildEvent(eventType, card.BoardId, boardSlug, actor, dataFactory(summary, laneName));
+        return BuildEvent(eventType, card.BoardId, boardSlug, actor, dataFactory(summary, laneName)) with { AboutDraft = card.IsTemp };
     }
 
     private static async Task<List<BoardEvent>> BuildCardSummaryEventBatchAsync
@@ -762,7 +808,7 @@ internal static class WebhookEventFactory
             var boardSlug = slugByBoard.GetValueOrDefault(card.BoardId, string.Empty);
             var laneName = laneNameById.GetValueOrDefault(card.LaneId, string.Empty);
 
-            events.Add(BuildEvent(eventType, card.BoardId, boardSlug, actor, dataFactory(summary, laneName)));
+            events.Add(BuildEvent(eventType, card.BoardId, boardSlug, actor, dataFactory(summary, laneName)) with { AboutDraft = card.IsTemp });
         }
 
         return events;
@@ -782,7 +828,7 @@ internal static class WebhookEventFactory
     {
         var card = await db.Cards
             .Where(c => c.Id == comment.CardId)
-                .Select(c => new { c.BoardId, c.Number })
+                .Select(c => new { c.BoardId, c.Number, c.IsTemp })
                     .FirstOrDefaultAsync(ct);
 
         var boardId = card?.BoardId ?? Guid.Empty;
@@ -801,7 +847,7 @@ internal static class WebhookEventFactory
             comment.LastUpdatedAtUtc
         );
 
-        return BuildEvent(eventType, boardId, boardSlug, actor, dataFactory(commentData, new WebhookCardRef(comment.CardId, cardNumber)));
+        return BuildEvent(eventType, boardId, boardSlug, actor, dataFactory(commentData, new WebhookCardRef(comment.CardId, cardNumber))) with { AboutDraft = card?.IsTemp ?? false };
     }
 
     // The label-event core: resolves the board slug and projects the label resource.
@@ -835,7 +881,7 @@ internal static class WebhookEventFactory
     {
         var card = await db.Cards
             .Where(c => c.Id == attachment.CardId)
-                .Select(c => new { c.BoardId, c.Number })
+                .Select(c => new { c.BoardId, c.Number, c.IsTemp })
                     .FirstOrDefaultAsync(ct);
 
         var boardId = card?.BoardId ?? Guid.Empty;
@@ -853,7 +899,7 @@ internal static class WebhookEventFactory
             attachment.AddedAtUtc
         );
 
-        return BuildEvent(eventType, boardId, boardSlug, actor, dataFactory(attachmentData, new WebhookCardRef(attachment.CardId, cardNumber)));
+        return BuildEvent(eventType, boardId, boardSlug, actor, dataFactory(attachmentData, new WebhookCardRef(attachment.CardId, cardNumber))) with { AboutDraft = card?.IsTemp ?? false };
     }
 
     private static BoardEvent BuildEvent
