@@ -348,7 +348,7 @@ public class ExpectedSaveFailureLoggingTests
 
         return (await response.Content.ReadFromJsonAsync<JsonElement>())
             .GetProperty("id")
-            .GetGuid();
+                .GetGuid();
     }
 
     private static async Task<Guid> CreateLabelAsync(LoggingFileDatabaseFactory factory, HttpClient client)
@@ -360,7 +360,7 @@ public class ExpectedSaveFailureLoggingTests
 
         return (await response.Content.ReadFromJsonAsync<JsonElement>())
             .GetProperty("id")
-            .GetGuid();
+                .GetGuid();
     }
 
     private static Func<BoardDbContext, Task> DeleteCard(Guid cardId) =>

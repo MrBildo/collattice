@@ -71,7 +71,12 @@ internal static class ExpectedSaveFailure
     }
 
     // sealed: Sonar S3260 asks for it on a private class nothing derives from.
-    private sealed class Expectation(Func<DbUpdateException, bool> isExpected, bool awaitsAnswer, Expectation? outer) : IAnsweredSaveFailures
+    private sealed class Expectation
+    (
+        Func<DbUpdateException, bool> isExpected,
+        bool awaitsAnswer,
+        Expectation? outer
+    ) : IAnsweredSaveFailures
     {
         private readonly Func<DbUpdateException, bool> _isExpected = isExpected
             ?? throw new ArgumentNullException(nameof(isExpected));
@@ -227,7 +232,11 @@ internal static class ExpectedSaveFailure
         }
     }
 
-    private sealed record HeldFailure(DbUpdateException Failure, IReadOnlyList<(LogLevel Level, Action<LogLevel> Write)> Entries);
+    private sealed record HeldFailure
+    (
+        DbUpdateException Failure,
+        IReadOnlyList<(LogLevel Level, Action<LogLevel> Write)> Entries
+    );
 }
 
 // A declaration whose matching failures wait for the site that answers them. Answered names the
