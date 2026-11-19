@@ -386,9 +386,10 @@ is optional; only what you pass changes. Passing nothing returns
 `No changes specified.` (no write). Returns the enriched card summary — no
 follow-up `get_card` needed.
 - **Params:** `authKey`, a card ref. Optional: `name`, `descriptionMarkdown`,
-  `sizeId`/`sizeName`, `laneId` (+ optional `index`), `labelIds` (**replaces** the
-  card's whole label set — comma-separated GUIDs or a JSON-array string; an empty
-  string clears all labels).
+  `sizeId`/`sizeName`, `laneId` with an optional `index`, `labelIds` (**replaces**
+  the card's whole label set — comma-separated GUIDs or a JSON-array string; an
+  empty string clears all labels), `expectedDescriptionRevision` (see *Learn when
+  you overwrote someone*, below).
 - Archived cards are rejected — restore first.
 - A description change is recorded — the value you replace is preserved and
   readable through `get_card_history`. Editing a description is lossless, so you
@@ -681,8 +682,8 @@ Apply a uniform update across N cards — a lane/position move, a size change, a
 a label-set replacement (this also covers bulk *moves*: pass `laneId`). Per-card
 name/description edits are **not** offered. When any board-scoped field (lane, size,
 labels) is set, all cards must share one board.
-- **Params:** `authKey`, card refs. At least one of: `laneId` (+ optional `index`),
-  `sizeId`/`sizeName`, `labelIds` (replaces the set; empty clears).
+- **Params:** `authKey`, card refs. At least one of: `laneId` with an optional
+  `index`, `sizeId`/`sizeName`, `labelIds` (replaces the set; empty clears).
 - With `laneId`, the moved cards land next to each other in the order you list them,
   starting at `index` (default `0`, the top). `index` counts only the lane's cards
   that are not being moved, and those keep their order.
