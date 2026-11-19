@@ -96,17 +96,13 @@ internal static partial class UnixFolderWriters
         private const int _notSupported = 95;
         private const int _bufferTooSmall = 34;
 
-        public static uint GetEffectiveUserId() => geteuid();
-
-        public static uint GetEffectiveGroupId() => getegid();
-
         public static bool TryGetOwner(string path, out uint ownerId, out uint groupId, out int errno)
         {
             var buffer = Marshal.AllocHGlobal(_statxSize);
 
             try
             {
-                if (statx(_atCurrentDirectory, path, 0, _statxUid | _statxGid, buffer) != 0)
+                if (GetExtendedFileStatus(_atCurrentDirectory, path, 0, _statxUid | _statxGid, buffer) != 0)
                 {
                     errno = Marshal.GetLastPInvokeError();
                     ownerId = 0;
@@ -128,7 +124,7 @@ internal static partial class UnixFolderWriters
         // A folder has an access rule when it carries the access-ACL attribute. A file system without
         // ACL support has none. Any other failure counts as a rule, so the folder is refused.
         public static bool HasAccessRule(string path) =>
-            getxattr(path, "system.posix_acl_access", IntPtr.Zero, 0) >= 0
+            GetExtendedAttribute(path, "system.posix_acl_access", IntPtr.Zero, 0) >= 0
                 || Marshal.GetLastPInvokeError() is not (_noSuchAttribute or _notSupported);
 
         public static bool TryGetGroup(uint groupId, out string name, out List<string> members)
@@ -144,7 +140,7 @@ internal static partial class UnixFolderWriters
 
                 try
                 {
-                    var status = getgrgid_r(groupId, entry, buffer, (nuint)size, result);
+                    var status = GetGroupById(groupId, entry, buffer, (nuint)size, result);
 
                     if (status == _bufferTooSmall)
                     {
@@ -186,20 +182,20 @@ internal static partial class UnixFolderWriters
             return false;
         }
 
-        [LibraryImport("libc", SetLastError = true, StringMarshalling = StringMarshalling.Utf8)]
-        private static partial int statx(int directoryFd, string path, int flags, uint mask, IntPtr buffer);
+        [LibraryImport("libc", EntryPoint = "geteuid")]
+        public static partial uint GetEffectiveUserId();
 
-        [LibraryImport("libc", SetLastError = true, StringMarshalling = StringMarshalling.Utf8)]
-        private static partial nint getxattr(string path, string name, IntPtr value, nuint size);
+        [LibraryImport("libc", EntryPoint = "getegid")]
+        public static partial uint GetEffectiveGroupId();
 
-        [LibraryImport("libc")]
-        private static partial int getgrgid_r(uint groupId, IntPtr group, IntPtr buffer, nuint bufferLength, IntPtr result);
+        [LibraryImport("libc", EntryPoint = "statx", SetLastError = true, StringMarshalling = StringMarshalling.Utf8)]
+        private static partial int GetExtendedFileStatus(int directoryFd, string path, int flags, uint mask, IntPtr buffer);
 
-        [LibraryImport("libc")]
-        private static partial uint geteuid();
+        [LibraryImport("libc", EntryPoint = "getxattr", SetLastError = true, StringMarshalling = StringMarshalling.Utf8)]
+        private static partial nint GetExtendedAttribute(string path, string name, IntPtr value, nuint size);
 
-        [LibraryImport("libc")]
-        private static partial uint getegid();
+        [LibraryImport("libc", EntryPoint = "getgrgid_r")]
+        private static partial int GetGroupById(uint groupId, IntPtr group, IntPtr buffer, nuint bufferLength, IntPtr result);
 
         [StructLayout(LayoutKind.Sequential)]
         private struct GroupEntry

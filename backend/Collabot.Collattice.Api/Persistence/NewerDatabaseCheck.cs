@@ -18,9 +18,7 @@ internal static class NewerDatabaseCheck
         var known = db.Database.GetMigrations().ToHashSet(StringComparer.Ordinal);
         var applied = await db.Database.GetAppliedMigrationsAsync(ct);
 
-        var unknown = applied
-            .Where(migration => !known.Contains(migration))
-                .ToList();
+        var unknown = applied.Where(migration => !known.Contains(migration)).ToList();
 
         if (unknown.Count == 0)
         {

@@ -8,12 +8,12 @@ internal static class StartupRefusal
 {
     public const int ExitCode = 1;
 
-    public static int Refuse(TextWriter stderr, string message)
+    public static int Refuse(TextWriter standardError, string message)
     {
-        ArgumentNullException.ThrowIfNull(stderr);
+        ArgumentNullException.ThrowIfNull(standardError);
 
-        stderr.WriteLine(message);
-        stderr.Flush();
+        standardError.WriteLine(message);
+        standardError.Flush();
 
         return ExitCode;
     }

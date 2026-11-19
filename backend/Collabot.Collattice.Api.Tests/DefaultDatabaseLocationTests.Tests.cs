@@ -121,8 +121,13 @@ public class DefaultDatabaseLocationTests(UnconfiguredAppFixture installed) : IC
 
         var run = await InstalledAppFixture.StartAsync(StartInfo(home));
 
-        (Refusal(run, $"The default database folder '{folder}' can be written by other users (every user can write to it)"), File.Exists(Path.Combine(folder, "collattice.db")))
-            .ShouldBe(((1, true, false), false), run.Errors);
+        var observed =
+        (
+            Refusal(run, $"The default database folder '{folder}' can be written by other users (every user can write to it)"),
+            File.Exists(Path.Combine(folder, "collattice.db"))
+        );
+
+        observed.ShouldBe(((1, true, false), false), run.Errors);
     }
 
     // As the installers leave their own folder on Ubuntu, where a login's umask is 002 and each user
@@ -170,8 +175,13 @@ public class DefaultDatabaseLocationTests(UnconfiguredAppFixture installed) : IC
 
         var run = await InstalledAppFixture.StartAsync(StartInfo(home));
 
-        (Refusal(run, $"its group '{groupName}' can write to it, and that group is not this user's own"), File.Exists(Path.Combine(folder, "collattice.db")))
-            .ShouldBe(((1, true, false), false), run.Errors);
+        var observed =
+        (
+            Refusal(run, $"its group '{groupName}' can write to it, and that group is not this user's own"),
+            File.Exists(Path.Combine(folder, "collattice.db"))
+        );
+
+        observed.ShouldBe(((1, true, false), false), run.Errors);
     }
 
     // The folder's own bits allow its owner alone; the access rule lets another user in as well.
@@ -188,8 +198,13 @@ public class DefaultDatabaseLocationTests(UnconfiguredAppFixture installed) : IC
 
         var run = await InstalledAppFixture.StartAsync(StartInfo(home));
 
-        (Refusal(run, "an access rule (ACL) on it can let other users or groups write to it"), File.Exists(Path.Combine(folder, "collattice.db")))
-            .ShouldBe(((1, true, false), false), run.Errors);
+        var observed =
+        (
+            Refusal(run, "an access rule (ACL) on it can let other users or groups write to it"),
+            File.Exists(Path.Combine(folder, "collattice.db"))
+        );
+
+        observed.ShouldBe(((1, true, false), false), run.Errors);
     }
 
     // Root owns '/': a default folder that leads to another user's folder is that user's to fill.

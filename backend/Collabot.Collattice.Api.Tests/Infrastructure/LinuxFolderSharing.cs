@@ -63,7 +63,7 @@ public static partial class LinuxFolderSharing
 
         var bytes = rule.ToArray();
 
-        if (setxattr(folder, "system.posix_acl_access", bytes, (nuint)bytes.Length, 0) != 0)
+        if (SetExtendedAttribute(folder, "system.posix_acl_access", bytes, (nuint)bytes.Length, 0) != 0)
         {
             throw new InvalidOperationException($"setxattr on '{folder}' failed with error {Marshal.GetLastPInvokeError().ToString(CultureInfo.InvariantCulture)}.");
         }
@@ -71,7 +71,7 @@ public static partial class LinuxFolderSharing
 
     public static void GiveToGroup(string folder, uint groupId)
     {
-        if (chown(folder, _noId, groupId) != 0)
+        if (ChangeOwner(folder, _noId, groupId) != 0)
         {
             throw new InvalidOperationException($"chown of '{folder}' to group {groupId.ToString(CultureInfo.InvariantCulture)} failed with error {Marshal.GetLastPInvokeError().ToString(CultureInfo.InvariantCulture)}.");
         }
@@ -127,11 +127,11 @@ public static partial class LinuxFolderSharing
         return process.ExitCode == 0 ? output.Trim() : null;
     }
 
-    [LibraryImport("libc", SetLastError = true, StringMarshalling = StringMarshalling.Utf8)]
-    private static partial int setxattr(string path, string name, byte[] value, nuint size, int flags);
+    [LibraryImport("libc", EntryPoint = "setxattr", SetLastError = true, StringMarshalling = StringMarshalling.Utf8)]
+    private static partial int SetExtendedAttribute(string path, string name, byte[] value, nuint size, int flags);
 
-    [LibraryImport("libc", SetLastError = true, StringMarshalling = StringMarshalling.Utf8)]
-    private static partial int chown(string path, uint ownerId, uint groupId);
+    [LibraryImport("libc", EntryPoint = "chown", SetLastError = true, StringMarshalling = StringMarshalling.Utf8)]
+    private static partial int ChangeOwner(string path, uint ownerId, uint groupId);
 
     private sealed record Account(string User, bool GroupIsPrivate, (uint Id, string Name)? GroupNotItsOwn);
 }
