@@ -116,11 +116,19 @@ Environment variables win over `appsettings.json`.
 - The app stops at startup, naming the path and the setting to change, when it can't
   use the location: a relative path, a folder it can't create or can't write to, a
   database file it can't write, a user with no absolute home folder, or a default
-  folder that other users can write to (or a link to one).
+  folder that other users can write to (or a link to one). Other users can write to a
+  folder every user can write to; on Linux, also to one that belongs to another user,
+  one with an access rule (ACL) that lets others write, or one its group can write when
+  that group isn't the user's own (the group Ubuntu gives each user under their own
+  name is fine); on macOS, also to one its group can write to.
+- A refused start prints its message and exits with code 1, with no stack trace.
 - The container image (`backend/Collabot.Collattice.Api/Dockerfile`) sets the path to
   `/data/collattice.db` and declares `/data` a volume, so the board is not kept inside
   the container's own layer.
 - Schema migrations run automatically on startup
+- The app refuses to start on a database that a newer version of Collattice has already
+  upgraded (one that records a migration this version doesn't know), and leaves it
+  untouched: run the newer version, or restore the backup taken before that upgrade
 - The database file is backed up automatically before applying new migrations
 - Backups are saved next to the database as `<db-filename>.bak-{timestamp}` (e.g.
   `collattice.db.bak-{timestamp}` for a fresh install)
