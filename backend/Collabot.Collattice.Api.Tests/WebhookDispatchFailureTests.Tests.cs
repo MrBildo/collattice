@@ -58,9 +58,7 @@ public class WebhookDispatchFailureTests
         // Assert — the drop is an error naming the event, and the queue did not stall behind it.
         CardName(request).ShouldBe("Delivered after the drop");
 
-        var drops = factory.Log
-            .Where(e => e.Level == LogLevel.Error && e.Message.Contains("was dropped", StringComparison.Ordinal))
-                .ToList();
+        var drops = factory.Log.Where(e => e.Level == LogLevel.Error && e.Message.Contains("was dropped", StringComparison.Ordinal)).ToList();
 
         drops.Count.ShouldBe(1);
         drops[0].Message.ShouldContain(WebhookEventTypes.CardCreated);
@@ -70,7 +68,7 @@ public class WebhookDispatchFailureTests
     }
 
     [Fact]
-    public async Task AttemptRowFailsToSave_TheOtherSubscriptionStillReceivesTheEvent()
+    public async Task AttemptRowFailsToSave_TwoSubscriptions_TheOtherStillReceivesTheEvent()
     {
         // Arrange — two subscriptions, and the first delivery-attempt row of the event failing to save.
         await using var factory = await NewFactoryAsync();
@@ -95,9 +93,7 @@ public class WebhookDispatchFailureTests
         recorded[0].SubscriptionId.ShouldNotBeNull();
         new[] { idA, idB }.ShouldContain(recorded[0].SubscriptionId!.Value);
 
-        var unrecorded = factory.Log
-            .Where(e => e.Level == LogLevel.Error && e.Message.Contains("failed before its outcome was recorded", StringComparison.Ordinal))
-                .ToList();
+        var unrecorded = factory.Log.Where(e => e.Level == LogLevel.Error && e.Message.Contains("failed before its outcome was recorded", StringComparison.Ordinal)).ToList();
 
         unrecorded.Count.ShouldBe(1);
 

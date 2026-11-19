@@ -57,10 +57,10 @@ internal static class WebhookEventFactory
         // Projected rather than loaded: the event carries the payload's length, never its bytes.
         var attachments = await db.Attachments
             .Where(a => a.CardId == card.Id)
-                .OrderBy(a => a.AddedAtUtc)
-                    .ThenBy(a => a.Id)
-                        .Select(a => new WebhookAttachmentData(a.Id, a.CardId, a.FileName, a.ContentType, a.Payload.Length, a.AddedByUserId, a.AddedAtUtc))
-                            .ToListAsync(ct);
+            .OrderBy(a => a.AddedAtUtc)
+            .ThenBy(a => a.Id)
+                .Select(a => new WebhookAttachmentData(a.Id, a.CardId, a.FileName, a.ContentType, a.Payload.Length, a.AddedByUserId, a.AddedAtUtc))
+                    .ToListAsync(ct);
 
         foreach (var attachment in attachments)
         {
@@ -69,9 +69,9 @@ internal static class WebhookEventFactory
 
         var comments = await db.Comments
             .Where(c => c.CardId == card.Id)
-                .OrderBy(c => c.CreatedAtUtc)
-                    .ThenBy(c => c.Id)
-                        .ToListAsync(ct);
+            .OrderBy(c => c.CreatedAtUtc)
+            .ThenBy(c => c.Id)
+                .ToListAsync(ct);
 
         foreach (var comment in comments)
         {

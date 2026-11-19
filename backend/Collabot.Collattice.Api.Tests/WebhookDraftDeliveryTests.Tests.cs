@@ -50,7 +50,7 @@ public class WebhookDraftDeliveryTests
     }
 
     [Fact]
-    public async Task DraftCancelled_SubscriberHearsNothingAboutIt()
+    public async Task DraftCancelled_AfterAFileAndAComment_SubscriberHearsNothing()
     {
         // Arrange — a draft given a file and a comment, then cancelled.
         await using var factory = await NewFactoryAsync();
