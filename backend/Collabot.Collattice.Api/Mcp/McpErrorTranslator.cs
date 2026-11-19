@@ -60,6 +60,10 @@ internal static class McpErrorTranslator
     ) =>
         async (context, cancellationToken) =>
         {
+            // EF Core logs the failed save at Error before the catch below answers it; see
+            // ConcurrentDeleteConflict for how an answered one is logged instead.
+            using var answers = ExpectedSaveFailure.ExpectWhenAnswered(ConcurrentDeleteConflict.Matches);
+
             try
             {
                 return await next(context, cancellationToken).ConfigureAwait(false);
@@ -70,6 +74,15 @@ internal static class McpErrorTranslator
             }
             catch (Exception ex) when (ConcurrentDeleteConflict.Matches(ex))
             {
+                answers.Answered(ex);
+
+                // The SDK gives every tool call the request's services; the fallback covers a
+                // server built without them.
+                if ((context.Services ?? context.Server.Services) is { } services)
+                {
+                    ConcurrentDeleteConflict.CreateLogger(services).LogWarning(ex, "A call to {Tool} lost to a concurrent delete; answered with a conflict", context.Params?.Name);
+                }
+
                 // A write that lost to a concurrent delete answers the way a tool answers anything
                 // it refuses, with an "Error: " string: the MCP form of the 409 REST gives. The
                 // message is fixed and names no table or constraint, so nothing internal leaks.

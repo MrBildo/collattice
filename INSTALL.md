@@ -81,6 +81,7 @@ name it with the standard `ASPNETCORE_CONTENTROOT` environment variable or the
 | `Cors:AllowedOrigins` | `[]` (empty) | Allowed cross-origin Portal hosts. Empty disallows all cross-origin requests; required for hosted-separately deployments. |
 | `ConnectionStrings:Board` | `~/.collattice/collattice.db` (macOS/Linux), `%LOCALAPPDATA%\Collattice\collattice.db` (Windows) | SQLite database path. Must be an **absolute** path; the app never derives one from the working or binary directory. The installer writes one into `appsettings.json`. With none set, the per-user default is used and named in a startup warning. See [Database](#database). |
 | `Admin:AuthKey` | *(auto-generated)* | The admin auth key to create on first run. Read only while the database has no users; to change the key later, see [Recovering the Admin Key](#recovering-the-admin-key). |
+| `Logging:LogLevel:Microsoft.EntityFrameworkCore.Database.Command` | `Warning` | Leaves the SQL statement behind every request out of the log; a statement that fails is still logged, as an error. Set it to `Information` to log every statement with its SQL text. Change the value rather than deleting the key: an upgrade adds back a shipped key that is missing. As an environment variable: `Logging__LogLevel__Microsoft.EntityFrameworkCore.Database.Command`. |
 
 ### Environment Variables
 
