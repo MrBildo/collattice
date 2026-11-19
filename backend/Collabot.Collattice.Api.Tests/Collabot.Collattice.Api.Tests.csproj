@@ -3,6 +3,9 @@
   <PropertyGroup>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
+    <!-- Required by the [LibraryImport] source generator, whose generated code is unsafe, for the C
+         library calls in Infrastructure/LinuxFolderSharing.cs. No hand-written code here is unsafe. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>

@@ -172,8 +172,9 @@ internal static class DatabaseLocation
     }
 
     // The default folder must not be one other users can write to, directly or through a link: with a
-    // home folder such as /tmp, another local user could create it first and plant a database with an
-    // administrator key of their own. Read-only, so --reset-admin-key can use it too. A configured
+    // home folder such as /tmp, or a folder shared through its group or an access rule, another local
+    // user could create it first and plant a database with an administrator key of their own. Who can
+    // write is decided by UnixFolderWriters. Read-only, so --reset-admin-key can use it too. A configured
     // location passes, since it is the operator's choice, and so does a default folder that does not
     // exist yet. Windows needs no check: the folder is under the user's own profile.
     public static bool TryCheckDefaultFolder(ResolvedDatabase database, [NotNullWhen(false)] out string? error)
@@ -191,7 +192,7 @@ internal static class DatabaseLocation
 
         var target = Directory.ResolveLinkTarget(folder, returnFinalTarget: true)?.FullName ?? folder;
 
-        if ((File.GetUnixFileMode(target) & UnixFileMode.OtherWrite) == UnixFileMode.None)
+        if (UnixFolderWriters.Describe(target) is not { } otherWriters)
         {
             return true;
         }
@@ -200,8 +201,8 @@ internal static class DatabaseLocation
             ? $"The default database folder '{folder}' can be written by other users"
             : $"The default database folder '{folder}' is a link to '{target}', which other users can write to";
 
-        error = $"{where}, so another user could have put a database there. Collattice will not use it. "
-            + "Remove other users' write permission from that folder, or configure a database path.";
+        error = $"{where} ({otherWriters}), so another user could have put a database there. Collattice will not use it. "
+            + "Make that folder writable by its owner only, and owned by the user Collattice runs as, or configure a database path.";
         return false;
     }
 
