@@ -129,6 +129,51 @@ public class WebhookDeliveryLogSweepServiceTests
         }
     }
 
+    [Theory]
+    [InlineData("00:00:00")]
+    [InlineData("-00:00:01")]
+    public async Task SweepIntervalZeroOrBelow_HostedSweepIsOff_ApiKeepsRunning(string interval)
+    {
+        await using var factory = CollatticeApiFactory.WithConfig(new Dictionary<string, string?>
+        {
+            ["Webhooks:DeliveryLogSweepInterval"] = interval,
+        });
+        await factory.InitializeAsync();
+
+        var execution = HostedSweep(factory).ExecuteTask.ShouldNotBeNull();
+
+        // Off means the service finished cleanly; a timer refusing the interval faults it instead,
+        // and the host stops.
+        await Task.WhenAny(execution, Task.Delay(TimeSpan.FromSeconds(30)));
+
+        execution.Status.ShouldBe(TaskStatus.RanToCompletion);
+        factory.Services.GetRequiredService<IHostApplicationLifetime>().ApplicationStopping.IsCancellationRequested.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task SweepIntervalPastTimerLimit_HostedSweepKeepsRunning_ApiKeepsRunning()
+    {
+        await using var factory = CollatticeApiFactory.WithConfig(new Dictionary<string, string?>
+        {
+            ["Webhooks:DeliveryLogSweepInterval"] = "60.00:00:00",
+        });
+        await factory.InitializeAsync();
+
+        var execution = HostedSweep(factory).ExecuteTask.ShouldNotBeNull();
+
+        // A timer refusing the interval faults the service as soon as it starts; one at the limit
+        // waits for its first tick, so the service is still running.
+        await Task.WhenAny(execution, Task.Delay(TimeSpan.FromSeconds(2)));
+
+        execution.IsCompleted.ShouldBeFalse();
+        factory.Services.GetRequiredService<IHostApplicationLifetime>().ApplicationStopping.IsCancellationRequested.ShouldBeFalse();
+    }
+
+    private static WebhookDeliveryLogSweepService HostedSweep(CollatticeApiFactory factory) =>
+        factory.Services.GetServices<IHostedService>()
+            .OfType<WebhookDeliveryLogSweepService>()
+                .Single();
+
     private static async Task<bool> AttemptExistsAsync(PersistentDatabaseFactory host, Guid attemptId)
     {
         await using var scope = host.Services.CreateAsyncScope();
