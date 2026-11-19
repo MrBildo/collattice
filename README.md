@@ -211,7 +211,9 @@ The board lives in one SQLite file.
   the same machine doesn't open an installed board.
 - **If the location can't be used, the app stops at startup** with a message naming the
   path and the setting to change: a relative path, a folder it can't create or write to,
-  a user with no home folder, or a default folder that other users can write to.
+  a user with no home folder, or a default folder that other users can write to. It also
+  stops on a database a newer version of Collattice has already upgraded, and leaves that
+  database untouched. A refused start exits with code 1 and no stack trace.
 
 > **Fresh installs use Collattice-named locations; existing installs keep their
 > earlier names.** A fresh install places the install directory and database under the

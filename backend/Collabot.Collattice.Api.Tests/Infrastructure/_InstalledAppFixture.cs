@@ -153,6 +153,7 @@ public class InstalledAppFixture : IDisposable
         var output = new StringBuilder();
 
         string? contentRoot = null;
+        int? exitCode = null;
 
         try
         {
@@ -172,6 +173,18 @@ public class InstalledAppFixture : IDisposable
         }
         finally
         {
+            if (contentRoot is null)
+            {
+                // No content root: the program stopped by itself, or the read timed out. Only the first
+                // has an exit code of its own; a program still running after the timeout is killed below.
+                await process.WaitForExitAsync(cts.Token).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+
+                if (process.HasExited)
+                {
+                    exitCode = process.ExitCode;
+                }
+            }
+
             if (!process.HasExited)
             {
                 process.Kill(entireProcessTree: true);
@@ -182,7 +195,7 @@ public class InstalledAppFixture : IDisposable
 
         SqliteConnection.ClearAllPools();
 
-        return new StartedApp(contentRoot, output.ToString(), await errors);
+        return new StartedApp(contentRoot, exitCode, output.ToString(), await errors);
     }
 
     // Runs a command to completion: --reset-admin-key, or a start that is expected to stop by itself.
@@ -260,6 +273,7 @@ public sealed class UnconfiguredAppFixture : InstalledAppFixture
     }
 }
 
-public sealed record StartedApp(string? ContentRoot, string Output, string Errors);
+// ExitCode is the program's own when it stopped by itself, and null when it started and was stopped.
+public sealed record StartedApp(string? ContentRoot, int? ExitCode, string Output, string Errors);
 
 public sealed record FinishedRun(int ExitCode, string Output, string Errors);
