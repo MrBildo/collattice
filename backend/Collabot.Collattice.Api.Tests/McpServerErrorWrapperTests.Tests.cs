@@ -45,7 +45,7 @@ public class McpServerErrorWrapperTests(CollatticeApiFactory factory) : IClassFi
                 "arguments"
             ));
 
-        // Act — context is unused by the filter; pass null to keep the test
+        // Act — context is unused on this path; pass null to keep the test
         // independent of RequestContext's non-trivial ctor.
         var ex = await Should.ThrowAsync<McpException>(
             async () => await pipeline(null!, CancellationToken.None).ConfigureAwait(false));
@@ -83,8 +83,11 @@ public class McpServerErrorWrapperTests(CollatticeApiFactory factory) : IClassFi
         var pipeline = McpErrorTranslator.WrapForCallTool(static (_, _) =>
             throw new DbUpdateException("save failed", new SqliteException("FOREIGN KEY constraint failed", 19, 787)));
 
+        // This path reads the context, for the services to log its warning with.
+        await using var call = new McpCallToolContext();
+
         // Act
-        var result = await pipeline(null!, CancellationToken.None);
+        var result = await pipeline(call.Context, CancellationToken.None);
 
         // Assert — the same shape a tool's own refusal takes, naming nothing internal
         var text = result.Content.OfType<TextContentBlock>().Single().Text;

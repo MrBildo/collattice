@@ -20,7 +20,14 @@ namespace Collabot.Collattice.Api.Hosting;
 // referenced row is missing. An update or delete that touches no row means the row was deleted, or
 // a concurrency token on it no longer holds the value it was loaded with (another request changed
 // it meanwhile), which is why the message says "changed or deleted". Every other exception still
-// reaches the caller as a 500, and the translated one is still logged.
+// reaches the caller as a 500.
+//
+// EF Core writes the failed save at Error, twice, before the answer here is reached. An answered
+// one is an expected outcome, so it is written at Debug instead and logged here once, at Warning,
+// with its exception: that Warning is also the only sign of a foreign-key failure caused by a bug
+// (a write naming a row that never existed), which the database cannot tell apart from a lost race.
+// A matching failure that is caught and answered some other way before it gets here keeps EF's
+// Error entries, as does every failure this does not match.
 internal static class ConcurrentDeleteConflict
 {
     public const string Message = "Something this change refers to was changed or deleted at the same moment. Reload and try again.";
@@ -36,20 +43,23 @@ internal static class ConcurrentDeleteConflict
         _ => false,
     };
 
+    public static ILogger CreateLogger(IServiceProvider services) =>
+        services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(ConcurrentDeleteConflict));
+
     public static IApplicationBuilder UseConcurrentDeleteConflict(this IApplicationBuilder app) =>
         app.Use(async (context, next) =>
         {
+            using var answers = ExpectedSaveFailure.ExpectWhenAnswered(Matches);
+
             try
             {
                 await next();
             }
             catch (Exception ex) when (Matches(ex) && !context.Response.HasStarted)
             {
-                var logger = context.RequestServices
-                    .GetRequiredService<ILoggerFactory>()
-                        .CreateLogger(typeof(ConcurrentDeleteConflict));
+                answers.Answered(ex);
 
-                logger.LogWarning(ex, "A write to {Path} lost to a concurrent delete; answered 409", context.Request.Path);
+                CreateLogger(context.RequestServices).LogWarning(ex, "A write to {Path} lost to a concurrent delete; answered 409", context.Request.Path);
 
                 context.Response.Clear();
                 context.Response.StatusCode = StatusCodes.Status409Conflict;

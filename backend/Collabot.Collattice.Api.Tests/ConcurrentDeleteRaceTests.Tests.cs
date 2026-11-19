@@ -45,14 +45,16 @@ public class ConcurrentDeleteRaceTests(ConcurrentDeleteRaceFactory factory) : IC
 
     // Runs a tool call through the server's real CallToolFilter, which is where an MCP write that
     // lost to a delete is answered; calling the tool method alone would surface the raw exception.
-    private static async Task<string> ThroughCallToolFilterAsync(Func<Task<string>> toolCall)
+    private async Task<string> ThroughCallToolFilterAsync(Func<Task<string>> toolCall)
     {
         var pipeline = McpErrorTranslator.WrapForCallTool(async (_, _) => new CallToolResult
         {
             Content = [new TextContentBlock { Text = await toolCall() }],
         });
 
-        var result = await pipeline(null!, CancellationToken.None);
+        await using var call = new McpCallToolContext(_factory.Services);
+
+        var result = await pipeline(call.Context, CancellationToken.None);
 
         return result.Content
             .OfType<TextContentBlock>()

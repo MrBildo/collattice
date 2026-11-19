@@ -1,10 +1,13 @@
 using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using ModelContextProtocol.Client;
+using ModelContextProtocol.Protocol;
 using Shouldly;
 
 namespace Collabot.Collattice.Api.Tests;
@@ -19,6 +22,8 @@ public class ExpectedSaveFailureLoggingTests
 {
     private const string _commandError = "Microsoft.EntityFrameworkCore.Database.Command.CommandError";
     private const string _saveChangesFailed = "Microsoft.EntityFrameworkCore.Update.SaveChangesFailed";
+
+    private static readonly string _conflictCategory = typeof(ConcurrentDeleteConflict).FullName!;
 
     [Fact]
     public async Task ACardCreateThatRecoversFromACollision_ThroughTheApp_LogsNoError()
@@ -213,6 +218,152 @@ public class ExpectedSaveFailureLoggingTests
         AssertLoggedAsAnError(factory);
     }
 
+    [Fact]
+    public async Task ACommentThatLosesToADelete_OverRest_IsAnsweredWithAWarningAndNoError()
+    {
+        // Arrange — the card is deleted after the handler checks it and before the comment saves.
+        // The route's draft check reads the card first, so the delete waits for the second read.
+        await using var factory = new LoggingFileDatabaseFactory();
+        var client = AdminClient(factory);
+        var cardId = await CreateCardAsync(factory, client);
+
+        factory.Race.Arm("Cards", DeleteCard(cardId), onRead: 2);
+        factory.Log.Clear();
+
+        // Act
+        var response = await client.PostAsJsonAsync($"/api/v1/cards/{cardId}/comments", new { contentMarkdown = "Late" });
+
+        // Assert
+        (factory.Race.FiredCount, response.StatusCode).ShouldBe((1, HttpStatusCode.Conflict));
+
+        AssertAnsweredAsAConflict(factory);
+    }
+
+    [Fact]
+    public async Task ACommentThatLosesToADelete_OverMcp_IsAnsweredWithAWarningAndNoError()
+    {
+        // Arrange — the same race through the real /mcp transport, so the tool runs inside the
+        // server's own filter and request flow
+        await using var factory = new LoggingFileDatabaseFactory();
+        var cardId = await CreateCardAsync(factory, AdminClient(factory));
+        await using var mcp = await ConnectMcpAsync(factory);
+
+        factory.Race.Arm("Cards", DeleteCard(cardId));
+        factory.Log.Clear();
+
+        // Act
+        var text = await CallToolAsync(mcp, "add_comment", new() { ["cardId"] = cardId, ["contentMarkdown"] = "Late" });
+
+        // Assert
+        (factory.Race.FiredCount, text).ShouldBe((1, $"Error: {ConcurrentDeleteConflict.Message}"));
+
+        AssertAnsweredAsAConflict(factory);
+    }
+
+    [Fact]
+    public async Task ABulkUpdateThatLosesToADelete_AnsweredByTheToolItself_IsStillLoggedAsAnError()
+    {
+        // Arrange — a batch tool catches its own failed save and reports it in its own words, so the
+        // conflict answer is never reached and nothing may quiet the failure on its behalf. The
+        // label is deleted after the tool checks it and before the assignment saves.
+        await using var factory = new LoggingFileDatabaseFactory();
+        var client = AdminClient(factory);
+        var cardId = await CreateCardAsync(factory, client);
+        var labelId = await CreateLabelAsync(factory, client);
+        await using var mcp = await ConnectMcpAsync(factory);
+
+        factory.Race.Arm("Labels", db => db.Labels.Where(l => l.Id == labelId).ExecuteDeleteAsync());
+        factory.Log.Clear();
+
+        // Act
+        var text = await CallToolAsync(mcp, "bulk_update_cards", new() { ["cardIds"] = cardId.ToString(), ["labelIds"] = labelId.ToString() });
+
+        // Assert — EF's two entries at Error, as when nothing is declared, and no conflict warning
+        factory.Race.FiredCount.ShouldBe(1);
+        text.ShouldStartWith("Error: Failed to persist bulk operation", Case.Sensitive);
+
+        AssertLoggedAsAnError(factory);
+        factory.Log.ShouldNotContain(entry => entry.Category == _conflictCategory);
+    }
+
+    // The answer was a conflict, logged once at Warning with the failure it answered, and EF's two
+    // entries for that failure went to Debug.
+    private static void AssertAnsweredAsAConflict(LoggingFileDatabaseFactory factory)
+    {
+        factory.Log.ShouldNotContain(entry => entry.Level >= LogLevel.Error);
+
+        EntryLevels(factory, _commandError).ShouldBe([LogLevel.Debug]);
+        EntryLevels(factory, _saveChangesFailed).ShouldBe([LogLevel.Debug]);
+
+        var warning = factory.Log.Where(entry => entry.Category == _conflictCategory).ShouldHaveSingleItem();
+
+        warning.Level.ShouldBe(LogLevel.Warning);
+        warning.Exception.ShouldBeAssignableTo<DbUpdateException>();
+    }
+
+    private static HttpClient AdminClient(LoggingFileDatabaseFactory factory)
+    {
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-User-Key", CollatticeApiFactory.TestAdminAuthKey);
+
+        return client;
+    }
+
+    private static async Task<Guid> CreateCardAsync(LoggingFileDatabaseFactory factory, HttpClient client)
+    {
+        var (boardId, laneId) = await FirstBoardAndLaneAsync(factory);
+
+        var response = await client.PostAsJsonAsync($"/api/v1/boards/{boardId}/cards", new { name = "Doomed", laneId });
+        response.EnsureSuccessStatusCode();
+
+        return (await response.Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("id")
+            .GetGuid();
+    }
+
+    private static async Task<Guid> CreateLabelAsync(LoggingFileDatabaseFactory factory, HttpClient client)
+    {
+        var (boardId, _) = await FirstBoardAndLaneAsync(factory);
+
+        var response = await client.PostAsJsonAsync($"/api/v1/boards/{boardId}/labels", new { name = "Doomed", color = "#111111" });
+        response.EnsureSuccessStatusCode();
+
+        return (await response.Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("id")
+            .GetGuid();
+    }
+
+    private static Func<BoardDbContext, Task> DeleteCard(Guid cardId) =>
+        db => db.Cards.Where(c => c.Id == cardId).ExecuteDeleteAsync();
+
+    private static Task<McpClient> ConnectMcpAsync(LoggingFileDatabaseFactory factory)
+    {
+        var httpClient = factory.CreateClient();
+
+        var transport = new HttpClientTransport
+        (
+            new HttpClientTransportOptions
+            {
+                Endpoint = new Uri(httpClient.BaseAddress!, "/mcp"),
+                TransportMode = HttpTransportMode.StreamableHttp,
+            },
+            httpClient,
+            loggerFactory: null,
+            ownsHttpClient: true
+        );
+
+        return McpClient.CreateAsync(transport);
+    }
+
+    private static async Task<string> CallToolAsync(McpClient mcp, string tool, Dictionary<string, object?> arguments)
+    {
+        arguments["authKey"] = CollatticeApiFactory.TestAdminAuthKey;
+
+        var result = await mcp.CallToolAsync(tool, arguments);
+
+        return result.Content.OfType<TextContentBlock>().Single().Text;
+    }
+
     // Two labels claiming one name on one board, which the board's unique index refuses.
     private static void StageDuplicateLabels(BoardDbContext db, Guid boardId)
     {
@@ -265,6 +416,8 @@ public class ExpectedSaveFailureLoggingTests
 
         public ConcurrentQueue<CapturedEntry> Log => _provider.Entries;
 
+        public ConcurrentDeleteRaceInterceptor Race => Services.GetRequiredService<ConcurrentDeleteRaceInterceptor>();
+
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             builder.UseSetting("ConnectionStrings:Board", $"Data Source={_databasePath}");
@@ -287,8 +440,12 @@ public class ExpectedSaveFailureLoggingTests
 
                 // Added to the app's own registration rather than replacing it, which is the point.
                 services.AddSingleton<CardNumberRaceInterceptor>();
-                services.ConfigureDbContext<BoardDbContext>((serviceProvider, options) =>
-                    options.AddInterceptors(serviceProvider.GetRequiredService<CardNumberRaceInterceptor>()));
+                services.AddSingleton<ConcurrentDeleteRaceInterceptor>();
+                services.ConfigureDbContext<BoardDbContext>((serviceProvider, options) => options.AddInterceptors
+                (
+                    serviceProvider.GetRequiredService<CardNumberRaceInterceptor>(),
+                    serviceProvider.GetRequiredService<ConcurrentDeleteRaceInterceptor>()
+                ));
             });
         }
 
