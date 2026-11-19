@@ -16,7 +16,7 @@ public class McpUpdateCommentToolTests(CollatticeApiFactory factory) : IClassFix
     private readonly CollatticeApiFactory _factory = factory;
     private readonly List<IServiceScope> _scopes = [];
     private static int _nextCardNumber = 9500;
-    private static int _nextCardPosition = 0;
+    private static int _nextCardPosition;
 
     public void Dispose()
     {

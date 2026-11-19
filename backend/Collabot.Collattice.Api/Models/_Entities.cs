@@ -163,13 +163,13 @@ public record CardSummary
     DateTimeOffset CreatedAtUtc,
     Guid LastUpdatedByUserId,
     DateTimeOffset LastUpdatedAtUtc,
-    List<CardLabelSummary> Labels,
+    IReadOnlyList<CardLabelSummary> Labels,
     int CommentCount,
     int AttachmentCount,
     bool IsArchived,
     LatestCommentSummary? LatestComment
 );
 
-public record SearchResult(Guid BoardId, string BoardName, string BoardSlug, List<CardSummary> Cards);
+public record SearchResult(Guid BoardId, string BoardName, string BoardSlug, IReadOnlyList<CardSummary> Cards);
 
-public record PagedResult<T>(List<T> Items, int TotalCount, int Offset, int? Limit);
+public record PagedResult<T>(IReadOnlyList<T> Items, int TotalCount, int Offset, int? Limit);

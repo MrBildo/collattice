@@ -16,6 +16,7 @@ public class WebhookSubscriptionEndpointTests
 {
     private const string _publicUrl = "https://8.8.8.8/hook";
     private const string _privateUrl = "http://127.0.0.1/hook";
+    private static readonly string[] _unknownEventTypes = ["not.a.real.event"];
 
     [Fact]
     public async Task Crud_RoundTrips_SecretFree()
@@ -117,7 +118,7 @@ public class WebhookSubscriptionEndpointTests
         var response = await client.PostAsJsonAsync("/api/v1/webhooks/subscriptions", new
         {
             url = _publicUrl,
-            events = new[] { "not.a.real.event" },
+            events = _unknownEventTypes,
         });
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
     }

@@ -21,7 +21,7 @@ public class McpOwnOrAdminWideningTests(CollatticeApiFactory factory) : IClassFi
     private readonly CollatticeApiFactory _factory = factory;
     private readonly List<IServiceScope> _scopes = [];
     private static int _nextCardNumber = 7000;
-    private static int _nextCardPosition = 0;
+    private static int _nextCardPosition;
 
     public void Dispose()
     {

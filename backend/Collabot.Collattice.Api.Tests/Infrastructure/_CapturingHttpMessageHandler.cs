@@ -41,6 +41,7 @@ public class CapturingHttpMessageHandler : HttpMessageHandler
         _requests.Clear();
         while (_signal.Reader.TryRead(out _))
         {
+            // Each TryRead consumes one pending signal; the loop ends when none is left.
         }
     }
 

@@ -10,8 +10,12 @@
              the exception: the default string sort is culture-sensitive and the database's
              is ordinal, so a test that sorts strings must pass StringComparer.Ordinal itself.
              Product code keeps MA0002 as an error.
+    MA0015 / S3928 — tests build ArgumentExceptions as inputs for the MCP error translator, not to
+             reject an argument of their own, so the test method has no parameter to name. Where one
+             names a parameter it is the MCP SDK's ("arguments"), copied from the exception the SDK
+             throws. Product code keeps both as errors.
   -->
   <PropertyGroup Condition="'$(IsTestProject)' == 'true'">
-    <NoWarn>$(NoWarn);CA1707;VSTHRD200;MA0002</NoWarn>
+    <NoWarn>$(NoWarn);CA1707;VSTHRD200;MA0002;MA0015;S3928</NoWarn>
   </PropertyGroup>
 </Project>

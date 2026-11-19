@@ -504,7 +504,7 @@ file sealed class BulkExecution(BoardDbContext db, BoardEventBroadcaster broadca
 
 // Error is omitted on "ok" results so the envelope matches the documented shape
 // ({ cardId, number, status } for ok; + error for non-ok).
-file record BulkCardResult
+file sealed record BulkCardResult
 (
     Guid CardId,
     long Number,
@@ -512,4 +512,4 @@ file record BulkCardResult
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Error
 );
 
-file record BulkResultEnvelope(int TotalRequested, int Succeeded, int Failed, List<BulkCardResult> Results);
+file sealed record BulkResultEnvelope(int TotalRequested, int Succeeded, int Failed, List<BulkCardResult> Results);
