@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
 using Shouldly;
@@ -22,6 +23,8 @@ public class ExpectedSaveFailureLoggingTests
 {
     private const string _commandError = "Microsoft.EntityFrameworkCore.Database.Command.CommandError";
     private const string _saveChangesFailed = "Microsoft.EntityFrameworkCore.Update.SaveChangesFailed";
+
+    private const string _commandCategory = "Microsoft.EntityFrameworkCore.Database.Command";
 
     private static readonly string _conflictCategory = typeof(ConcurrentDeleteConflict).FullName!;
 
@@ -286,6 +289,34 @@ public class ExpectedSaveFailureLoggingTests
         factory.Log.ShouldNotContain(entry => entry.Category == _conflictCategory);
     }
 
+    [Fact]
+    public async Task TheShippedLogLevels_LeaveOutEachSqlStatement_AndKeepAFailedOne()
+    {
+        // Arrange — the app as an operator runs it, with a log that keeps only what its shipped
+        // levels let through. Starting it on a new database has already applied the migrations.
+        await using var factory = new LoggingFileDatabaseFactory(asShipped: true);
+        var client = AdminClient(factory);
+
+        // Act — ordinary work, then a command that fails
+        await CreateCardAsync(factory, client);
+
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<BoardDbContext>();
+
+            await Should.ThrowAsync<SqliteException>(() => db.Database.ExecuteSqlRawAsync("SELECT * FROM NoSuchTable"));
+        }
+
+        // Assert — no executed statement was written, the failed one was, at Error; and the same
+        // log kept EF's Information entries for the migrations, so it was not simply too strict to
+        // keep Information at all
+        var commandEntries = factory.Log.Where(entry => entry.Category == _commandCategory).ToList();
+
+        commandEntries.Select(entry => (entry.EventName, entry.Level)).ShouldBe([(_commandError, LogLevel.Error)]);
+
+        factory.Log.ShouldContain(entry => entry.Category == "Microsoft.EntityFrameworkCore.Migrations" && entry.Level == LogLevel.Information);
+    }
+
     // The answer was a conflict, logged once at Warning with the failure it answered, and EF's two
     // entries for that failure went to Debug.
     private static void AssertAnsweredAsAConflict(LoggingFileDatabaseFactory factory)
@@ -408,11 +439,15 @@ public class ExpectedSaveFailureLoggingTests
         return (lane.BoardId, lane.Id);
     }
 
+    // By default the log keeps every entry, Debug included, so a test sees where an entry was sent.
+    // As shipped, the host runs in Production on the app's own appsettings.json, and the log keeps
+    // only what the configured levels let through, as an operator's log would.
     // sealed: a leaf test host for this class only; no subtype hierarchy is intended.
-    private sealed class LoggingFileDatabaseFactory : WebApplicationFactory<Program>
+    private sealed class LoggingFileDatabaseFactory(bool asShipped = false) : WebApplicationFactory<Program>
     {
         private readonly string _databasePath = Path.Combine(Path.GetTempPath(), $"collattice-logging-{Guid.NewGuid():N}.db");
         private readonly CapturingLoggerProvider _provider = new();
+        private readonly bool _asShipped = asShipped;
 
         public ConcurrentQueue<CapturedEntry> Log => _provider.Entries;
 
@@ -423,12 +458,21 @@ public class ExpectedSaveFailureLoggingTests
             builder.UseSetting("ConnectionStrings:Board", $"Data Source={_databasePath}");
             builder.UseSetting("Admin:AuthKey", CollatticeApiFactory.TestAdminAuthKey);
 
+            if (_asShipped)
+            {
+                builder.UseEnvironment(Environments.Production);
+            }
+
             builder.ConfigureLogging(logging =>
             {
                 TestHostLogging.RemoveEventLog(logging);
 
                 logging.AddProvider(_provider);
-                logging.AddFilter<CapturingLoggerProvider>(null, LogLevel.Trace);
+
+                if (!_asShipped)
+                {
+                    logging.AddFilter<CapturingLoggerProvider>(null, LogLevel.Trace);
+                }
             });
 
             builder.ConfigureServices(services =>
