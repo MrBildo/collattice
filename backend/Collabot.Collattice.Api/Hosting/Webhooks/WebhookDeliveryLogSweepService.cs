@@ -21,16 +21,14 @@ internal sealed class WebhookDeliveryLogSweepService
     ILogger<WebhookDeliveryLogSweepService> logger
 ) : BackgroundService
 {
-    // Daily is plenty — the retention window is measured in days. Not operator-tunable: an internal
-    // liveness cadence, not a delivery-semantics setting (mirrors the dispatcher's poll interval).
-    // The retention window itself is Webhooks:DeliveryLogRetentionDays.
-    private static readonly TimeSpan _sweepInterval = TimeSpan.FromHours(24);
-
     private readonly IServiceProvider _services = services
         ?? throw new ArgumentNullException(nameof(services));
     private readonly WebhookSettings _settings = settings.Value;
     private readonly ILogger<WebhookDeliveryLogSweepService> _logger = logger
         ?? throw new ArgumentNullException(nameof(logger));
+
+    private static readonly TimeSpan _shortestInterval = TimeSpan.FromMilliseconds(1);
+    private static readonly TimeSpan _longestInterval = TimeSpan.FromMilliseconds(uint.MaxValue - 1);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -41,18 +39,43 @@ internal sealed class WebhookDeliveryLogSweepService
             return;
         }
 
+        // PeriodicTimer refuses a period under a millisecond or past about 49.7 days, and a throw here
+        // stops the whole API. An interval of 0 or below reads as "don't sweep", the way retention 0
+        // does, so anything under a millisecond leaves the sweep off; an interval past the timer's
+        // limit still means "sweep, rarely", so it sweeps at that limit.
+        var interval = _settings.DeliveryLogSweepInterval;
+
+        if (interval < _shortestInterval)
+        {
+            _logger.LogInformation("Webhook delivery-log sweep disabled (Webhooks:DeliveryLogSweepInterval {Interval} is shorter than a millisecond).", interval);
+            return;
+        }
+
+        if (interval > _longestInterval)
+        {
+            _logger.LogWarning
+            (
+                "Webhooks:DeliveryLogSweepInterval {Interval} is longer than the longest interval the sweep's timer supports; sweeping every {Longest} instead.",
+                interval,
+                _longestInterval
+            );
+
+            interval = _longestInterval;
+        }
+
         _logger.LogInformation
         (
             "Webhook delivery-log sweep started — retaining {Days} day(s), interval {Interval}.",
             _settings.DeliveryLogRetentionDays,
-            _sweepInterval
+            interval
         );
 
         // No startup sweep: retention is not time-urgent, and a startup DB sweep would add a needless
         // collision surface with the WAF's shared in-memory connection in tests (a BackgroundService
         // should do no startup DB work the test thread can race). The first sweep is one interval
-        // after boot, the same shape as the temp-card sweep.
-        using var timer = new PeriodicTimer(_sweepInterval);
+        // after boot, the same shape as the temp-card sweep, so the interval is what decides whether
+        // a frequently restarted API sweeps at all (Webhooks:DeliveryLogSweepInterval).
+        using var timer = new PeriodicTimer(interval);
         while (await timer.WaitForNextTickAsync(stoppingToken))
         {
             await RunSweepSafelyAsync(stoppingToken);
