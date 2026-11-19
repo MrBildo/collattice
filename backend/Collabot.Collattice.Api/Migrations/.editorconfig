@@ -1,3 +1,8 @@
 # EF Core generated migration files — suppress all analyzers
 [*.cs]
 generated_code = true
+
+# SonarAnalyzer reports S4581 here though the folder is marked generated: two early migrations
+# spell a column default as the empty GUID parsed from a string. Migrations are history and are
+# never edited.
+dotnet_diagnostic.S4581.severity = none

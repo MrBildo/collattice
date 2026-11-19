@@ -560,5 +560,4 @@ public class WebhookDeliveryTests
             .OrderBy(x => x.Attempt)
                 .ToListAsync();
     }
-
 }

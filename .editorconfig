@@ -150,7 +150,7 @@ csharp_using_directive_placement = outside_namespace:error
 
 # New line preferences
 csharp_style_allow_blank_line_after_colon_in_constructor_initializer_experimental = true:silent
-csharp_style_allow_blank_lines_between_consecutive_braces_experimental = false:warning
+csharp_style_allow_blank_lines_between_consecutive_braces_experimental = false:error
 csharp_style_allow_embedded_statements_on_same_line_experimental = true
 
 # .NET 9 / C# 13
@@ -269,6 +269,14 @@ dotnet_diagnostic.CS8767.severity = error
 # Async conventions
 dotnet_diagnostic.VSTHRD200.severity = error
 dotnet_diagnostic.VSTHRD100.severity = none
+dotnet_diagnostic.VSTHRD013.severity = error
+dotnet_diagnostic.VSTHRD103.severity = error
+dotnet_diagnostic.VSTHRD116.severity = error
+dotnet_diagnostic.VSTHRD117.severity = error
+# VSTHRD202 asks to drop async/await from a method that only awaits one call. Doing so moves an
+# exception thrown before that call out of the returned task and removes the method from the
+# exception's stack trace; the codebase keeps async/await, so the rule is off.
+dotnet_diagnostic.VSTHRD202.severity = none
 
 # IDE rules
 dotnet_diagnostic.IDE0019.severity = error
@@ -287,10 +295,15 @@ dotnet_diagnostic.CA1000.severity = none
 dotnet_diagnostic.CA1711.severity = none
 dotnet_diagnostic.CA1716.severity = none
 dotnet_diagnostic.CA1510.severity = error
+dotnet_diagnostic.CA1305.severity = error
+dotnet_diagnostic.CA1725.severity = error
+dotnet_diagnostic.CA1805.severity = error
 dotnet_diagnostic.CA1708.severity = none
 dotnet_diagnostic.CA1822.severity = none
 dotnet_diagnostic.CA1829.severity = error
 dotnet_diagnostic.CA1841.severity = error
+dotnet_diagnostic.CA1859.severity = error
+dotnet_diagnostic.CA1861.severity = error
 dotnet_diagnostic.CA1848.severity = none
 dotnet_diagnostic.CA2017.severity = error
 
@@ -323,11 +336,21 @@ dotnet_diagnostic.S5122.severity = error
 dotnet_diagnostic.S5332.severity = error
 dotnet_diagnostic.S6444.severity = error
 dotnet_diagnostic.S8969.severity = error
+dotnet_diagnostic.S108.severity = error
+dotnet_diagnostic.S125.severity = error
+dotnet_diagnostic.S927.severity = error
+dotnet_diagnostic.S3260.severity = error
+dotnet_diagnostic.S3928.severity = error
+dotnet_diagnostic.S4581.severity = error
+dotnet_diagnostic.S6580.severity = error
 
 # Meziantou
 dotnet_diagnostic.MA0001.severity = error
 dotnet_diagnostic.MA0002.severity = error
 dotnet_diagnostic.MA0009.severity = error
+dotnet_diagnostic.MA0011.severity = error
+dotnet_diagnostic.MA0015.severity = error
+dotnet_diagnostic.MA0016.severity = error
 dotnet_diagnostic.MA0004.severity = none
 dotnet_diagnostic.MA0006.severity = none
 dotnet_diagnostic.MA0003.severity = none

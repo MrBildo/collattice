@@ -17,7 +17,7 @@ public class McpSearchToolTests(CollatticeApiFactory factory) : IClassFixture<Co
 {
     private readonly CollatticeApiFactory _factory = factory;
     private readonly List<IServiceScope> _scopes = [];
-    private static int _nextCardPosition = 0;
+    private static int _nextCardPosition;
 
     public void Dispose()
     {

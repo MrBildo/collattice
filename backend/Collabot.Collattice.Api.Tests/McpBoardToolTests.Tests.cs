@@ -11,7 +11,7 @@ public class McpBoardToolTests(CollatticeApiFactory factory) : IClassFixture<Col
     private readonly CollatticeApiFactory _factory = factory;
     private readonly HttpClient _client = factory.CreateClient();
 
-    private BoardTools CreateBoardTools(IServiceScope scope)
+    private BoardTools CreateBoardTools(AsyncServiceScope scope)
     {
         var db = scope.ServiceProvider.GetRequiredService<BoardDbContext>();
         var authService = scope.ServiceProvider.GetRequiredService<McpAuthService>();

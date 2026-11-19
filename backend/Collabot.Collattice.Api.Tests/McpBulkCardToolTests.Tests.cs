@@ -255,7 +255,7 @@ public class McpBulkCardToolTests(CollatticeApiFactory factory) : IClassFixture<
         var board = await CreateBoardAsync(db);
         var card = await AddCardAsync(db, board);
 
-        var result = await bulk.BulkArchiveCardsAsync(_factory.AdminAuthKey, cardIds: card.Id.ToString(), cardNumbers: card.Number.ToString());
+        var result = await bulk.BulkArchiveCardsAsync(_factory.AdminAuthKey, cardIds: card.Id.ToString(), cardNumbers: card.Number.ToString(CultureInfo.InvariantCulture));
 
         result.ShouldBe("Error: provide cardIds OR cardNumbers, not both.");
     }
@@ -267,7 +267,7 @@ public class McpBulkCardToolTests(CollatticeApiFactory factory) : IClassFixture<
         var board = await CreateBoardAsync(db);
         var card = await AddCardAsync(db, board);
 
-        var result = await bulk.BulkArchiveCardsAsync(_factory.AdminAuthKey, cardNumbers: card.Number.ToString());
+        var result = await bulk.BulkArchiveCardsAsync(_factory.AdminAuthKey, cardNumbers: card.Number.ToString(CultureInfo.InvariantCulture));
 
         result.ShouldStartWith("Error:");
         result.ShouldContain("boardId or boardSlug");

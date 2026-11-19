@@ -2271,7 +2271,7 @@ public class CardEndpointTests(CollatticeApiFactory factory) : IClassFixture<Col
         comments[1].GetProperty("contentMarkdown").GetString().ShouldBe("Beta");
         comments[2].GetProperty("contentMarkdown").GetString().ShouldBe("Gamma");
 
-        var timestamps = comments.Select(c => DateTimeOffset.Parse(c.GetProperty("lastUpdatedAtUtc").GetString()!)).ToList();
+        var timestamps = comments.Select(c => DateTimeOffset.Parse(c.GetProperty("lastUpdatedAtUtc").GetString()!, CultureInfo.InvariantCulture)).ToList();
         for (var i = 1; i < timestamps.Count; i++)
         {
             timestamps[i].ShouldBeGreaterThanOrEqualTo(timestamps[i - 1]);

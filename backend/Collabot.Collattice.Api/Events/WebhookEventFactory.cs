@@ -931,7 +931,7 @@ internal static class WebhookEventFactory
     // An archived card's lane is the board's hidden internal archive lane; its GUID is an internal
     // implementation detail, so card.archived blanks the embedded summary's lane id (it drops off the
     // wire — see CardSummary.LaneId). laneName + isArchived carry the state a consumer needs.
-    private static CardSummary ForArchived(CardSummary summary) => summary with { LaneId = default };
+    private static CardSummary ForArchived(CardSummary summary) => summary with { LaneId = Guid.Empty };
 
     // Delete is allowed on an archived card, so a deleted card MAY be sitting in the hidden archive
     // lane — blank its internal lane GUID exactly as card.archived does, but only in that case. A

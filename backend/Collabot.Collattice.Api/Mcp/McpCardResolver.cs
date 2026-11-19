@@ -101,7 +101,7 @@ internal static class McpCardResolver
         List<long> requestedNumbers = [];
         foreach (var part in parts)
         {
-            if (!long.TryParse(part, out var parsed) || parsed <= 0)
+            if (!long.TryParse(part, CultureInfo.InvariantCulture, out var parsed) || parsed <= 0)
             {
                 return (null, $"Error: Invalid card number: '{part}'. Expected a positive integer.");
             }

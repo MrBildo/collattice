@@ -22,6 +22,6 @@ public class BoardDbContext(DbContextOptions<BoardDbContext> options) : DbContex
     // adding a new entity's configuration there needs no change here.
     // Max-length constraints are configured in the typed config classes — not via [MaxLength]
     // attributes on the entity classes — single source of truth for all EF model configuration.
-    protected override void OnModelCreating(ModelBuilder builder) =>
-        builder.ApplyConfigurationsFromAssembly(typeof(BoardDbContext).Assembly);
+    protected override void OnModelCreating(ModelBuilder modelBuilder) =>
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(BoardDbContext).Assembly);
 }
