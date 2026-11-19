@@ -79,10 +79,24 @@ jq() { command jq "$@" | tr -d '\r'; }
 
 NUGET_ROOT="${NUGET_PACKAGES:-${HOME}/.nuget/packages}"
 
-# Components whose own manifest does not state a copyright holder, resolved from
-# a sibling artifact in the same distribution rather than from memory. Each entry
-# records where the value was read from, so the resolution is auditable and a
-# future reviewer can re-check it against the same source.
+# A copyright line that is a license's own fill-in-the-blanks template rather
+# than a notice: the Apache License appendix's "Copyright [yyyy] [name of
+# copyright owner]", the MIT template's "Copyright (c) <year> <copyright
+# holders>", and their variants. A package that ships a license text verbatim
+# carries the template inside it, and when that is the file's only Copyright
+# line, reading it as the holder publishes a line that tells a recipient
+# nothing true. Such a line is skipped wherever a copyright is read, so the
+# component falls through to the override table below and fails the run when
+# it has no entry there. Matched against the lowercased line. A bracketed
+# placeholder word is the signature: a real holder in angle brackets is an
+# address (<tituswormer@gmail.com>, <https://openjsf.org/>), never one of these.
+readonly PLACEHOLDER_COPYRIGHT_RE='[[{<][[:space:]]*(yyyy|years?|fullname|name of [^]}>]*|copyright (owner|holders?)|owner|holders?|author)[[:space:]]*[]}>]'
+
+# Components whose own distribution states no usable copyright holder where the
+# lookup reads it, resolved from a sibling artifact in the same distribution
+# rather than from memory. Each entry records where the value was read from, so
+# the resolution is auditable and a future reviewer can re-check it against the
+# same source.
 #
 #   @radix-ui/*  -- the seven internal helper packages ship no LICENSE file of
 #                   their own. Read from the sibling packages in the same
@@ -95,12 +109,19 @@ NUGET_ROOT="${NUGET_PACKAGES:-${HOME}/.nuget/packages}"
 #                -- its license file is named LICENSE-MIT.txt, which the
 #                   LICENSE / LICENSE.* lookup below does not match. Read from
 #                   the first line of that file.
+#   dompurify    -- its LICENSE file is the Apache License 2.0 text, whose only
+#                   Copyright line is the appendix template skipped above. Read
+#                   from the "@license" banner at the head of every build in the
+#                   package's dist/ folder, which reads "(c) Cure53 and other
+#                   contributors"; "(c)" is written out as "Copyright (c)" to
+#                   match the other entries.
 override_copyright() {
   case "$1" in
     @radix-ui/number|@radix-ui/react-compose-refs|@radix-ui/react-context|\
 @radix-ui/react-direction|@radix-ui/react-use-layout-effect|\
 @radix-ui/react-use-previous|@radix-ui/react-use-size)
       echo "Copyright (c) 2022 WorkOS" ;;
+    dompurify) echo "Copyright (c) Cure53 and other contributors" ;;
     fastdom) echo "Copyright (c) 2016 Wilson Page <wilsonpage@me.com>" ;;
     unicode-emoji-modifier-base) echo "Copyright Mathias Bynens <https://mathiasbynens.be/>" ;;
     *) echo "" ;;
@@ -119,10 +140,13 @@ override_license() {
   esac
 }
 
-# Extract the first copyright line from a license file. Leading comment or list
-# punctuation is tolerated -- axios, for one, writes its line as "# Copyright ...".
+# Extract the first copyright line from a license file, passing over any line
+# that is a license template's placeholder (see PLACEHOLDER_COPYRIGHT_RE). Leading
+# comment or list punctuation is tolerated -- axios, for one, writes its line as
+# "# Copyright ...". The match is case-sensitive on purpose: the MIT text's
+# warranty disclaimer has a line starting "COPYRIGHT HOLDERS BE LIABLE".
 #
-# sed quits at the first match rather than piping into `head -n 1`. Under
+# awk exits at the first match rather than piping into `head -n 1`. Under
 # `set -o pipefail`, a downstream `head` that exits early can SIGPIPE the
 # upstream producer and fail the whole command substitution -- but only when the
 # producer has not already finished writing, which for small files is a race.
@@ -131,12 +155,18 @@ override_license() {
 first_copyright_line() {
   local file="$1"
   [[ -f "${file}" ]] || return 0
-  sed -n '
-    /^[[:space:]*#>-]*Copyright/ {
-      s/^[[:space:]*#>-]*\(Copyright[^\r]*\)/\1/
-      s/[[:space:]]*$//
-      p
-      q
+  awk -v placeholder="${PLACEHOLDER_COPYRIGHT_RE}" '
+    {
+      line = $0
+      sub(/\r.*$/, "", line)
+      if (line !~ /^[[:space:]*#>-]*Copyright/) next
+
+      sub(/^[[:space:]*#>-]*/, "", line)
+      sub(/[[:space:]]+$/, "", line)
+      if (tolower(line) ~ placeholder) next
+
+      print line
+      exit
     }
   ' "${file}"
 }
@@ -257,6 +287,9 @@ emit_inventory() {
     # would read as an oversight. Fall back to the manifest's declared authors,
     # labelled as authorship rather than as a copyright claim we invented.
     copyright="$(first_tag_value '<copyright>' '</copyright>' "${nuspec}")"
+    if [[ "${copyright,,}" =~ ${PLACEHOLDER_COPYRIGHT_RE} ]]; then
+      copyright=""
+    fi
     [[ -n "${copyright}" ]] || copyright="$(override_copyright "${id}")"
     if [[ -z "${copyright}" ]]; then
       local authors

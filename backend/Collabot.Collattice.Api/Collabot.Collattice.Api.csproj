@@ -12,6 +12,9 @@
          THIRD-PARTY-NOTICES.md together; the CI runtime-currency gate goes red
          when it falls behind the current .NET servicing release. -->
     <RuntimeFrameworkVersion>10.0.15</RuntimeFrameworkVersion>
+    <!-- Required by the [LibraryImport] source generator, whose generated code is unsafe, for the C
+         library calls in Persistence/UnixFolderWriters.cs. No hand-written code here is unsafe. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="DiffPlex" Version="1.9.0" />

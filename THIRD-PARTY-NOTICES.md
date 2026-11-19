@@ -239,7 +239,7 @@ Compiled into the JavaScript served from `wwwroot`.
 - `dagre-d3-es` 7.0.14 — MIT — Copyright (c) 2022-2024 Thibaut Lassalle, David Newell, Alois Klink, Sidharth Vinod and dagre-es contributors
 - `dayjs` 1.11.23 — MIT — Copyright (c) 2018-present, iamkun
 - `decode-named-character-reference` 1.3.0 — MIT — Copyright (c) Titus Wormer <tituswormer@gmail.com>
-- `dompurify` 3.4.17 — (MPL-2.0 OR Apache-2.0) — Copyright [yyyy] [name of copyright owner]
+- `dompurify` 3.4.17 — (MPL-2.0 OR Apache-2.0) — Copyright (c) Cure53 and other contributors
 - `emojilib` 2.4.0 — MIT — Copyright (c) 2014 Mu-An Chiou
 - `emoticon` 4.1.0 — MIT — Copyright (c) 2014 Titus Wormer <tituswormer@gmail.com>
 - `entities` 6.0.1 — BSD-2-Clause — Copyright (c) Felix Böhm

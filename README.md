@@ -211,7 +211,9 @@ The board lives in one SQLite file.
   the same machine doesn't open an installed board.
 - **If the location can't be used, the app stops at startup** with a message naming the
   path and the setting to change: a relative path, a folder it can't create or write to,
-  a user with no home folder, or a default folder that other users can write to.
+  a user with no home folder, or a default folder that other users can write to. It also
+  stops on a database a newer version of Collattice has already upgraded, and leaves that
+  database untouched. A refused start exits with code 1 and no stack trace.
 
 > **Fresh installs use Collattice-named locations; existing installs keep their
 > earlier names.** A fresh install places the install directory and database under the
@@ -239,7 +241,8 @@ The board lives in one SQLite file.
 | `Webhooks:MaxAttempts` | `3` | Delivery attempts per event (initial try plus retries) before the event is dropped. |
 | `Webhooks:RetryBackoffBase` | `00:00:02` | Wait before the first retry. Later retries grow it (roughly 4× per step) with a little jitter. |
 | `Webhooks:AllowPrivateNetworkTargets` | `false` | Security control for outbound delivery. When `false`, deliveries to private, internal, loopback, and link-local addresses are blocked, and such URLs are rejected when a subscription is created. Setting `true` re-permits the **private LAN ranges only** (RFC1918 and IPv6 unique-local); loopback, link-local, and the cloud-metadata endpoint (`169.254.169.254`) stay blocked regardless. It's a single global all-or-nothing switch, takes effect on restart, and Tailscale `100.x` targets work without it. **This is a breaking change when upgrading — see [Webhooks](#webhooks) below.** |
-| `Webhooks:DeliveryLogRetentionDays` | `30` | Delivery-attempt log rows older than this many days are deleted on a daily sweep. Set to `0` to keep the log forever. |
+| `Webhooks:DeliveryLogRetentionDays` | `30` | Delivery-attempt log rows older than this many days are deleted by a periodic sweep. Set to `0` to keep the log forever. |
+| `Webhooks:DeliveryLogSweepInterval` | `01:00:00` | How often that sweep runs. The first sweep runs one interval after startup, so an API restarted more often than this never sweeps. Set to `0` to turn the sweep off (the log is then kept forever, as with a retention of `0`). The longest interval is about 49.7 days; a longer value sweeps at that limit. |
 
 ### Webhooks
 
