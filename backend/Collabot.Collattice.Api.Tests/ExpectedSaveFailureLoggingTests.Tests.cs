@@ -485,11 +485,11 @@ public class ExpectedSaveFailureLoggingTests
                 // Added to the app's own registration rather than replacing it, which is the point.
                 services.AddSingleton<CardNumberRaceInterceptor>();
                 services.AddSingleton<ConcurrentDeleteRaceInterceptor>();
-                services.ConfigureDbContext<BoardDbContext>((serviceProvider, options) => options.AddInterceptors
-                (
-                    serviceProvider.GetRequiredService<CardNumberRaceInterceptor>(),
-                    serviceProvider.GetRequiredService<ConcurrentDeleteRaceInterceptor>()
-                ));
+                services.ConfigureDbContext<BoardDbContext>((serviceProvider, options) =>
+                {
+                    options.AddInterceptors(serviceProvider.GetRequiredService<CardNumberRaceInterceptor>());
+                    options.AddInterceptors(serviceProvider.GetRequiredService<ConcurrentDeleteRaceInterceptor>());
+                });
             });
         }
 

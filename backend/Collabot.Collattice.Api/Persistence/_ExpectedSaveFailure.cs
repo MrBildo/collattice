@@ -181,7 +181,12 @@ internal static class ExpectedSaveFailure
             return _outer?.Decide(failure) ?? (Verdict.Unexpected, null);
         }
 
-        private void Hold(DbUpdateException failure, (LogLevel Level, Action<LogLevel> Write)? commandError, (LogLevel Level, Action<LogLevel> Write) saveFailure)
+        private void Hold
+        (
+            DbUpdateException failure,
+            (LogLevel Level, Action<LogLevel> Write)? commandError,
+            (LogLevel Level, Action<LogLevel> Write) saveFailure
+        )
         {
             List<(LogLevel Level, Action<LogLevel> Write)> entries = commandError is { } error
                 ? [error, saveFailure]
