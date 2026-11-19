@@ -29,15 +29,12 @@ namespace Collabot.Collattice.Api.Tests;
 //   "### Bulk operations" that begins "Identify the cards with", and any parenthesis written right
 //   after "card refs" on a Params line. Agents read every one of these, so every definition of a
 //   term must name the same parameters, and each name in them is checked on every tool that uses it.
-// - Any backticked snake_case name anywhere in the guide must be a live tool, except the names the
-//   guide mentions only to say they don't exist.
+// - Any backticked snake_case name anywhere in the guide must be a live tool, except a name written
+//   right after "no " (as in "There is no `name`"), which must not be one.
 // Parameter names in the prose around a Params bullet are not read.
 public partial class IntegratorGuideToolDriftTests(CollatticeApiFactory factory) : IClassFixture<CollatticeApiFactory>
 {
     private const string _guidePath = "docs/collattice/SKILL.md";
-
-    // The guide names these to say they are deliberately not on the MCP surface.
-    private static readonly string[] _namedAbsentTools = ["bulk_delete_cards"];
 
     private const string _cardReference = "a card ref";
     private const string _cardReferences = "card refs";
@@ -204,15 +201,24 @@ public partial class IntegratorGuideToolDriftTests(CollatticeApiFactory factory)
     }
 
     [Fact]
-    public void GuideText_EverySnakeCaseName_IsALiveTool()
+    public void GuideText_EverySnakeCaseName_IsALiveToolUnlessSaidAbsent()
     {
         var live = LoadLiveTools();
         var guide = LoadGuide();
 
-        var findings = guide.SnakeCaseNames
-            .Where(entry => !live.ContainsKey(entry.Name) && !_namedAbsentTools.Contains(entry.Name, StringComparer.Ordinal))
-                .Select(entry => At(entry.Line, $"the guide names `{entry.Name}`, which is not a live tool."))
-                    .ToList();
+        var findings = new List<string>();
+
+        foreach (var (name, line, saidAbsent) in guide.SnakeCaseNames)
+        {
+            if (saidAbsent && live.ContainsKey(name))
+            {
+                findings.Add(At(line, $"the guide says there is no `{name}`, but it is a live tool."));
+            }
+            else if (!saidAbsent && !live.ContainsKey(name))
+            {
+                findings.Add(At(line, $"the guide names `{name}`, which is not a live tool."));
+            }
+        }
 
         findings.Count.ShouldBe(0, Explain(findings));
     }
@@ -253,7 +259,7 @@ public partial class IntegratorGuideToolDriftTests(CollatticeApiFactory factory)
 
         var tools = new List<GuideTool>();
         var tableTools = new List<(string Name, int Line)>();
-        var snakeCaseNames = new List<(string Name, int Line)>();
+        var snakeCaseNames = new List<(string Name, int Line, bool SaidAbsent)>();
         var definitions = new List<Definition>();
         var patternBBullets = new List<(string Text, int Line)>();
         int? statedToolCount = null;
@@ -267,7 +273,7 @@ public partial class IntegratorGuideToolDriftTests(CollatticeApiFactory factory)
 
             foreach (Match match in SnakeCaseName.Matches(line))
             {
-                snakeCaseNames.Add((match.Groups["name"].Value, lineNumber));
+                snakeCaseNames.Add((match.Groups["name"].Value, lineNumber, SaysThereIsNo(line, match.Index)));
             }
 
             if (line.StartsWith("## ", StringComparison.Ordinal))
@@ -398,6 +404,11 @@ public partial class IntegratorGuideToolDriftTests(CollatticeApiFactory factory)
 
         return text.ToString();
     }
+
+    // True when the backticked name at this column follows the word "no", as in "There is no `name`".
+    private static bool SaysThereIsNo(string line, int column) =>
+        line[..column].EndsWith("no ", StringComparison.OrdinalIgnoreCase)
+            && (column == 3 || !char.IsLetter(line[column - 4]));
 
     private static HashSet<string> Identifiers(string text) =>
         BacktickedIdentifier.Matches(text)
@@ -565,7 +576,7 @@ public partial class IntegratorGuideToolDriftTests(CollatticeApiFactory factory)
         string.Create
         (
             CultureInfo.InvariantCulture,
-            $"{_guidePath} disagrees with the live MCP tools in {findings.Count} place(s). Change the guide to match the tool (or the tool, if the guide is right):{Environment.NewLine}{string.Join(Environment.NewLine, findings)}"
+            $"{_guidePath} disagrees with the live MCP tools in {findings.Count} place(s). Change the guide to match the tool (or the tool, if the guide is right). Values, defaults and notes go inside parentheses, and a tool the guide says doesn't exist is written \"no `name`\":{Environment.NewLine}{string.Join(Environment.NewLine, findings)}"
         );
 
     [GeneratedRegex(@"^#### `(?<name>[a-z_]{1,64})`", RegexOptions.ExplicitCapture, 1000)]
@@ -616,7 +627,7 @@ public partial class IntegratorGuideToolDriftTests(CollatticeApiFactory factory)
         List<GuideTool> Tools,
         List<(string Name, int Line)> TableTools,
         int? StatedToolCount,
-        List<(string Name, int Line)> SnakeCaseNames,
+        List<(string Name, int Line, bool SaidAbsent)> SnakeCaseNames,
         List<Definition> Definitions
     );
 }
