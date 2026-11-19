@@ -26,9 +26,13 @@ namespace Collabot.Collattice.Api.Tests;
 // - "a card ref" and "card refs" stand for the parameters the guide defines them as, read from the
 //   guide's definitions: for "a card ref", the bullets under "### Pattern B" and the sentence in the
 //   Tool Reference that begins "Card ref" below means; for "card refs", the sentence under
-//   "### Bulk operations" that begins "Identify the cards with", and any parenthesis written right
-//   after "card refs" on a Params line. Agents read every one of these, so every definition of a
-//   term must name the same parameters, and each name in them is checked on every tool that uses it.
+//   "### Bulk operations" that begins "Identify the cards with". A parenthesis written right after
+//   "card ref" or "card refs" on a Params line is read whole, the parentheses inside it included:
+//   one that names parameters is a definition too, and one that names none, such as "(the source)",
+//   is a note. Agents read every one of these, so every definition of a term must name the same
+//   parameters, and each name in them is checked on every tool that uses it.
+// - A parenthesis on a Params line that doesn't close is a failure, because what follows it can't
+//   be read.
 // - Any backticked snake_case name anywhere in the guide must be a live tool, except a name written
 //   right after "no " (as in "There is no `name`"), which must not be one.
 // Parameter names in the prose around a Params bullet are not read.
@@ -124,6 +128,11 @@ public partial class IntegratorGuideToolDriftTests(CollatticeApiFactory factory)
                 findings.Add(At(tool.Line, $"the section for `{tool.Name}` has no \"- **Params:**\" bullet."));
 
                 continue;
+            }
+
+            if (!tool.ParenthesesClose)
+            {
+                findings.Add(At(tool.Line, $"`{tool.Name}`: a parenthesis on the Params bullet doesn't close, so what follows it can't be read."));
             }
 
             foreach (var parameter in tool.Parameters.Where(parameter => !liveParameters.Contains(parameter)).Order(StringComparer.Ordinal))
@@ -343,7 +352,7 @@ public partial class IntegratorGuideToolDriftTests(CollatticeApiFactory factory)
             definitions.Add(new Definition(_cardReference, _patternBSite, patternBBullets[0].Line, names));
         }
 
-        definitions.AddRange(tools.Where(tool => tool.InlineDefinition is not null).Select(tool => tool.InlineDefinition!));
+        definitions.AddRange(tools.SelectMany(tool => tool.InlineDefinitions));
 
         foreach (var tool in tools.Where(tool => tool.CardReference is not null && tool.Parameters is not null))
         {
@@ -461,7 +470,7 @@ public partial class IntegratorGuideToolDriftTests(CollatticeApiFactory factory)
 
         if (start < 0)
         {
-            return new GuideTool(name, headingIndex + 1, null, null, null, null);
+            return new GuideTool(name, headingIndex + 1, null, null, null, [], true);
         }
 
         var main = lines[start]["- **Params:**".Length..];
@@ -513,7 +522,8 @@ public partial class IntegratorGuideToolDriftTests(CollatticeApiFactory factory)
             parameters,
             sameAs.Success ? sameAs.Groups["name"].Value : null,
             CardReferenceTerm(outsideParentheses),
-            ReadInlineDefinition(name, main, start + 1)
+            ReadInlineDefinitions(name, main, start + 1),
+            EveryParenthesisCloses(main)
         );
     }
 
@@ -525,21 +535,73 @@ public partial class IntegratorGuideToolDriftTests(CollatticeApiFactory factory)
             _ => null,
         };
 
-    // A parenthesis right after "card ref" or "card refs" that names parameters defines the term
-    // where an agent reads it. One that names none, such as "(the source)", is a note.
-    private static Definition? ReadInlineDefinition(string tool, string paramsText, int line)
+    // Each parenthesis right after "card ref" or "card refs", read whole up to the parenthesis that
+    // closes it. One that names parameters defines the term where an agent reads it; one that names
+    // none, such as "(the source)", is a note. One that never closes is left to the Params check,
+    // which fails on it.
+    private static List<Definition> ReadInlineDefinitions(string tool, string paramsText, int line)
     {
-        var match = InlineCardReference.Match(paramsText);
+        var definitions = new List<Definition>();
 
-        if (!match.Success)
+        foreach (Match match in InlineCardReference.Matches(paramsText))
         {
-            return null;
+            var open = match.Index + match.Length - 1;
+            var close = ClosingParenthesis(paramsText, open);
+
+            if (close < 0)
+            {
+                continue;
+            }
+
+            var names = Identifiers(paramsText[(open + 1)..close]);
+            var term = match.Groups["term"].Value == _cardReferences ? _cardReferences : _cardReference;
+
+            if (names.Count > 0)
+            {
+                definitions.Add(new Definition(term, $"the Params line of `{tool}`", line, names));
+            }
         }
 
-        var names = Identifiers(match.Groups["body"].Value);
-        var term = match.Groups["term"].Value == _cardReferences ? _cardReferences : _cardReference;
+        return definitions;
+    }
 
-        return names.Count == 0 ? null : new Definition(term, $"the Params line of `{tool}`", line, names);
+    // The index of the parenthesis that closes the one at the given index, counting the parentheses
+    // inside it, or -1 when it never closes.
+    private static int ClosingParenthesis(string text, int open)
+    {
+        var depth = 0;
+
+        for (var index = open; index < text.Length; index++)
+        {
+            if (text[index] == '(')
+            {
+                depth++;
+            }
+            else if (text[index] == ')')
+            {
+                depth--;
+
+                if (depth == 0)
+                {
+                    return index;
+                }
+            }
+        }
+
+        return -1;
+    }
+
+    private static bool EveryParenthesisCloses(string text)
+    {
+        for (var open = text.IndexOf('(', StringComparison.Ordinal); open >= 0; open = text.IndexOf('(', open + 1))
+        {
+            if (ClosingParenthesis(text, open) < 0)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static string StripParenthesized(string text)
@@ -600,7 +662,7 @@ public partial class IntegratorGuideToolDriftTests(CollatticeApiFactory factory)
     [GeneratedRegex("same as `(?<name>[a-z_]{1,64})`", RegexOptions.ExplicitCapture, 1000)]
     private static partial Regex SameAsPattern { get; }
 
-    [GeneratedRegex(@"(?<term>card refs?) \((?<body>[^()]{1,500})\)", RegexOptions.ExplicitCapture, 1000)]
+    [GeneratedRegex(@"(?<term>card refs?) \(", RegexOptions.ExplicitCapture, 1000)]
     private static partial Regex InlineCardReference { get; }
 
     private static (string Term, string Site)[] RequiredDefinitionSites =>
@@ -619,7 +681,8 @@ public partial class IntegratorGuideToolDriftTests(CollatticeApiFactory factory)
         HashSet<string>? Parameters,
         string? SameAs,
         string? CardReference,
-        Definition? InlineDefinition
+        List<Definition> InlineDefinitions,
+        bool ParenthesesClose
     );
 
     private sealed record Guide
