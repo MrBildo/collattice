@@ -34,7 +34,7 @@ public class WebhookDispatchFailureTests
         CardName(request).ShouldBe("Survives two failed reads");
         factory.Faults.SubscriptionReads.ShouldBe(3);
 
-        var attempts = await ReadAttemptsAsync(factory);
+        var attempts = await WaitForAttemptRowsAsync(factory, 1);
         attempts.Count.ShouldBe(1);
         attempts[0].Status.ShouldBe(WebhookDeliveryStatus.Succeeded);
     }
