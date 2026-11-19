@@ -668,7 +668,7 @@ They run in two phases:
 
 #### `bulk_archive_cards`
 Archive N cards (each to its board's archive lane).
-- **Params:** `authKey`, card refs (`cardIds` **or** `cardNumbers` + board ref).
+- **Params:** `authKey`, card refs (`cardIds` **or** `cardNumbers` + `boardId`/`boardSlug`).
 
 #### `bulk_restore_cards`
 Restore N archived cards into **one** target lane. All cards must be on that lane's

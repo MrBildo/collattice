@@ -21,9 +21,14 @@ namespace Collabot.Collattice.Api.Tests;
 //   "## Connecting", and the "**N tools**" count beside that table.
 // - A tool's parameters are the backticked names on its "- **Params:**" bullet and the lines that
 //   continue it. On a nested bullet under it, only the first backticked name counts. Anything inside
-//   parentheses is read as a value, a default or a note, never as a parameter. "a card ref" and
-//   "card refs" stand for the names the guide defines them as, and "same as `tool`" copies that
-//   tool's parameters.
+//   parentheses is read as a value, a default or a note, never as a parameter. "same as `tool`"
+//   copies that tool's parameters.
+// - "a card ref" and "card refs" stand for the parameters the guide defines them as, read from the
+//   guide's definitions: for "a card ref", the bullets under "### Pattern B" and the sentence in the
+//   Tool Reference that begins "Card ref" below means; for "card refs", the sentence under
+//   "### Bulk operations" that begins "Identify the cards with", and any parenthesis written right
+//   after "card refs" on a Params line. Agents read every one of these, so every definition of a
+//   term must name the same parameters, and each name in them is checked on every tool that uses it.
 // - Any backticked snake_case name anywhere in the guide must be a live tool, except the names the
 //   guide mentions only to say they don't exist.
 // Parameter names in the prose around a Params bullet are not read.
@@ -34,11 +39,15 @@ public partial class IntegratorGuideToolDriftTests(CollatticeApiFactory factory)
     // The guide names these to say they are deliberately not on the MCP surface.
     private static readonly string[] _namedAbsentTools = ["bulk_delete_cards"];
 
-    // The guide's own definition: a cardId, or a cardNumber paired with boardId or boardSlug.
-    private static readonly string[] _cardReference = ["cardId", "cardNumber", "boardId", "boardSlug"];
+    private const string _cardReference = "a card ref";
+    private const string _cardReferences = "card refs";
 
-    // The bulk tools' form of the same: cardIds, or cardNumbers paired with boardId or boardSlug.
-    private static readonly string[] _cardReferences = ["cardIds", "cardNumbers", "boardId", "boardSlug"];
+    private const string _patternBSite = "the bullets under \"### Pattern B\"";
+    private const string _preambleSite = "the Tool Reference sentence beginning \"Card ref\" below means";
+    private const string _bulkSite = "the \"### Bulk operations\" introduction";
+
+    private const string _preambleAnchor = "\"Card ref\" below means";
+    private const string _bulkAnchor = "Identify the cards with";
 
     private readonly CollatticeApiFactory _factory = factory;
 
@@ -124,9 +133,44 @@ public partial class IntegratorGuideToolDriftTests(CollatticeApiFactory factory)
             {
                 findings.Add
                 (
-                    At(tool.Line, $"`{tool.Name}`: the guide documents parameter `{parameter}`, which the live tool doesn't have. Live parameters: {List(liveParameters)}.")
+                    At(tool.Line, $"`{tool.Name}`: the guide documents parameter `{parameter}`{Origin(guide, tool, parameter)}, which the live tool doesn't have. Live parameters: {List(liveParameters)}.")
                 );
             }
+        }
+
+        findings.Count.ShouldBe(0, Explain(findings));
+    }
+
+    [Fact]
+    public void CardReferenceDefinitions_EveryDefinition_NamesTheSameParameters()
+    {
+        var guide = LoadGuide();
+
+        var findings = new List<string>();
+
+        foreach (var (term, site) in RequiredDefinitionSites)
+        {
+            if (!guide.Definitions.Any(definition => definition.Term == term && definition.Site == site))
+            {
+                findings.Add($"the guide's definition of \"{term}\" in {site} wasn't found, so the names it gives can't be checked.");
+            }
+        }
+
+        foreach (var definition in guide.Definitions.Where(definition => definition.Names.Count == 0))
+        {
+            findings.Add(At(definition.Line, $"{definition.Site} defines \"{definition.Term}\" but names no parameter."));
+        }
+
+        foreach (var group in guide.Definitions.GroupBy(definition => definition.Term, StringComparer.Ordinal))
+        {
+            var first = group.First();
+
+            if (group.All(definition => definition.Names.SetEquals(first.Names)))
+            {
+                continue;
+            }
+
+            findings.Add($"\"{group.Key}\" is defined differently in different places, and agents read each one: {string.Join("; ", group.Select(Describe))}.");
         }
 
         findings.Count.ShouldBe(0, Explain(findings));
@@ -205,13 +249,16 @@ public partial class IntegratorGuideToolDriftTests(CollatticeApiFactory factory)
     private static Guide LoadGuide()
     {
         var path = Path.Combine(TestRepositoryHelper.FindRoot(), "docs", "collattice", "SKILL.md");
-        var lines = File.ReadAllText(path).Split('\n').Select(line => line.TrimEnd('\r')).ToArray();
+        var lines = File.ReadAllLines(path);
 
         var tools = new List<GuideTool>();
         var tableTools = new List<(string Name, int Line)>();
         var snakeCaseNames = new List<(string Name, int Line)>();
+        var definitions = new List<Definition>();
+        var patternBBullets = new List<(string Text, int Line)>();
         int? statedToolCount = null;
         var section = "";
+        var subsection = "";
 
         for (var index = 0; index < lines.Length; index++)
         {
@@ -226,8 +273,21 @@ public partial class IntegratorGuideToolDriftTests(CollatticeApiFactory factory)
             if (line.StartsWith("## ", StringComparison.Ordinal))
             {
                 section = line[3..].Trim();
+                subsection = "";
 
                 continue;
+            }
+
+            if (line.StartsWith("### ", StringComparison.Ordinal))
+            {
+                subsection = line[4..].Trim();
+
+                continue;
+            }
+
+            if (subsection.StartsWith("Pattern B", StringComparison.Ordinal) && line.StartsWith("- ", StringComparison.Ordinal))
+            {
+                patternBBullets.Add((Paragraph(lines, index, 0), lineNumber));
             }
 
             if (section == "Connecting")
@@ -267,12 +327,107 @@ public partial class IntegratorGuideToolDriftTests(CollatticeApiFactory factory)
 
         tools.ShouldNotBeEmpty($"{_guidePath} has no \"#### `tool`\" headings under \"## Tool Reference\".");
 
+        definitions.AddRange(AnchoredDefinitions(lines, _preambleAnchor, _cardReference, _preambleSite));
+        definitions.AddRange(AnchoredDefinitions(lines, _bulkAnchor, _cardReferences, _bulkSite));
+
+        if (patternBBullets.Count > 0)
+        {
+            var names = Identifiers(string.Join(' ', patternBBullets.Select(bullet => bullet.Text)));
+
+            definitions.Add(new Definition(_cardReference, _patternBSite, patternBBullets[0].Line, names));
+        }
+
+        definitions.AddRange(tools.Where(tool => tool.InlineDefinition is not null).Select(tool => tool.InlineDefinition!));
+
+        foreach (var tool in tools.Where(tool => tool.CardReference is not null && tool.Parameters is not null))
+        {
+            tool.Parameters!.UnionWith(DefinedNames(definitions, tool.CardReference!));
+        }
+
         var byName = tools.ToDictionary(tool => tool.Name, StringComparer.Ordinal);
 
         var resolved = tools.Select(tool => ResolveSameAs(tool, byName)).ToList();
 
-        return new Guide(resolved, tableTools, statedToolCount, snakeCaseNames);
+        return new Guide(resolved, tableTools, statedToolCount, snakeCaseNames, definitions);
     }
+
+    // Each place the anchor phrase appears, read as a definition up to the end of its paragraph. The
+    // phrase is searched for in the text with its line breaks joined, so a phrase wrapped across two
+    // lines is still found.
+    private static List<Definition> AnchoredDefinitions(string[] lines, string anchor, string term, string site)
+    {
+        var joined = new StringBuilder();
+        var starts = new int[lines.Length];
+
+        for (var index = 0; index < lines.Length; index++)
+        {
+            starts[index] = joined.Length;
+            joined.Append(lines[index].Trim()).Append(' ');
+        }
+
+        var text = joined.ToString();
+        var definitions = new List<Definition>();
+
+        for (var at = text.IndexOf(anchor, StringComparison.Ordinal); at >= 0; at = text.IndexOf(anchor, at + anchor.Length, StringComparison.Ordinal))
+        {
+            var index = Array.FindLastIndex(starts, start => start <= at);
+
+            definitions.Add(new Definition(term, site, index + 1, Identifiers(Paragraph(lines, index, at - starts[index]))));
+        }
+
+        return definitions;
+    }
+
+    // The text from a column of a trimmed line to the end of its paragraph: the next blank line,
+    // heading or list item.
+    private static string Paragraph(string[] lines, int index, int column)
+    {
+        var text = new StringBuilder(lines[index].Trim()[column..]);
+
+        for (var next = index + 1; next < lines.Length; next++)
+        {
+            var line = lines[next];
+
+            if (line.Trim().Length == 0 || line.StartsWith('#') || line.TrimStart().StartsWith("- ", StringComparison.Ordinal))
+            {
+                break;
+            }
+
+            text.Append(' ').Append(line.Trim());
+        }
+
+        return text.ToString();
+    }
+
+    private static HashSet<string> Identifiers(string text) =>
+        BacktickedIdentifier.Matches(text)
+            .Select(match => match.Groups["name"].Value)
+                .ToHashSet(StringComparer.Ordinal);
+
+    private static HashSet<string> DefinedNames(IEnumerable<Definition> definitions, string term) =>
+        definitions
+            .Where(definition => definition.Term == term)
+                .SelectMany(definition => definition.Names)
+                    .ToHashSet(StringComparer.Ordinal);
+
+    // Where a documented name came from, when it came from the definition of a card reference.
+    private static string Origin(Guide guide, GuideTool tool, string parameter)
+    {
+        if (tool.CardReference is null)
+        {
+            return "";
+        }
+
+        var lines = guide.Definitions
+            .Where(definition => definition.Term == tool.CardReference && definition.Names.Contains(parameter))
+                .Select(definition => definition.Line.ToString(CultureInfo.InvariantCulture))
+                    .ToList();
+
+        return lines.Count == 0 ? "" : $" (from \"{tool.CardReference}\", defined at line {string.Join(", ", lines)})";
+    }
+
+    private static string Describe(Definition definition) =>
+        string.Create(CultureInfo.InvariantCulture, $"line {definition.Line} ({definition.Site}) names {List(definition.Names)}");
 
     private static GuideTool ResolveSameAs(GuideTool tool, Dictionary<string, GuideTool> byName) =>
         tool.SameAs is not null && byName.TryGetValue(tool.SameAs, out var source)
@@ -295,7 +450,7 @@ public partial class IntegratorGuideToolDriftTests(CollatticeApiFactory factory)
 
         if (start < 0)
         {
-            return new GuideTool(name, headingIndex + 1, null, null);
+            return new GuideTool(name, headingIndex + 1, null, null, null, null);
         }
 
         var main = lines[start]["- **Params:**".Length..];
@@ -326,9 +481,7 @@ public partial class IntegratorGuideToolDriftTests(CollatticeApiFactory factory)
 
         var outsideParentheses = StripParenthesized(main);
 
-        var parameters = BacktickedIdentifier.Matches(outsideParentheses)
-            .Select(match => match.Groups["name"].Value)
-                .ToHashSet(StringComparer.Ordinal);
+        var parameters = Identifiers(outsideParentheses);
 
         foreach (var bullet in nested)
         {
@@ -340,18 +493,42 @@ public partial class IntegratorGuideToolDriftTests(CollatticeApiFactory factory)
             }
         }
 
-        if (outsideParentheses.Contains("card refs", StringComparison.Ordinal))
-        {
-            parameters.UnionWith(_cardReferences);
-        }
-        else if (outsideParentheses.Contains("card ref", StringComparison.Ordinal))
-        {
-            parameters.UnionWith(_cardReference);
-        }
-
         var sameAs = SameAsPattern.Match(outsideParentheses);
 
-        return new GuideTool(name, headingIndex + 1, parameters, sameAs.Success ? sameAs.Groups["name"].Value : null);
+        return new GuideTool
+        (
+            name,
+            headingIndex + 1,
+            parameters,
+            sameAs.Success ? sameAs.Groups["name"].Value : null,
+            CardReferenceTerm(outsideParentheses),
+            ReadInlineDefinition(name, main, start + 1)
+        );
+    }
+
+    private static string? CardReferenceTerm(string paramsText) =>
+        paramsText switch
+        {
+            _ when paramsText.Contains(_cardReferences, StringComparison.Ordinal) => _cardReferences,
+            _ when paramsText.Contains("card ref", StringComparison.Ordinal) => _cardReference,
+            _ => null,
+        };
+
+    // A parenthesis right after "card ref" or "card refs" that names parameters defines the term
+    // where an agent reads it. One that names none, such as "(the source)", is a note.
+    private static Definition? ReadInlineDefinition(string tool, string paramsText, int line)
+    {
+        var match = InlineCardReference.Match(paramsText);
+
+        if (!match.Success)
+        {
+            return null;
+        }
+
+        var names = Identifiers(match.Groups["body"].Value);
+        var term = match.Groups["term"].Value == _cardReferences ? _cardReferences : _cardReference;
+
+        return names.Count == 0 ? null : new Definition(term, $"the Params line of `{tool}`", line, names);
     }
 
     private static string StripParenthesized(string text)
@@ -412,13 +589,34 @@ public partial class IntegratorGuideToolDriftTests(CollatticeApiFactory factory)
     [GeneratedRegex("same as `(?<name>[a-z_]{1,64})`", RegexOptions.ExplicitCapture, 1000)]
     private static partial Regex SameAsPattern { get; }
 
-    private sealed record GuideTool(string Name, int Line, HashSet<string>? Parameters, string? SameAs);
+    [GeneratedRegex(@"(?<term>card refs?) \((?<body>[^()]{1,500})\)", RegexOptions.ExplicitCapture, 1000)]
+    private static partial Regex InlineCardReference { get; }
+
+    private static (string Term, string Site)[] RequiredDefinitionSites =>
+    [
+        (_cardReference, _patternBSite),
+        (_cardReference, _preambleSite),
+        (_cardReferences, _bulkSite),
+    ];
+
+    private sealed record Definition(string Term, string Site, int Line, HashSet<string> Names);
+
+    private sealed record GuideTool
+    (
+        string Name,
+        int Line,
+        HashSet<string>? Parameters,
+        string? SameAs,
+        string? CardReference,
+        Definition? InlineDefinition
+    );
 
     private sealed record Guide
     (
         List<GuideTool> Tools,
         List<(string Name, int Line)> TableTools,
         int? StatedToolCount,
-        List<(string Name, int Line)> SnakeCaseNames
+        List<(string Name, int Line)> SnakeCaseNames,
+        List<Definition> Definitions
     );
 }
