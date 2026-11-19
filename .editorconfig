@@ -385,3 +385,9 @@ dotnet_diagnostic.MA0102.severity = none
 # Suggestion resolutions — promoted to error (batch 2)
 dotnet_diagnostic.MA0159.severity = error
 dotnet_diagnostic.MA0031.severity = error
+
+# Settings files: an optional setting says so with a written default (= null, = false), which is
+# what CA1805 reports. That convention outranks the rule in settings files only; everywhere else a
+# member initialised to its type's default is still an error. The glob takes _Settings.cs too.
+[*Settings.cs]
+dotnet_diagnostic.CA1805.severity = none

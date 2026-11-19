@@ -2,7 +2,14 @@
 [*.cs]
 generated_code = true
 
-# SonarAnalyzer reports S4581 here though the folder is marked generated: two early migrations
-# spell a column default as the empty GUID parsed from a string. Migrations are history and are
-# never edited.
+# SonarAnalyzer does not read generated_code, so a Sonar rule set to error at the root reports in
+# this folder too. Migrations are history and are never edited, so the rules below are off here.
+# S4581 fires today: two early migrations spell a column default as the empty GUID parsed from a
+# string.
+dotnet_diagnostic.S108.severity = none
+dotnet_diagnostic.S125.severity = none
+dotnet_diagnostic.S927.severity = none
+dotnet_diagnostic.S3260.severity = none
+dotnet_diagnostic.S3928.severity = none
 dotnet_diagnostic.S4581.severity = none
+dotnet_diagnostic.S6580.severity = none
