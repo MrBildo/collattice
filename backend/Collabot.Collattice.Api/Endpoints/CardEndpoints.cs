@@ -555,9 +555,10 @@ internal static class CardEndpoints
             }
 
             // card.created fires here, on finalize — never at temp-insert (a temp card is
-            // invisible pre-creation limbo and may be cancelled). The cancel site emits
-            // nothing. (the temp-card create wrinkle.)
-            await WebhookEventFactory.PublishCardCreatedAsync(db, broadcaster, card, http.CurrentUser(), ct);
+            // invisible pre-creation limbo and may be cancelled) — followed by the attachments and
+            // comments the draft gathered, which raised no webhook event while it was a draft. The
+            // cancel site emits nothing.
+            await WebhookEventFactory.PublishDraftSavedAsync(db, broadcaster, card, http.CurrentUser(), ct);
             return Results.Ok(new { card.Id, card.Number });
         }).RequireAuth().HidesOthersDrafts();
 

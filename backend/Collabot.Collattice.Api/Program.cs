@@ -12,7 +12,7 @@ if (args.Contains("--version"))
         ?? Assembly.GetExecutingAssembly().GetName().Version?.ToString()
         ?? "0.0.0";
     Console.WriteLine($"Collattice {raw.Split('+')[0]}");
-    return;
+    return 0;
 }
 
 // Installer-invoked subcommand: merge a freshly-shipped appsettings.json against the operator's
@@ -92,7 +92,7 @@ builder.Services.AddCors(options =>
 if (!DatabaseLocation.TryResolve(builder.Configuration, out var database, out var databaseError)
     || !DatabaseLocation.TryPrepare(database, out var createdNewDatabase, out databaseError))
 {
-    throw new InvalidOperationException($"{databaseError}\n\n{DatabaseLocation.Remedy()}");
+    return StartupRefusal.Refuse(Console.Error, $"{databaseError}\n\n{DatabaseLocation.Remedy()}");
 }
 
 // EF Core logs through ExpectedSaveFailureLoggerFactory so a save failure the code declares it
@@ -254,6 +254,24 @@ else if (database.IsDefault)
         "Using the default database location {DatabasePath}, because no database path is configured. To use a different database, set 'ConnectionStrings:Board' in appsettings.json or the 'ConnectionStrings__Board' environment variable.",
         database.FilePath
     );
+}
+
+// A database a newer version has upgraded is refused before anything below backs it up or migrates it.
+string? newerDatabaseRefusal;
+
+await using (var scope = app.Services.CreateAsyncScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<BoardDbContext>();
+
+    newerDatabaseRefusal = await NewerDatabaseCheck.FindRefusalAsync(db, database, CancellationToken.None);
+}
+
+if (newerDatabaseRefusal is not null)
+{
+    // Disposing the app flushes the log lines already written above before the process ends.
+    await app.DisposeAsync();
+
+    return StartupRefusal.Refuse(Console.Error, newerDatabaseRefusal);
 }
 
 await using (var scope = app.Services.CreateAsyncScope())
@@ -510,3 +528,5 @@ app.Lifetime.ApplicationStopping.Register(() =>
     app.Services.GetRequiredService<BoardEventBroadcaster>().CompleteAll());
 
 await app.RunAsync();
+
+return 0;

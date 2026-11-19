@@ -269,15 +269,20 @@ A few things worth knowing so you don't misread a payload:
   `boardSlug === "research" && data.to.laneName === "Ready"` without a single lookup.
 
 - **The card is state *at the moment of the event*, not current state.** A
-  `card.created` event always shows `commentCount: 0`, `attachmentCount: 0`, and
+  `card.created` event usually shows `commentCount: 0`, `attachmentCount: 0`, and
   `latestComment: null` — the card was just born. That's correct, not a missing value.
-  Don't treat those zeros as a bug or a sign the payload is incomplete.
+  Don't treat those zeros as a bug or a sign the payload is incomplete. The exception is
+  a card composed as a draft (next point), which can arrive already carrying files or
+  comments.
 
 - **A draft card does not fire until it's finalized.** When someone composes a card
-  interactively, Collattice holds a temporary draft until they commit it. The
-  `card.created` event fires on finalize, not while the draft is being typed — so an
-  in-progress compose that gets cancelled never produces an event. You only ever see
-  real, committed cards.
+  interactively, Collattice holds a temporary draft until they commit it. Nothing about
+  the draft fires while it's being composed — not the card, and not the files attached to
+  it. On finalize, `card.created` fires first, then one `attachment.created` for each file
+  the draft still has and one `comment.created` for each comment, so every event you get
+  is about a card you've already heard of, under its real number. Files removed before
+  the save are never announced, and a compose that gets cancelled never produces an event.
+  You only ever see real, committed cards.
 
 - **Ignore fields you don't recognize.** Within `version: "1"`, new fields may be
   *added* to the payload over time. Your consumer must tolerate that — parse leniently
@@ -369,6 +374,13 @@ a black hole.
 > small scale (the card it was about is sitting right there on the board), so this is
 > an acceptable trade-off — but it's worth knowing before you build something that
 > assumes the log is exhaustive.
+>
+> The same goes for an event Collattice can't route because its own database is failing:
+> before sending, it reads which subscriptions want the event, and if that read fails it
+> keeps the event queued and tries again, with the same number of tries and backoff as a
+> failed delivery. If every try fails, the event is dropped with an error in the
+> application log. The read that failed is from the same database the delivery log is
+> kept in, so there's no row for it there either.
 
 ---
 
